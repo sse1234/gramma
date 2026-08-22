@@ -42,13 +42,31 @@ void main() {
     final first = SettingsController(prefs)
       ..setColumnWidth(460)
       ..setContrast(0.7)
+      ..setLineSpacing(2.0)
       ..setThemeMode(ThemeMode.dark);
     first.setMeasureEms(30, confirmed: true);
     final second = SettingsController(prefs);
     expect(second.columnWidth, 460);
     expect(second.contrast, 0.7);
+    expect(second.lineSpacing, 2.0);
     expect(second.themeMode, ThemeMode.dark);
     expect(second.measureEms, 30);
+  });
+
+  test('contrast reaches the extended soft end', () async {
+    final controller = await _controller();
+    controller.setContrast(0.0);
+    expect(controller.contrast, SettingsController.minContrast);
+    final softest = grammaTheme(Brightness.light, controller.contrast);
+    final mid = grammaTheme(Brightness.light, 0.5);
+    expect(
+      softest.scaffoldBackgroundColor.computeLuminance(),
+      lessThan(mid.scaffoldBackgroundColor.computeLuminance()),
+    );
+    expect(
+      softest.colorScheme.onSurface.computeLuminance(),
+      greaterThan(mid.colorScheme.onSurface.computeLuminance()),
+    );
   });
 
   test('true black keeps the background at pure black and dims only text',

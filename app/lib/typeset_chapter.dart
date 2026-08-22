@@ -9,11 +9,12 @@ import 'src/rust/api/typeset.dart';
 /// pixel width — so the font size follows the column and the words per line
 /// stay identical on every device.
 class TypesetChapter extends StatelessWidget {
-  const TypesetChapter({super.key, required this.layout});
+  const TypesetChapter({super.key, required this.layout, this.lineHeightEm = 1.5});
 
   final ChapterLayoutView layout;
 
-  static const double lineHeightEm = 1.5;
+  /// Line height as a multiple of the font size.
+  final double lineHeightEm;
 
   @override
   Widget build(BuildContext context) {

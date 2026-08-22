@@ -74,7 +74,13 @@ with `flutter_rust_bridge_codegen generate` (run inside `app/`).
 
 ## Status
 
-Walking skeleton: Cargo workspace + Flutter app wired via
-flutter_rust_bridge, with the canonical reference model (66-book canon,
-German/English alias resolution, OSIS output) as the first TDD-built
-core module. CI runs Rust and Flutter test suites on every push.
+Reading works end to end: OSIS import (CrossWire content) into SQLite,
+an endless-scrolling reader over the whole module, typesetting by our
+own Knuth–Plass engine (rustybuzz shaping, German hyphenation, bundled
+Gentium Book Plus), adaptive multi-column layout with horizontal
+scrolling at constant zoom, and settings (text size, line spacing,
+theme, contrast, protected measure). Layout is deterministic across
+platforms — same words per line everywhere — verified by golden tests
+on CI. See [docs/adr](docs/adr/) for the architecture record.
+
+Next: side-by-side synchronized views, versification schemes, sync.

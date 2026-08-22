@@ -11,6 +11,7 @@ class SettingsController extends ChangeNotifier {
   SettingsController(this._prefs) {
     _columnWidth = _prefs.getDouble('columnWidth') ?? defaultColumnWidth;
     _contrast = _prefs.getDouble('contrast') ?? defaultContrast;
+    _lineSpacing = _prefs.getDouble('lineSpacing') ?? defaultLineSpacing;
     _measureEms = _prefs.getInt('measureEms') ?? defaultMeasureEms;
     _trueBlackDark = _prefs.getBool('trueBlackDark') ?? false;
     _themeMode = switch (_prefs.getString('themeMode')) {
@@ -22,12 +23,15 @@ class SettingsController extends ChangeNotifier {
 
   static const defaultColumnWidth = 400.0;
   static const defaultContrast = 0.85;
+  static const minContrast = 0.3;
   static const defaultMeasureEms = 26;
+  static const defaultLineSpacing = 1.5;
 
   final SharedPreferences _prefs;
 
   double _columnWidth = defaultColumnWidth;
   double _contrast = defaultContrast;
+  double _lineSpacing = defaultLineSpacing;
   int _measureEms = defaultMeasureEms;
   ThemeMode _themeMode = ThemeMode.system;
   bool _trueBlackDark = false;
@@ -35,8 +39,11 @@ class SettingsController extends ChangeNotifier {
   /// Column width in logical pixels — the zoom level.
   double get columnWidth => _columnWidth;
 
-  /// Text/background contrast, 0.5 (soft) … 1.0 (maximum).
+  /// Text/background contrast, [minContrast] (soft) … 1.0 (maximum).
   double get contrast => _contrast;
+
+  /// Line height as a multiple of the font size.
+  double get lineSpacing => _lineSpacing;
 
   /// Line width in ems; the protected measure.
   int get measureEms => _measureEms;
@@ -53,8 +60,14 @@ class SettingsController extends ChangeNotifier {
   }
 
   void setContrast(double value) {
-    _contrast = value.clamp(0.5, 1.0);
+    _contrast = value.clamp(minContrast, 1.0);
     _prefs.setDouble('contrast', _contrast);
+    notifyListeners();
+  }
+
+  void setLineSpacing(double value) {
+    _lineSpacing = value.clamp(1.2, 2.6);
+    _prefs.setDouble('lineSpacing', _lineSpacing);
     notifyListeners();
   }
 
@@ -109,17 +122,19 @@ class SettingsScope extends InheritedNotifier<SettingsController> {
 /// and dark rooms) and the contrast setting dims only the text.
 ThemeData grammaTheme(Brightness brightness, double contrast,
     {bool trueBlack = false}) {
-  final t = ((contrast - 0.5) / 0.5).clamp(0.0, 1.0);
+  final t = ((contrast - SettingsController.minContrast) /
+          (1.0 - SettingsController.minContrast))
+      .clamp(0.0, 1.0);
   final Color background;
   final Color ink;
   if (brightness == Brightness.light) {
-    background = Color.lerp(const Color(0xFFF5EFE3), Colors.white, t)!;
-    ink = Color.lerp(const Color(0xFF4A453D), const Color(0xFF14120F), t)!;
+    background = Color.lerp(const Color(0xFFEFE8D7), Colors.white, t)!;
+    ink = Color.lerp(const Color(0xFF5C554A), const Color(0xFF14120F), t)!;
   } else {
     background = trueBlack
         ? Colors.black
-        : Color.lerp(const Color(0xFF26262B), const Color(0xFF0D0D0F), t)!;
-    ink = Color.lerp(const Color(0xFFB8B5AD), const Color(0xFFF2EFE8), t)!;
+        : Color.lerp(const Color(0xFF2E2E33), const Color(0xFF0D0D0F), t)!;
+    ink = Color.lerp(const Color(0xFF95928A), const Color(0xFFF2EFE8), t)!;
   }
   final base = ThemeData(
     brightness: brightness,

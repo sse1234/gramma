@@ -34,6 +34,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   /// the identity of the layout — changing it invalidates every line count
   /// and layout.
   double _columnWidth = SettingsController.defaultColumnWidth;
+  double _lineSpacing = SettingsController.defaultLineSpacing;
   int? _measure;
 
   ModuleView? _active;
@@ -72,6 +73,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     super.didChangeDependencies();
     final settings = SettingsScope.of(context);
     _columnWidth = settings.columnWidth;
+    _lineSpacing = settings.lineSpacing;
     final measure = settings.measureEms;
     if (_measure == null) {
       _measure = measure;
@@ -386,7 +388,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final sidePadding = ((constraints.maxWidth - contentWidth) / 2)
         .clamp(0.0, double.infinity);
     final fontSize = columnWidth / _measure!;
-    final lineHeight = fontSize * TypesetChapter.lineHeightEm;
+    final lineHeight = fontSize * _lineSpacing;
     var linesPerColumn = (constraints.maxHeight / lineHeight).floor();
     if (linesPerColumn < 1) linesPerColumn = 1;
     final plan = _linePlan(linesPerColumn: linesPerColumn)!;
@@ -516,7 +518,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   /// length and roughly 2.1 characters per em of measure.
   double _estimatedHeight(int index, double columnWidth) {
     final fontSize = columnWidth / _measure!;
-    final lineHeight = fontSize * TypesetChapter.lineHeightEm;
+    final lineHeight = fontSize * _lineSpacing;
     final charsPerLine = _measure! * 2.1;
     final lines = (_spine[index].textLength / charsPerLine).ceil() + 1;
     return lines * lineHeight;
@@ -543,7 +545,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
           ),
           if (layout != null)
-            TypesetChapter(layout: layout)
+            TypesetChapter(layout: layout, lineHeightEm: _lineSpacing)
           else
             LayoutBuilder(
               builder: (context, constraints) => SizedBox(
