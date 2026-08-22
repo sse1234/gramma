@@ -36,6 +36,8 @@ pub struct VerseView {
 
 pub struct NoteView {
     pub verse: u16,
+    /// Marker letter matching the inline marker in the text ("a", "b", …).
+    pub label: String,
     pub text: String,
 }
 
@@ -136,6 +138,7 @@ pub fn chapter_notes(
             .into_iter()
             .map(|n| NoteView {
                 verse: n.verse,
+                label: ((b'a' + ((n.seq - 1) as u8).min(25)) as char).to_string(),
                 text: n.text,
             })
             .collect()

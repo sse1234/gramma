@@ -38,6 +38,8 @@ pub struct Verse {
 pub struct Note {
     pub verse: u16,
     pub seq: u16,
+    /// Byte offset into the verse's normalized text where the note anchors.
+    pub offset: u32,
     pub text: String,
 }
 
@@ -71,6 +73,7 @@ CREATE TABLE IF NOT EXISTS note(
   chapter INTEGER NOT NULL,
   verse INTEGER NOT NULL,
   seq INTEGER NOT NULL,
+  offset INTEGER NOT NULL DEFAULT 0,
   text TEXT NOT NULL,
   PRIMARY KEY(module_id, book, chapter, verse, seq)
 ) WITHOUT ROWID;
@@ -92,6 +95,11 @@ impl Library {
     fn init(conn: Connection) -> Result<Self, LibraryError> {
         conn.pragma_update(None, "foreign_keys", true)?;
         conn.execute_batch(SCHEMA)?;
+        // Migration: earlier note tables lack the offset column.
+        let _ = conn.execute(
+            "ALTER TABLE note ADD COLUMN offset INTEGER NOT NULL DEFAULT 0",
+            [],
+        );
         Ok(Library { conn })
     }
 
@@ -130,8 +138,8 @@ impl Library {
         }
         {
             let mut insert = tx.prepare(
-                "INSERT OR REPLACE INTO note(module_id, book, chapter, verse, seq, text)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                "INSERT OR REPLACE INTO note(module_id, book, chapter, verse, seq, offset, text)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             )?;
             for n in &doc.notes {
                 insert.execute((
@@ -140,6 +148,7 @@ impl Library {
                     n.chapter,
                     n.verse,
                     n.seq,
+                    n.offset,
                     &n.text,
                 ))?;
             }
@@ -208,7 +217,7 @@ impl Library {
     ) -> Result<Vec<Note>, LibraryError> {
         let module_id = self.module_id(module_code)?;
         let mut stmt = self.conn.prepare(
-            "SELECT verse, seq, text FROM note
+            "SELECT verse, seq, offset, text FROM note
              WHERE module_id = ?1 AND book = ?2 AND chapter = ?3
              ORDER BY verse, seq",
         )?;
@@ -217,7 +226,8 @@ impl Library {
                 Ok(Note {
                     verse: row.get(0)?,
                     seq: row.get(1)?,
-                    text: row.get(2)?,
+                    offset: row.get(2)?,
+                    text: row.get(3)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;

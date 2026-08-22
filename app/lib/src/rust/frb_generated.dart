@@ -702,11 +702,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   NoteView dco_decode_note_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
     return NoteView(
       verse: dco_decode_u_16(arr[0]),
-      text: dco_decode_String(arr[1]),
+      label: dco_decode_String(arr[1]),
+      text: dco_decode_String(arr[2]),
     );
   }
 
@@ -732,13 +733,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   RunView dco_decode_run_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return RunView(
       text: dco_decode_String(arr[0]),
       x: dco_decode_f_64(arr[1]),
       width: dco_decode_f_64(arr[2]),
       verseNumber: dco_decode_bool(arr[3]),
+      noteMarker: dco_decode_bool(arr[4]),
+      verse: dco_decode_u_16(arr[5]),
     );
   }
 
@@ -975,8 +978,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   NoteView sse_decode_note_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_verse = sse_decode_u_16(deserializer);
+    var var_label = sse_decode_String(deserializer);
     var var_text = sse_decode_String(deserializer);
-    return NoteView(verse: var_verse, text: var_text);
+    return NoteView(verse: var_verse, label: var_label, text: var_text);
   }
 
   @protected
@@ -1005,11 +1009,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_x = sse_decode_f_64(deserializer);
     var var_width = sse_decode_f_64(deserializer);
     var var_verseNumber = sse_decode_bool(deserializer);
+    var var_noteMarker = sse_decode_bool(deserializer);
+    var var_verse = sse_decode_u_16(deserializer);
     return RunView(
       text: var_text,
       x: var_x,
       width: var_width,
       verseNumber: var_verseNumber,
+      noteMarker: var_noteMarker,
+      verse: var_verse,
     );
   }
 
@@ -1236,6 +1244,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_note_view(NoteView self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_16(self.verse, serializer);
+    sse_encode_String(self.label, serializer);
     sse_encode_String(self.text, serializer);
   }
 
@@ -1263,6 +1272,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_64(self.x, serializer);
     sse_encode_f_64(self.width, serializer);
     sse_encode_bool(self.verseNumber, serializer);
+    sse_encode_bool(self.noteMarker, serializer);
+    sse_encode_u_16(self.verse, serializer);
   }
 
   @protected

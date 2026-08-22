@@ -256,6 +256,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Footnotes view'));
     await _settle(tester, () => _found(find.textContaining('Anmerkung Alpha')));
+    expect(
+      find.textContaining('1a'),
+      findsWidgets,
+      reason: 'notes carry marker letters matching the inline markers',
+    );
     await _enter(tester, '1. Mose 3');
     await _settle(tester, () => _found(find.textContaining('Anmerkung Beta')));
     expect(find.textContaining('Anmerkung Alpha'), findsNothing);
@@ -357,5 +362,12 @@ void main() {
     await tester.sendEventToBinding(pointer.scroll(const Offset(0, -50)));
     await tester.pumpAndSettle();
     expect(list.controller!.offset, moreOrLessEquals(stride, epsilon: 1));
+    // A single large accelerated delta still steps exactly one column.
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, 300)));
+    await tester.pumpAndSettle();
+    expect(
+      list.controller!.offset,
+      moreOrLessEquals(2 * stride, epsilon: 1),
+    );
   });
 }

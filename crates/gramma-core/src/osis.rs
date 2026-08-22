@@ -53,6 +53,8 @@ pub struct OsisNote {
     pub chapter: u16,
     pub verse: u16,
     pub seq: u16,
+    /// Byte offset into the verse's normalized text where the note anchors.
+    pub offset: u32,
     pub text: String,
 }
 
@@ -68,6 +70,7 @@ pub fn parse(source: impl BufRead) -> Result<OsisDocument, OsisError> {
     let mut skip_depth: u32 = 0;
     let mut note_depth: u32 = 0;
     let mut note_text = String::new();
+    let mut note_offset: u32 = 0;
     let mut current: Option<(BookId, u16, u16)> = None;
     let mut text = String::new();
     let mut verses: Vec<OsisVerse> = Vec::new();
@@ -85,7 +88,12 @@ pub fn parse(source: impl BufRead) -> Result<OsisDocument, OsisError> {
                 b"header" => in_header = true,
                 b"title" if in_header => capture_work_title = title.is_empty(),
                 b"title" => skip_depth += 1,
-                b"note" => note_depth += 1,
+                b"note" => {
+                    if note_depth == 0 {
+                        note_offset = normalize(&text).len() as u32;
+                    }
+                    note_depth += 1;
+                }
                 b"verse" => {
                     if let Some(id) = attr(&e, b"osisID") {
                         current = parse_osis_id(&id);
@@ -113,7 +121,7 @@ pub fn parse(source: impl BufRead) -> Result<OsisDocument, OsisError> {
                 b"note" => {
                     note_depth = note_depth.saturating_sub(1);
                     if note_depth == 0 {
-                        commit_note(&current, &mut note_text, &mut notes);
+                        commit_note(&current, &mut note_text, note_offset, &mut notes);
                     }
                 }
                 b"verse" => commit(&mut current, &mut text, &mut verses),
@@ -154,6 +162,7 @@ pub fn parse(source: impl BufRead) -> Result<OsisDocument, OsisError> {
 fn commit_note(
     current: &Option<(BookId, u16, u16)>,
     note_text: &mut String,
+    offset: u32,
     notes: &mut Vec<OsisNote>,
 ) {
     let text = normalize(note_text);
@@ -174,6 +183,7 @@ fn commit_note(
         chapter,
         verse,
         seq,
+        offset,
         text,
     });
 }

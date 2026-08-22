@@ -103,16 +103,29 @@ class RunView {
   final double width;
   final bool verseNumber;
 
+  /// An inline lettered footnote marker.
+  final bool noteMarker;
+
+  /// The verse this run belongs to.
+  final int verse;
+
   const RunView({
     required this.text,
     required this.x,
     required this.width,
     required this.verseNumber,
+    required this.noteMarker,
+    required this.verse,
   });
 
   @override
   int get hashCode =>
-      text.hashCode ^ x.hashCode ^ width.hashCode ^ verseNumber.hashCode;
+      text.hashCode ^
+      x.hashCode ^
+      width.hashCode ^
+      verseNumber.hashCode ^
+      noteMarker.hashCode ^
+      verse.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -122,5 +135,7 @@ class RunView {
           text == other.text &&
           x == other.x &&
           width == other.width &&
-          verseNumber == other.verseNumber;
+          verseNumber == other.verseNumber &&
+          noteMarker == other.noteMarker &&
+          verse == other.verse;
 }

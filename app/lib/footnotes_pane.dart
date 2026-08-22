@@ -59,7 +59,7 @@ class FootnotesPane extends StatelessWidget {
       );
     }
     final parts = anchor.split('.');
-    final chapter = parts.length == 2 ? int.tryParse(parts[1]) : null;
+    final chapter = parts.length >= 2 ? int.tryParse(parts[1]) : null;
     if (chapter == null) {
       return const SizedBox.shrink();
     }
@@ -95,7 +95,10 @@ class FootnotesPane extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Text.rich(
             TextSpan(children: [
-              TextSpan(text: '${note.verse}  ', style: numberStyle),
+              TextSpan(
+                text: '${note.verse}${note.label}  ',
+                style: numberStyle,
+              ),
               TextSpan(text: note.text, style: textStyle),
             ]),
           ),

@@ -72,13 +72,18 @@ class _ChapterPainter extends CustomPainter {
       fontSize: fontSize * layout.numberScale,
       color: numberColor,
     );
+    final markerStyle = numberStyle.copyWith(fontStyle: FontStyle.italic);
     for (var i = 0; i < layout.lines.length; i++) {
       final y = i * lineHeight;
       for (final run in layout.lines[i].runs) {
         final painter = TextPainter(
           text: TextSpan(
             text: run.text,
-            style: run.verseNumber ? numberStyle : textStyle,
+            style: run.verseNumber
+                ? numberStyle
+                : run.noteMarker
+                    ? markerStyle
+                    : textStyle,
           ),
           textDirection: TextDirection.ltr,
         )..layout();

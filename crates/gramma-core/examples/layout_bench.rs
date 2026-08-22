@@ -30,7 +30,7 @@ fn main() {
         let verses = library.chapter(&module, c.book, c.chapter).unwrap();
         let refs: Vec<(u16, &str)> = verses.iter().map(|v| (v.verse, v.text.as_str())).collect();
         let t = std::time::Instant::now();
-        let laid = layout_verses(&refs, &measure, Some(&german), line_width);
+        let laid = layout_verses(&refs, &[], &measure, Some(&german), line_width);
         let dt = t.elapsed();
         if dt > worst.0 {
             worst = (dt, format!("{} {}", c.book.info().osis, c.chapter));

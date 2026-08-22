@@ -61,6 +61,12 @@ class _ReaderPaneState extends State<ReaderPane> {
   int _anchorLine = 0;
   bool _suppressEmit = false;
 
+  /// First visible verse of the top chapter (verse-level link granularity);
+  /// null when unknown (layout not loaded yet).
+  int? _visibleVerse;
+  double _vViewportH = 0;
+  double _vLineHeightPx = 20;
+
   final ItemScrollController _vScroll = ItemScrollController();
   final ItemPositionsListener _vPositions = ItemPositionsListener.create();
   int _topChapter = 0;
@@ -131,12 +137,54 @@ class _ReaderPaneState extends State<ReaderPane> {
   String _osisOf(int chapter) =>
       '${_spine[chapter].bookOsis}.${_spine[chapter].chapter}';
 
+  String _anchorString() {
+    if (_topChapter >= _spine.length) return '';
+    final base = _osisOf(_topChapter);
+    final verse = _visibleVerse;
+    return verse == null ? base : '$base.$verse';
+  }
+
+  void _emitPosition() {
+    if (_suppressEmit || _topChapter >= _spine.length) return;
+    widget.onAnchor(_anchorString());
+  }
+
   int _indexOfOsis(String osis) {
     final parts = osis.split('.');
-    if (parts.length != 2) return -1;
+    if (parts.length < 2) return -1;
     final chapter = int.tryParse(parts[1]);
     return _spine.indexWhere(
         (c) => c.bookOsis == parts[0] && c.chapter == chapter);
+  }
+
+  int? _verseOfOsis(String osis) {
+    final parts = osis.split('.');
+    return parts.length >= 3 ? int.tryParse(parts[2]) : null;
+  }
+
+  /// First line index (within the chapter's layout) at or after which
+  /// [verse] appears; null while the layout is not loaded.
+  int? _lineOfVerse(int chapterIndex, int verse) {
+    final layout = _layouts[chapterIndex];
+    if (layout == null) {
+      _requestLayout(chapterIndex);
+      return null;
+    }
+    for (var i = 0; i < layout.lines.length; i++) {
+      if (layout.lines[i].runs.any((r) => r.verse >= verse)) return i;
+    }
+    return null;
+  }
+
+  /// Verse shown at a chapter-local text line, from the loaded layout.
+  int? _verseAtLine(int chapterIndex, int line) {
+    final layout = _layouts[chapterIndex];
+    if (layout == null || layout.lines.isEmpty) return null;
+    final index = line.clamp(0, layout.lines.length - 1);
+    for (final run in layout.lines[index].runs) {
+      return run.verse;
+    }
+    return null;
   }
 
   ColumnPlan? _linePlan({int linesPerColumn = 1}) {
@@ -181,8 +229,8 @@ class _ReaderPaneState extends State<ReaderPane> {
         _lineCounts = counts.map((c) => c.toInt()).toList();
         _restoreAnchor();
       });
-      if (_spine.isNotEmpty && !_suppressEmit) {
-        widget.onAnchor(_osisOf(_topChapter));
+      if (_spine.isNotEmpty) {
+        _emitPosition();
       }
     });
   }
@@ -247,25 +295,43 @@ class _ReaderPaneState extends State<ReaderPane> {
     }).whenComplete(() => _loading.remove(index));
   }
 
-  void _setTopChapter(int top) {
-    if (top == _topChapter) return;
-    setState(() => _topChapter = top);
-    if (!_suppressEmit && top < _spine.length) {
-      widget.onAnchor(_osisOf(top));
-    }
-  }
-
   void _onVerticalPositions() {
     final positions = _vPositions.itemPositions.value;
     if (positions.isEmpty) return;
-    final top = positions.where((p) => p.itemTrailingEdge > 0).fold<int?>(
-        null, (min, p) => min == null || p.index < min ? p.index : min);
-    if (top != null) {
-      final plan = _linePlan();
-      if (plan != null && top < _spine.length) {
-        _anchorLine = plan.blockStart(top);
+    ItemPosition? topPosition;
+    for (final p in positions) {
+      if (p.itemTrailingEdge > 0 &&
+          (topPosition == null || p.index < topPosition.index)) {
+        topPosition = p;
       }
-      _setTopChapter(top);
+    }
+    if (topPosition == null) return;
+    final top = topPosition.index;
+    final plan = _linePlan();
+    if (plan != null && top < _spine.length) {
+      _anchorLine = plan.blockStart(top);
+    }
+    // Estimate the first visible text line of the top chapter from how far
+    // it has scrolled past the viewport top.
+    int? verse;
+    final counts = _lineCounts;
+    if (counts != null && top < counts.length) {
+      final span = topPosition.itemTrailingEdge - topPosition.itemLeadingEdge;
+      if (span > 0 && topPosition.itemLeadingEdge < 0) {
+        final scrolled = -topPosition.itemLeadingEdge / span;
+        final line =
+            (scrolled * (counts[top] + _headingLines)).floor() - _headingLines;
+        verse = line > 0 ? _verseAtLine(top, line) : _verseAtLine(top, 0);
+      } else {
+        verse = _verseAtLine(top, 0);
+      }
+    }
+    if (top != _topChapter || verse != _visibleVerse) {
+      setState(() {
+        _topChapter = top;
+        _visibleVerse = verse;
+      });
+      _emitPosition();
     }
   }
 
@@ -276,35 +342,65 @@ class _ReaderPaneState extends State<ReaderPane> {
     final column =
         (controller.offset / _hStride).floor().clamp(0, plan.columnCount - 1);
     final line = plan.firstLineOfColumn(column);
-    if (line != _anchorLine) {
-      _anchorLine = line;
-      _setTopChapter(plan.chapterOfLine(line.clamp(0, plan.totalLines - 1)));
+    if (line == _anchorLine) return;
+    _anchorLine = line;
+    final top = plan.chapterOfLine(line.clamp(0, plan.totalLines - 1));
+    final local = line - plan.blockStart(top) - _headingLines;
+    final verse = local >= 0 ? _verseAtLine(top, local) : _verseAtLine(top, 0);
+    if (top != _topChapter || verse != _visibleVerse) {
+      setState(() {
+        _topChapter = top;
+        _visibleVerse = verse;
+      });
+      _emitPosition();
     }
   }
 
   void _applyRemoteAnchor(String osis) {
     final index = _indexOfOsis(osis);
-    if (index < 0 || index == _topChapter) return;
+    if (index < 0) return;
+    final verse = _verseOfOsis(osis);
+    if (index == _topChapter && (verse == null || verse == _visibleVerse)) {
+      return;
+    }
     _suppressEmit = true;
-    _jumpToChapter(index);
+    _jumpToChapter(index, verse: verse);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _suppressEmit = false;
     });
   }
 
-  void _jumpToChapter(int index) {
+  void _jumpToChapter(int index, {int? verse}) {
+    final targetLine = verse == null ? null : _lineOfVerse(index, verse);
     final plan = _hPlan;
     if (plan != null && _hController != null && _hController!.hasClients) {
-      final line = plan.blockStart(index);
+      var line = plan.blockStart(index);
+      if (targetLine != null) {
+        line += _headingLines + targetLine;
+      }
       _anchorLine = line;
       _hController!.jumpTo(
         (plan.columnOfLine(line) * _hStride)
             .clamp(0.0, _hController!.position.maxScrollExtent),
       );
     } else if (_vScroll.isAttached) {
-      _vScroll.jumpTo(index: index);
+      if (targetLine != null && _vViewportH > 0) {
+        // Position the verse's line near the viewport top: negative
+        // alignment scrolls the chapter's leading edge above the viewport.
+        const headingPx = 44.0;
+        final offset = headingPx + targetLine * _vLineHeightPx;
+        _vScroll.jumpTo(index: index, alignment: -offset / _vViewportH);
+      } else {
+        _vScroll.jumpTo(index: index);
+      }
     }
-    _setTopChapter(index);
+    if (index != _topChapter || verse != _visibleVerse) {
+      setState(() {
+        _topChapter = index;
+        _visibleVerse = verse;
+      });
+      _emitPosition();
+    }
   }
 
   void _onInput(String input) {
@@ -321,7 +417,8 @@ class _ReaderPaneState extends State<ReaderPane> {
           () => _jumpMiss = 'Not in this module: ${parts[0]} ${parts[1]}');
       return;
     }
-    _jumpToChapter(index);
+    _jumpToChapter(index,
+        verse: parts.length >= 3 ? int.tryParse(parts[2]) : null);
   }
 
   @override
@@ -391,6 +488,12 @@ class _ReaderPaneState extends State<ReaderPane> {
                 )
               : LayoutBuilder(
                   builder: (context, constraints) {
+                    _vViewportH = constraints.maxHeight;
+                    final effWidth = constraints.maxWidth < _columnWidth
+                        ? constraints.maxWidth
+                        : _columnWidth;
+                    _vLineHeightPx =
+                        effWidth / (_measure ?? 26) * _lineSpacing;
                     final columns = _columnsFor(constraints.maxWidth);
                     if (columns >= 2 && _linePlan() != null) {
                       return _horizontalReader(constraints, columns);
@@ -496,9 +599,11 @@ class _ReaderPaneState extends State<ReaderPane> {
     }
     _lastWheel = now;
     _wheelAccum += delta;
-    final steps = _wheelAccum ~/ _wheelTick;
-    if (steps == 0) return;
-    _wheelAccum -= steps * _wheelTick;
+    if (_wheelAccum.abs() < _wheelTick) return;
+    // One column per wheel motion, however large the accelerated delta:
+    // a notch is a discrete step, not a distance.
+    final steps = _wheelAccum.sign.toInt();
+    _wheelAccum = 0;
     final base = _wheelTarget ??
         ColumnSnapPhysics.snapTarget(
           position.pixels,

@@ -138,12 +138,19 @@ class ModuleView {
 
 class NoteView {
   final int verse;
+
+  /// Marker letter matching the inline marker in the text ("a", "b", …).
+  final String label;
   final String text;
 
-  const NoteView({required this.verse, required this.text});
+  const NoteView({
+    required this.verse,
+    required this.label,
+    required this.text,
+  });
 
   @override
-  int get hashCode => verse.hashCode ^ text.hashCode;
+  int get hashCode => verse.hashCode ^ label.hashCode ^ text.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -151,6 +158,7 @@ class NoteView {
       other is NoteView &&
           runtimeType == other.runtimeType &&
           verse == other.verse &&
+          label == other.label &&
           text == other.text;
 }
 

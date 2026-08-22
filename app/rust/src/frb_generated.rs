@@ -773,9 +773,11 @@ impl SseDecode for crate::api::library::NoteView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_verse = <u16>::sse_decode(deserializer);
+        let mut var_label = <String>::sse_decode(deserializer);
         let mut var_text = <String>::sse_decode(deserializer);
         return crate::api::library::NoteView {
             verse: var_verse,
+            label: var_label,
             text: var_text,
         };
     }
@@ -811,11 +813,15 @@ impl SseDecode for crate::api::typeset::RunView {
         let mut var_x = <f64>::sse_decode(deserializer);
         let mut var_width = <f64>::sse_decode(deserializer);
         let mut var_verseNumber = <bool>::sse_decode(deserializer);
+        let mut var_noteMarker = <bool>::sse_decode(deserializer);
+        let mut var_verse = <u16>::sse_decode(deserializer);
         return crate::api::typeset::RunView {
             text: var_text,
             x: var_x,
             width: var_width,
             verse_number: var_verseNumber,
+            note_marker: var_noteMarker,
+            verse: var_verse,
         };
     }
 }
@@ -1018,6 +1024,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::library::NoteView {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.verse.into_into_dart().into_dart(),
+            self.label.into_into_dart().into_dart(),
             self.text.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -1060,6 +1067,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::typeset::RunView {
             self.x.into_into_dart().into_dart(),
             self.width.into_into_dart().into_dart(),
             self.verse_number.into_into_dart().into_dart(),
+            self.note_marker.into_into_dart().into_dart(),
+            self.verse.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -1260,6 +1269,7 @@ impl SseEncode for crate::api::library::NoteView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <u16>::sse_encode(self.verse, serializer);
+        <String>::sse_encode(self.label, serializer);
         <String>::sse_encode(self.text, serializer);
     }
 }
@@ -1289,6 +1299,8 @@ impl SseEncode for crate::api::typeset::RunView {
         <f64>::sse_encode(self.x, serializer);
         <f64>::sse_encode(self.width, serializer);
         <bool>::sse_encode(self.verse_number, serializer);
+        <bool>::sse_encode(self.note_marker, serializer);
+        <u16>::sse_encode(self.verse, serializer);
     }
 }
 

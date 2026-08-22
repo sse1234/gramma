@@ -18,6 +18,10 @@ pub struct RunView {
     /// Shaped width in font units.
     pub width: f64,
     pub verse_number: bool,
+    /// An inline lettered footnote marker.
+    pub note_marker: bool,
+    /// The verse this run belongs to.
+    pub verse: u16,
 }
 
 pub struct LineView {
@@ -60,13 +64,14 @@ pub fn layout_chapter(
         .get()
         .ok_or_else(|| anyhow!("typesetting not initialized"))?;
     let book = book_by_osis(&book_osis).ok_or_else(|| anyhow!("unknown book: {book_osis}"))?;
-    let (verses, german) = with_library(|library| {
+    let (verses, notes, german) = with_library(|library| {
         let verses = library.chapter(&module_code, book, chapter)?;
+        let notes = library.notes(&module_code, book, chapter)?;
         let german = library
             .modules()?
             .iter()
             .any(|m| m.code == module_code && m.language.starts_with("de"));
-        Ok((verses, german))
+        Ok((verses, notes, german))
     })?;
     let hyphenator = german.then(|| {
         GERMAN.get_or_init(|| {
@@ -74,8 +79,9 @@ pub fn layout_chapter(
         })
     });
     let verse_refs: Vec<(u16, &str)> = verses.iter().map(|v| (v.verse, v.text.as_str())).collect();
+    let note_refs: Vec<(u16, u32)> = notes.iter().map(|n| (n.verse, n.offset)).collect();
     let measure_units = measure_ems as i64 * measure.units_per_em() as i64;
-    let lines = layout_verses(&verse_refs, measure, hyphenator, measure_units);
+    let lines = layout_verses(&verse_refs, &note_refs, measure, hyphenator, measure_units);
     let plain_text = verses
         .iter()
         .map(|v| format!("{} {}", v.verse, v.text))
@@ -93,6 +99,8 @@ pub fn layout_chapter(
                         x: r.x,
                         width: r.width,
                         verse_number: r.verse_number,
+                        note_marker: r.note_marker,
+                        verse: r.verse,
                     })
                     .collect(),
             })
@@ -128,9 +136,17 @@ pub fn module_line_counts(module_code: String, measure_ems: u16) -> anyhow::Resu
     let measure_units = measure_ems as i64 * measure.units_per_em() as i64;
     let mut counts = Vec::with_capacity(contents.len());
     for c in &contents {
-        let verses = with_library(|library| library.chapter(&module_code, c.book, c.chapter))?;
+        let (verses, notes) = with_library(|library| {
+            Ok((
+                library.chapter(&module_code, c.book, c.chapter)?,
+                library.notes(&module_code, c.book, c.chapter)?,
+            ))
+        })?;
         let refs: Vec<(u16, &str)> = verses.iter().map(|v| (v.verse, v.text.as_str())).collect();
-        counts.push(layout_verses(&refs, measure, hyphenator, measure_units).len() as u32);
+        let note_refs: Vec<(u16, u32)> = notes.iter().map(|n| (n.verse, n.offset)).collect();
+        counts.push(
+            layout_verses(&refs, &note_refs, measure, hyphenator, measure_units).len() as u32,
+        );
     }
     Ok(counts)
 }

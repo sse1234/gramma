@@ -1,6 +1,10 @@
 //! Chapter layout: verses flow into one Knuth–Plass-broken paragraph whose
 //! lines carry positioned text runs, ready to paint.
 //!
+//! Every run knows the verse it belongs to, giving the reader verse-level
+//! position granularity. Footnote anchors become inline markers: small
+//! lettered boxes bound unbreakably to the word they follow.
+//!
 //! Glue setting happens here: after the breaker chooses breakpoints, each
 //! justified line's leftover slack is distributed over its spaces in
 //! proportion to their stretch (or shrink), so painted lines end flush with
@@ -11,9 +15,16 @@ use hyphenation::Standard;
 use super::paragraph::{HYPHEN_PENALTY, TextMeasure, hyphen_offsets};
 use super::{INFINITE_PENALTY, Item, Params, Scaled, break_lines, finish_paragraph};
 
-/// Verse numbers are set at this percentage of the text size; widths here
-/// and the painter's font size must agree.
+/// Verse numbers and note markers are set at this percentage of the text
+/// size; widths here and the painter's font size must agree.
 pub const VERSE_NUMBER_SCALE_PERCENT: i64 = 65;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RunKind {
+    Word,
+    VerseNumber,
+    NoteMarker,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RunOut {
@@ -23,6 +34,10 @@ pub struct RunOut {
     /// Shaped width of `text` in font units (already scaled for numbers).
     pub width: f64,
     pub verse_number: bool,
+    /// An inline footnote marker (lettered, matching the note's sequence).
+    pub note_marker: bool,
+    /// The verse this run belongs to.
+    pub verse: u16,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -33,13 +48,16 @@ pub struct LineOut {
 #[derive(Debug, Clone)]
 struct BoxMeta {
     text: String,
-    verse_number: bool,
+    kind: RunKind,
+    verse: u16,
 }
 
 /// Lay out verses as one flowing justified paragraph at `line_width` font
-/// units.
+/// units. `notes` are (verse, byte offset) pairs; each produces an inline
+/// lettered marker bound to the word containing its anchor.
 pub fn layout_verses(
     verses: &[(u16, &str)],
+    notes: &[(u16, u32)],
     measure: &impl TextMeasure,
     hyphenator: Option<&Standard>,
     line_width: Scaled,
@@ -52,26 +70,41 @@ pub fn layout_verses(
         stretch,
         shrink,
     };
-    let push = |items: &mut Vec<Item>, meta: &mut Vec<Option<BoxMeta>>, item, m| {
+
+    fn push(
+        items: &mut Vec<Item>,
+        meta: &mut Vec<Option<BoxMeta>>,
+        item: Item,
+        m: Option<BoxMeta>,
+    ) {
         items.push(item);
         meta.push(m);
-    };
+    }
 
     for (number, text) in verses {
+        let mut verse_notes: Vec<usize> = notes
+            .iter()
+            .filter(|(v, _)| v == number)
+            .map(|&(_, offset)| offset as usize)
+            .collect();
+        verse_notes.sort_unstable();
+        let mut note_idx = 0usize;
+        let mut marker_letter = b'a';
+
         if !items.is_empty() {
             push(&mut items, &mut meta, space, None);
         }
-        let number = number.to_string();
-        let number_width = measure.text_width(&number) * VERSE_NUMBER_SCALE_PERCENT / 100;
+        let number_text = number.to_string();
         push(
             &mut items,
             &mut meta,
             Item::Box {
-                width: number_width,
+                width: measure.text_width(&number_text) * VERSE_NUMBER_SCALE_PERCENT / 100,
             },
             Some(BoxMeta {
-                text: number,
-                verse_number: true,
+                text: number_text,
+                kind: RunKind::VerseNumber,
+                verse: *number,
             }),
         );
         // Never break between a verse number and its first word: an infinite
@@ -88,7 +121,7 @@ pub fn layout_verses(
         );
         push(&mut items, &mut meta, space, None);
         let mut first_word = true;
-        for word in text.split_whitespace() {
+        for (word, word_start) in words_with_offsets(text) {
             if !first_word {
                 push(&mut items, &mut meta, space, None);
             }
@@ -110,7 +143,8 @@ pub fn layout_verses(
                     },
                     Some(BoxMeta {
                         text: fragment.to_string(),
-                        verse_number: false,
+                        kind: RunKind::Word,
+                        verse: *number,
                     }),
                 );
                 if offset < word.len() {
@@ -127,6 +161,16 @@ pub fn layout_verses(
                 }
                 fragment_start = offset;
             }
+            let word_end = word_start + word.len();
+            while note_idx < verse_notes.len() && verse_notes[note_idx] <= word_end {
+                note_idx += 1;
+                push_marker(&mut items, &mut meta, measure, &mut marker_letter, *number);
+            }
+        }
+        // Notes anchored past the last word still get their marker.
+        while note_idx < verse_notes.len() {
+            note_idx += 1;
+            push_marker(&mut items, &mut meta, measure, &mut marker_letter, *number);
         }
     }
     finish_paragraph(&mut items);
@@ -156,6 +200,38 @@ pub fn layout_verses(
         .collect()
 }
 
+/// Bind an inline lettered marker to the preceding word: an infinite
+/// penalty forbids a break between them.
+fn push_marker(
+    items: &mut Vec<Item>,
+    meta: &mut Vec<Option<BoxMeta>>,
+    measure: &impl TextMeasure,
+    marker_letter: &mut u8,
+    verse: u16,
+) {
+    let label = (*marker_letter as char).to_string();
+    *marker_letter = marker_letter.saturating_add(1);
+    items.push(Item::Penalty {
+        width: 0,
+        penalty: INFINITE_PENALTY,
+        flagged: false,
+    });
+    meta.push(None);
+    items.push(Item::Box {
+        width: measure.text_width(&label) * VERSE_NUMBER_SCALE_PERCENT / 100,
+    });
+    meta.push(Some(BoxMeta {
+        text: label,
+        kind: RunKind::NoteMarker,
+        verse,
+    }));
+}
+
+fn words_with_offsets(text: &str) -> impl Iterator<Item = (&str, usize)> {
+    text.split_whitespace()
+        .map(move |word| (word, word.as_ptr() as usize - text.as_ptr() as usize))
+}
+
 /// Assemble a line's runs (merging word fragments not broken apart) and
 /// distribute slack over its glue.
 fn set_line(
@@ -170,7 +246,8 @@ fn set_line(
     enum Piece {
         Run {
             text: String,
-            verse_number: bool,
+            kind: RunKind,
+            verse: u16,
         },
         Space {
             stretch: Scaled,
@@ -184,12 +261,15 @@ fn set_line(
             Item::Box { .. } => {
                 let m = meta[i].as_ref().expect("box has meta");
                 match pieces.last_mut() {
-                    Some(Piece::Run { text, verse_number }) if !*verse_number => {
+                    Some(Piece::Run { text, kind, .. })
+                        if *kind == RunKind::Word && m.kind == RunKind::Word =>
+                    {
                         text.push_str(&m.text);
                     }
                     _ => pieces.push(Piece::Run {
                         text: m.text.clone(),
-                        verse_number: m.verse_number,
+                        kind: m.kind,
+                        verse: m.verse,
                     }),
                 }
             }
@@ -221,12 +301,12 @@ fn set_line(
     let widths: Vec<f64> = pieces
         .iter()
         .map(|p| match p {
-            Piece::Run { text, verse_number } => {
+            Piece::Run { text, kind, .. } => {
                 let w = measure.text_width(text);
-                if *verse_number {
-                    (w * VERSE_NUMBER_SCALE_PERCENT / 100) as f64
-                } else {
+                if *kind == RunKind::Word {
                     w as f64
+                } else {
+                    (w * VERSE_NUMBER_SCALE_PERCENT / 100) as f64
                 }
             }
             Piece::Space { width, .. } => *width as f64,
@@ -253,12 +333,14 @@ fn set_line(
     let mut x = 0.0f64;
     for (piece, width) in pieces.iter().zip(&widths) {
         match piece {
-            Piece::Run { text, verse_number } => {
+            Piece::Run { text, kind, verse } => {
                 runs.push(RunOut {
                     text: text.clone(),
                     x,
                     width: *width,
-                    verse_number: *verse_number,
+                    verse_number: *kind == RunKind::VerseNumber,
+                    note_marker: *kind == RunKind::NoteMarker,
+                    verse: *verse,
                 });
                 x += width;
             }

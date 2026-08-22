@@ -146,8 +146,14 @@ fn notes_are_extracted_per_verse_in_order() {
     assert_eq!(notes[0].verse, 1);
     assert_eq!(notes[0].seq, 1);
     assert_eq!(notes[0].text, "Hebr. bereschit");
+    // The first note anchors right after "Am Anfang".
+    assert_eq!(notes[0].offset, "Am Anfang".len() as u32);
     assert_eq!(notes[1].seq, 2);
     assert_eq!(notes[1].text, "Im Hebr. steht »Himmel« in der Mehrzahl");
+    assert_eq!(
+        notes[1].offset,
+        "Am Anfang schuf Gott Himmel und Erde.".len() as u32
+    );
 }
 
 #[test]

@@ -20,9 +20,13 @@ const GEN_1_1: &str = "Am Anfang schuf Gott Himmel und Erde.";
 const GEN_1_2: &str = "Und die Erde war wüst und leer, und es war finster auf der Tiefe; und der Geist Gottes schwebte auf dem Wasser.";
 
 fn layout(verses: &[(u16, &str)], ems: i64) -> Vec<LineOut> {
+    layout_with_notes(verses, &[], ems)
+}
+
+fn layout_with_notes(verses: &[(u16, &str)], notes: &[(u16, u32)], ems: i64) -> Vec<LineOut> {
     let m = measure();
     let width = ems * m.units_per_em() as i64;
-    layout_verses(verses, &m, Some(&german()), width)
+    layout_verses(verses, notes, &m, Some(&german()), width)
 }
 
 fn line_text(line: &LineOut) -> String {
@@ -143,4 +147,60 @@ fn golden_first_lines_are_stable_across_platforms() {
         ],
         "golden layout changed"
     );
+}
+
+#[test]
+fn runs_carry_their_verse() {
+    let lines = layout(&[(1, GEN_1_1), (2, GEN_1_2)], 22);
+    let verses: Vec<u16> = lines
+        .iter()
+        .flat_map(|l| &l.runs)
+        .map(|r| r.verse)
+        .collect();
+    assert!(verses.contains(&1) && verses.contains(&2));
+    let mut last = 0u16;
+    for v in verses {
+        assert!(v >= last, "verse tags must be monotonic");
+        last = v;
+    }
+}
+
+#[test]
+fn note_anchors_become_inline_lettered_markers() {
+    // Two notes in verse 1: after "Anfang" (offset 9) and at the verse end.
+    let notes = [(1u16, 9u32), (1, GEN_1_1.len() as u32)];
+    let lines = layout_with_notes(&[(1, GEN_1_1)], &notes, 22);
+    let markers: Vec<_> = lines
+        .iter()
+        .flat_map(|l| &l.runs)
+        .filter(|r| r.note_marker)
+        .collect();
+    assert_eq!(markers.len(), 2);
+    assert_eq!(markers[0].text, "a");
+    assert_eq!(markers[1].text, "b");
+    assert!(markers.iter().all(|m| m.verse == 1));
+    // The first marker follows immediately after the word "Anfang".
+    let runs: Vec<_> = lines.iter().flat_map(|l| &l.runs).collect();
+    let marker_pos = runs.iter().position(|r| r.note_marker).unwrap();
+    assert_eq!(runs[marker_pos - 1].text, "Anfang");
+    let word = &runs[marker_pos - 1];
+    assert!(
+        (word.x + word.width - runs[marker_pos].x).abs() < 1e-6,
+        "marker must sit flush after its word"
+    );
+}
+
+#[test]
+fn markers_never_start_a_line() {
+    // Force narrow measures; the infinite penalty must keep each marker on
+    // its word's line.
+    let notes = [(1u16, 9u32), (2, 20u32)];
+    for ems in [10, 12, 14, 16] {
+        let lines = layout_with_notes(&[(1, GEN_1_1), (2, GEN_1_2)], &notes, ems);
+        for line in &lines {
+            if let Some(first) = line.runs.first() {
+                assert!(!first.note_marker, "marker stranded at line start");
+            }
+        }
+    }
 }

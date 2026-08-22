@@ -113,11 +113,17 @@ class _ColumnPainter extends CustomPainter {
             fontSize: fontSize * numberScale,
             color: numberColor,
           );
+          final markerStyle =
+              numberStyle.copyWith(fontStyle: FontStyle.italic);
           for (final run in line.runs) {
             final painter = TextPainter(
               text: TextSpan(
                 text: run.text,
-                style: run.verseNumber ? numberStyle : textStyle,
+                style: run.verseNumber
+                    ? numberStyle
+                    : run.noteMarker
+                        ? markerStyle
+                        : textStyle,
               ),
               textDirection: TextDirection.ltr,
             )..layout();
