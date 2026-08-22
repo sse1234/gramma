@@ -36,7 +36,8 @@ class GrammaApp extends StatelessWidget {
         title: 'gramma',
         themeMode: settings.themeMode,
         theme: grammaTheme(Brightness.light, settings.contrast),
-        darkTheme: grammaTheme(Brightness.dark, settings.contrast),
+        darkTheme: grammaTheme(Brightness.dark, settings.contrast,
+            trueBlack: settings.trueBlackDark),
         builder: (context, child) =>
             SettingsScope(controller: settings, child: child!),
         home: const ReaderScreen(),

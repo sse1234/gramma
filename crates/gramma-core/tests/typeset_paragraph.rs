@@ -144,3 +144,31 @@ fn golden_german_paragraph_layout() {
         ]
     );
 }
+
+#[test]
+fn trailing_punctuation_does_not_create_break_points() {
+    // "Tag." must never break as "Ta-g." — patterns apply to the
+    // alphabetic core only.
+    let text = "Tag.";
+    let para = build_paragraph(text, &CharMeasure, Some(&german()));
+    assert_eq!(box_texts(text, &para), ["Tag."]);
+}
+
+#[test]
+fn punctuation_stays_attached_to_outer_fragments() {
+    let text = "(Silbentrennung,";
+    let para = build_paragraph(text, &CharMeasure, Some(&german()));
+    let fragments = box_texts(text, &para);
+    assert_eq!(fragments.concat(), text);
+    assert!(fragments.len() > 1, "core must still hyphenate");
+    assert!(fragments.first().unwrap().starts_with('('));
+    assert!(fragments.last().unwrap().ends_with(','));
+}
+
+#[test]
+fn words_with_inner_punctuation_are_not_hyphenated() {
+    for text in ["geht's", "Feuer-flamme"] {
+        let para = build_paragraph(text, &CharMeasure, Some(&german()));
+        assert_eq!(box_texts(text, &para), [text], "for {text:?}");
+    }
+}

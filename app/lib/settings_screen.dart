@@ -96,6 +96,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onSelectionChanged: (modes) =>
                     settings.setThemeMode(modes.first),
               ),
+              SwitchListTile(
+                key: const Key('true-black'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text('True black in dark mode'),
+                subtitle: const Text(
+                  'Keep the background fully black; contrast dims only '
+                  'the text.',
+                ),
+                value: settings.trueBlackDark,
+                onChanged: settings.setTrueBlackDark,
+              ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Contrast'),

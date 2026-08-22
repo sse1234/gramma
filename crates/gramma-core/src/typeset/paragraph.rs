@@ -52,7 +52,7 @@ pub fn build_paragraph(
         }
         first = false;
         let breaks = hyphenator
-            .map(|h| h.hyphenate(word).breaks)
+            .map(|h| hyphen_offsets(word, h))
             .unwrap_or_default();
         let mut fragment_start = 0usize;
         for offset in breaks.iter().copied().chain([word.len()]) {
@@ -78,6 +78,38 @@ pub fn build_paragraph(
     finish_paragraph(&mut items);
     sources.resize(items.len(), None);
     Paragraph { items, sources }
+}
+
+/// Legal hyphenation offsets (byte indices) for a whitespace token.
+///
+/// Liang patterns are defined over bare words, so only the token's
+/// alphabetic core is hyphenated; leading and trailing punctuation stays
+/// attached to the outer fragments. Tokens whose core contains non-letters
+/// (apostrophes, explicit hyphens) are left unbroken.
+pub(crate) fn hyphen_offsets(word: &str, hyphenator: &Standard) -> Vec<usize> {
+    let Some(core_start) = word
+        .char_indices()
+        .find(|(_, c)| c.is_alphabetic())
+        .map(|(i, _)| i)
+    else {
+        return Vec::new();
+    };
+    let core_end = word
+        .char_indices()
+        .filter(|(_, c)| c.is_alphabetic())
+        .last()
+        .map(|(i, c)| i + c.len_utf8())
+        .expect("core has at least one letter");
+    let core = &word[core_start..core_end];
+    if core.chars().any(|c| !c.is_alphabetic()) {
+        return Vec::new();
+    }
+    hyphenator
+        .hyphenate(core)
+        .breaks
+        .iter()
+        .map(|b| b + core_start)
+        .collect()
 }
 
 fn words_with_offsets(text: &str) -> impl Iterator<Item = (&str, usize)> {

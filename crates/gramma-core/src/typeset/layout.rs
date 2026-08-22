@@ -6,9 +6,9 @@
 //! proportion to their stretch (or shrink), so painted lines end flush with
 //! the measure using the same shaped widths the painter will use.
 
-use hyphenation::{Hyphenator, Standard};
+use hyphenation::Standard;
 
-use super::paragraph::{HYPHEN_PENALTY, TextMeasure};
+use super::paragraph::{HYPHEN_PENALTY, TextMeasure, hyphen_offsets};
 use super::{INFINITE_PENALTY, Item, Params, Scaled, break_lines, finish_paragraph};
 
 /// Verse numbers are set at this percentage of the text size; widths here
@@ -94,7 +94,7 @@ pub fn layout_verses(
             }
             first_word = false;
             let breaks = hyphenator
-                .map(|h| h.hyphenate(word).breaks)
+                .map(|h| hyphen_offsets(word, h))
                 .unwrap_or_default();
             let mut fragment_start = 0usize;
             for offset in breaks.iter().copied().chain([word.len()]) {

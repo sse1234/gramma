@@ -15,7 +15,8 @@ Widget _harness(SettingsController controller) {
     builder: (context, _) => MaterialApp(
       themeMode: controller.themeMode,
       theme: grammaTheme(Brightness.light, controller.contrast),
-      darkTheme: grammaTheme(Brightness.dark, controller.contrast),
+      darkTheme: grammaTheme(Brightness.dark, controller.contrast,
+          trueBlack: controller.trueBlackDark),
       builder: (context, child) =>
           SettingsScope(controller: controller, child: child!),
       home: const SettingsScreen(),
@@ -50,6 +51,23 @@ void main() {
     expect(second.measureEms, 30);
   });
 
+  test('true black keeps the background at pure black and dims only text',
+      () async {
+    final dim = grammaTheme(Brightness.dark, 0.5, trueBlack: true);
+    final full = grammaTheme(Brightness.dark, 1.0, trueBlack: true);
+    expect(dim.scaffoldBackgroundColor, Colors.black);
+    expect(full.scaffoldBackgroundColor, Colors.black);
+    expect(
+      dim.colorScheme.onSurface.computeLuminance(),
+      lessThan(full.colorScheme.onSurface.computeLuminance()),
+    );
+    final controller = await _controller();
+    controller.setTrueBlackDark(true);
+    final reloaded =
+        SettingsController(await SharedPreferences.getInstance());
+    expect(reloaded.trueBlackDark, isTrue);
+  });
+
   test('lower contrast softens ink and background', () {
     final full = grammaTheme(Brightness.light, 1.0);
     final soft = grammaTheme(Brightness.light, 0.5);
@@ -75,6 +93,10 @@ void main() {
 
   testWidgets('measure slider is locked behind a confirmation dialog',
       (tester) async {
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final controller = await _controller();
     await tester.pumpWidget(_harness(controller));
     expect(find.byKey(const Key('measure-slider')), findsNothing);

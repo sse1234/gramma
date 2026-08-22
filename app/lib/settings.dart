@@ -12,6 +12,7 @@ class SettingsController extends ChangeNotifier {
     _columnWidth = _prefs.getDouble('columnWidth') ?? defaultColumnWidth;
     _contrast = _prefs.getDouble('contrast') ?? defaultContrast;
     _measureEms = _prefs.getInt('measureEms') ?? defaultMeasureEms;
+    _trueBlackDark = _prefs.getBool('trueBlackDark') ?? false;
     _themeMode = switch (_prefs.getString('themeMode')) {
       'light' => ThemeMode.light,
       'dark' => ThemeMode.dark,
@@ -29,6 +30,7 @@ class SettingsController extends ChangeNotifier {
   double _contrast = defaultContrast;
   int _measureEms = defaultMeasureEms;
   ThemeMode _themeMode = ThemeMode.system;
+  bool _trueBlackDark = false;
 
   /// Column width in logical pixels — the zoom level.
   double get columnWidth => _columnWidth;
@@ -41,6 +43,9 @@ class SettingsController extends ChangeNotifier {
 
   ThemeMode get themeMode => _themeMode;
 
+  /// Dark mode keeps a pure-black background; contrast dims only the text.
+  bool get trueBlackDark => _trueBlackDark;
+
   void setColumnWidth(double value) {
     _columnWidth = value.clamp(320.0, 520.0);
     _prefs.setDouble('columnWidth', _columnWidth);
@@ -50,6 +55,12 @@ class SettingsController extends ChangeNotifier {
   void setContrast(double value) {
     _contrast = value.clamp(0.5, 1.0);
     _prefs.setDouble('contrast', _contrast);
+    notifyListeners();
+  }
+
+  void setTrueBlackDark(bool value) {
+    _trueBlackDark = value;
+    _prefs.setBool('trueBlackDark', value);
     notifyListeners();
   }
 
@@ -93,7 +104,11 @@ class SettingsScope extends InheritedNotifier<SettingsController> {
 /// Reading themes: at full contrast, near-black ink on white (or the
 /// inverse); lower contrast settles toward warm paper and softened ink, in
 /// the tradition of printed books rather than terminals.
-ThemeData grammaTheme(Brightness brightness, double contrast) {
+///
+/// With [trueBlack], the dark background stays pure black (for OLED panels
+/// and dark rooms) and the contrast setting dims only the text.
+ThemeData grammaTheme(Brightness brightness, double contrast,
+    {bool trueBlack = false}) {
   final t = ((contrast - 0.5) / 0.5).clamp(0.0, 1.0);
   final Color background;
   final Color ink;
@@ -101,7 +116,9 @@ ThemeData grammaTheme(Brightness brightness, double contrast) {
     background = Color.lerp(const Color(0xFFF5EFE3), Colors.white, t)!;
     ink = Color.lerp(const Color(0xFF4A453D), const Color(0xFF14120F), t)!;
   } else {
-    background = Color.lerp(const Color(0xFF26262B), const Color(0xFF0D0D0F), t)!;
+    background = trueBlack
+        ? Colors.black
+        : Color.lerp(const Color(0xFF26262B), const Color(0xFF0D0D0F), t)!;
     ink = Color.lerp(const Color(0xFFB8B5AD), const Color(0xFFF2EFE8), t)!;
   }
   final base = ThemeData(
