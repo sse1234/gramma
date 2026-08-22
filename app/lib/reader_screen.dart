@@ -26,8 +26,10 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen> {
   static const _cacheLimit = 80;
   static const _headingLines = 2;
-  static const _minColumnWidth = 340.0;
-  static const _maxColumnWidth = 560.0;
+  /// Fixed column width: the constant zoom level (a user setting later).
+  /// Viewport width that is not an integer multiple of columns becomes side
+  /// padding instead of scaling the type.
+  static const _baseColumnWidth = 400.0;
   static const _gutter = 48.0;
   static const _measureEms = 26.0;
 
@@ -296,7 +298,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   int _columnsFor(double width) {
-    final n = ((width + _gutter) / (_minColumnWidth + _gutter)).floor();
+    final n = ((width + _gutter) / (_baseColumnWidth + _gutter)).floor();
     return n < 1 ? 1 : n;
   }
 
@@ -309,7 +311,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: _maxColumnWidth),
+        constraints: const BoxConstraints(maxWidth: _baseColumnWidth),
         child: ScrollablePositionedList.builder(
           key: const Key('vertical-reader'),
           itemScrollController: _vScroll,
@@ -323,9 +325,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Widget _horizontalReader(BoxConstraints constraints, int columns) {
-    var columnWidth =
-        (constraints.maxWidth - (columns - 1) * _gutter) / columns;
-    if (columnWidth > _maxColumnWidth) columnWidth = _maxColumnWidth;
+    const columnWidth = _baseColumnWidth;
+    final contentWidth = columns * columnWidth + (columns - 1) * _gutter;
+    final sidePadding = ((constraints.maxWidth - contentWidth) / 2)
+        .clamp(0.0, double.infinity);
     final fontSize = columnWidth / _measureEms;
     final lineHeight = fontSize * TypesetChapter.lineHeightEm;
     var linesPerColumn = (constraints.maxHeight / lineHeight).floor();
@@ -358,15 +361,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
           _hController!.jumpTo(target);
         }
       },
-      child: ListView.builder(
-        key: Key('horizontal-reader-$params'),
-        controller: _hController,
-        scrollDirection: Axis.horizontal,
-        itemExtent: stride,
-        itemCount: plan.columnCount,
-        itemBuilder: (context, column) => Padding(
-          padding: const EdgeInsets.only(right: _gutter),
-          child: _columnItem(plan, column, scale, fontSize, lineHeight),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: sidePadding),
+        child: ListView.builder(
+          key: Key('horizontal-reader-$params'),
+          controller: _hController,
+          scrollDirection: Axis.horizontal,
+          itemExtent: stride,
+          itemCount: plan.columnCount,
+          itemBuilder: (context, column) => Padding(
+            padding: const EdgeInsets.only(right: _gutter),
+            child: _columnItem(plan, column, scale, fontSize, lineHeight),
+          ),
         ),
       ),
     );
