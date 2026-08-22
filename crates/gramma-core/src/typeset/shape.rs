@@ -2,6 +2,9 @@
 //! bundled font, in integer font units, feeding the breaker deterministically
 //! on every platform.
 
+use std::collections::HashMap;
+use std::sync::Mutex;
+
 use rustybuzz::{Face, UnicodeBuffer};
 
 use super::Scaled;
@@ -11,6 +14,9 @@ pub struct FontMeasure<'a> {
     face: Face<'a>,
     space_width: Scaled,
     hyphen_width: Scaled,
+    /// Shaped-width cache; Bible text repeats words heavily, so most
+    /// lookups hit after a short warmup.
+    cache: Mutex<HashMap<Box<str>, Scaled>>,
 }
 
 impl<'a> FontMeasure<'a> {
@@ -20,6 +26,7 @@ impl<'a> FontMeasure<'a> {
             face,
             space_width: 0,
             hyphen_width: 0,
+            cache: Mutex::new(HashMap::new()),
         };
         measure.space_width = measure.shape_width(" ");
         measure.hyphen_width = measure.shape_width("-");
@@ -44,7 +51,12 @@ impl<'a> FontMeasure<'a> {
 
 impl TextMeasure for FontMeasure<'_> {
     fn text_width(&self, text: &str) -> Scaled {
-        self.shape_width(text)
+        if let Some(&width) = self.cache.lock().unwrap().get(text) {
+            return width;
+        }
+        let width = self.shape_width(text);
+        self.cache.lock().unwrap().insert(text.into(), width);
+        width
     }
 
     /// TeX's interword glue proportions: stretch w/2, shrink w/3.

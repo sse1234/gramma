@@ -102,7 +102,7 @@ abstract class RustLibApi extends BaseApi {
 
   void crateApiTypesetInitTypesetting({required List<int> fontData});
 
-  ChapterLayoutView crateApiTypesetLayoutChapter({
+  Future<ChapterLayoutView> crateApiTypesetLayoutChapter({
     required String moduleCode,
     required String bookOsis,
     required int chapter,
@@ -289,19 +289,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  ChapterLayoutView crateApiTypesetLayoutChapter({
+  Future<ChapterLayoutView> crateApiTypesetLayoutChapter({
     required String moduleCode,
     required String bookOsis,
     required int chapter,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(moduleCode, serializer);
           sse_encode_String(bookOsis, serializer);
           sse_encode_u_16(chapter, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_chapter_layout_view,
@@ -425,12 +430,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ChapterRefView dco_decode_chapter_ref_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return ChapterRefView(
       bookOsis: dco_decode_String(arr[0]),
       chapter: dco_decode_u_16(arr[1]),
       heading: dco_decode_String(arr[2]),
+      textLength: dco_decode_i_64(arr[3]),
     );
   }
 
@@ -636,10 +642,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_bookOsis = sse_decode_String(deserializer);
     var var_chapter = sse_decode_u_16(deserializer);
     var var_heading = sse_decode_String(deserializer);
+    var var_textLength = sse_decode_i_64(deserializer);
     return ChapterRefView(
       bookOsis: var_bookOsis,
       chapter: var_chapter,
       heading: var_heading,
+      textLength: var_textLength,
     );
   }
 
@@ -875,6 +883,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.bookOsis, serializer);
     sse_encode_u_16(self.chapter, serializer);
     sse_encode_String(self.heading, serializer);
+    sse_encode_i_64(self.textLength, serializer);
   }
 
   @protected

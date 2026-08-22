@@ -44,6 +44,8 @@ pub struct ChapterRefView {
     pub book_osis: String,
     pub chapter: u16,
     pub heading: String,
+    /// Chapter text length in bytes, for scroll-height estimation.
+    pub text_length: i64,
 }
 
 #[flutter_rust_bridge::frb(sync)]
@@ -107,6 +109,7 @@ pub fn contents(module_code: String) -> anyhow::Result<Vec<ChapterRefView>> {
                 book_osis: info.osis.to_string(),
                 chapter: c.chapter,
                 heading: format!("{name} {}", c.chapter),
+                text_length: c.text_length,
             }
         })
         .collect())

@@ -44,14 +44,22 @@ class ChapterRefView {
   final int chapter;
   final String heading;
 
+  /// Chapter text length in bytes, for scroll-height estimation.
+  final PlatformInt64 textLength;
+
   const ChapterRefView({
     required this.bookOsis,
     required this.chapter,
     required this.heading,
+    required this.textLength,
   });
 
   @override
-  int get hashCode => bookOsis.hashCode ^ chapter.hashCode ^ heading.hashCode;
+  int get hashCode =>
+      bookOsis.hashCode ^
+      chapter.hashCode ^
+      heading.hashCode ^
+      textLength.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -60,7 +68,8 @@ class ChapterRefView {
           runtimeType == other.runtimeType &&
           bookOsis == other.bookOsis &&
           chapter == other.chapter &&
-          heading == other.heading;
+          heading == other.heading &&
+          textLength == other.textLength;
 }
 
 class ChapterView {

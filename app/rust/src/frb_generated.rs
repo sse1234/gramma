@@ -251,15 +251,16 @@ fn wire__crate__api__typeset__init_typesetting_impl(
     )
 }
 fn wire__crate__api__typeset__layout_chapter_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "layout_chapter",
-            port: None,
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
         move || {
             let message = unsafe {
@@ -275,16 +276,18 @@ fn wire__crate__api__typeset__layout_chapter_impl(
             let api_book_osis = <String>::sse_decode(&mut deserializer);
             let api_chapter = <u16>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
-                (move || {
-                    let output_ok = crate::api::typeset::layout_chapter(
-                        api_module_code,
-                        api_book_osis,
-                        api_chapter,
-                    )?;
-                    Ok(output_ok)
-                })(),
-            )
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::typeset::layout_chapter(
+                            api_module_code,
+                            api_book_osis,
+                            api_chapter,
+                        )?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
         },
     )
 }
@@ -432,10 +435,12 @@ impl SseDecode for crate::api::library::ChapterRefView {
         let mut var_bookOsis = <String>::sse_decode(deserializer);
         let mut var_chapter = <u16>::sse_decode(deserializer);
         let mut var_heading = <String>::sse_decode(deserializer);
+        let mut var_textLength = <i64>::sse_decode(deserializer);
         return crate::api::library::ChapterRefView {
             book_osis: var_bookOsis,
             chapter: var_chapter,
             heading: var_heading,
+            text_length: var_textLength,
         };
     }
 }
@@ -659,6 +664,7 @@ fn pde_ffi_dispatcher_primary_impl(
     match func_id {
         4 => wire__crate__api__library__import_osis_file_impl(port, ptr, rust_vec_len, data_len),
         5 => wire__crate__api__references__init_app_impl(port, ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__typeset__layout_chapter_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -675,7 +681,6 @@ fn pde_ffi_dispatcher_sync_impl(
         2 => wire__crate__api__library__chapter_verses_impl(ptr, rust_vec_len, data_len),
         3 => wire__crate__api__library__contents_impl(ptr, rust_vec_len, data_len),
         6 => wire__crate__api__typeset__init_typesetting_impl(ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__typeset__layout_chapter_impl(ptr, rust_vec_len, data_len),
         8 => wire__crate__api__library__modules_impl(ptr, rust_vec_len, data_len),
         9 => wire__crate__api__library__open_library_impl(ptr, rust_vec_len, data_len),
         10 => wire__crate__api__references__parse_reference_impl(ptr, rust_vec_len, data_len),
@@ -716,6 +721,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::library::ChapterRefView {
             self.book_osis.into_into_dart().into_dart(),
             self.chapter.into_into_dart().into_dart(),
             self.heading.into_into_dart().into_dart(),
+            self.text_length.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -890,6 +896,7 @@ impl SseEncode for crate::api::library::ChapterRefView {
         <String>::sse_encode(self.book_osis, serializer);
         <u16>::sse_encode(self.chapter, serializer);
         <String>::sse_encode(self.heading, serializer);
+        <i64>::sse_encode(self.text_length, serializer);
     }
 }
 

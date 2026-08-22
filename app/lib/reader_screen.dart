@@ -19,7 +19,9 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen> {
   ModuleView? _active;
   List<ChapterRefView> _spine = const [];
-  final Map<int, ChapterLayoutView> _chapterCache = {};
+  final Map<int, ChapterLayoutView> _layouts = {};
+  final Set<int> _loading = {};
+  static const _cacheLimit = 80;
   final ItemScrollController _scroll = ItemScrollController();
   final ItemPositionsListener _positions = ItemPositionsListener.create();
   int? _topIndex;
@@ -60,20 +62,38 @@ class _ReaderScreenState extends State<ReaderScreen> {
               orElse: () => available.first,
             );
       _spine = _active == null ? const [] : contents(moduleCode: _active!.code);
-      _chapterCache.clear();
+      _layouts.clear();
+      _loading.clear();
       _topIndex = _spine.isEmpty ? null : 0;
     });
   }
 
-  ChapterLayoutView _layoutFor(int index) {
-    return _chapterCache.putIfAbsent(index, () {
-      final entry = _spine[index];
-      return layoutChapter(
-        moduleCode: _active!.code,
-        bookOsis: entry.bookOsis,
-        chapter: entry.chapter,
-      );
-    });
+  void _requestLayout(int index) {
+    if (_layouts.containsKey(index) || _loading.contains(index)) return;
+    _loading.add(index);
+    final entry = _spine[index];
+    layoutChapter(
+      moduleCode: _active!.code,
+      bookOsis: entry.bookOsis,
+      chapter: entry.chapter,
+    ).then((layout) {
+      if (!mounted) return;
+      setState(() {
+        _layouts[index] = layout;
+        while (_layouts.length > _cacheLimit) {
+          _layouts.remove(_layouts.keys.first);
+        }
+      });
+    }).whenComplete(() => _loading.remove(index));
+  }
+
+  /// Rough chapter height before its layout arrives, from the spine's text
+  /// length: ~55 characters per line at the 26em measure.
+  double _estimatedHeight(int index, double columnWidth) {
+    final fontSize = columnWidth / 26;
+    final lineHeight = fontSize * TypesetChapter.lineHeightEm;
+    final lines = (_spine[index].textLength / 55).ceil() + 1;
+    return lines * lineHeight;
   }
 
   void _onInput(String input) {
@@ -233,11 +253,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget _chapterItem(BuildContext context, int index) {
     final theme = Theme.of(context);
     final entry = _spine[index];
-    final layout = _layoutFor(index);
+    final layout = _layouts[index];
+    if (layout == null) {
+      _requestLayout(index);
+    }
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 8, bottom: 12),
@@ -247,7 +270,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   ?.copyWith(fontFamily: 'GentiumBookPlus'),
             ),
           ),
-          TypesetChapter(layout: layout),
+          if (layout != null)
+            TypesetChapter(layout: layout)
+          else
+            LayoutBuilder(
+              builder: (context, constraints) => SizedBox(
+                key: const Key('chapter-placeholder'),
+                height: _estimatedHeight(index, constraints.maxWidth),
+              ),
+            ),
         ],
       ),
     );

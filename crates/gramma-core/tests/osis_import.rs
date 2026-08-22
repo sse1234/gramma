@@ -128,6 +128,7 @@ fn contents_lists_chapters_in_canonical_order() {
         .map(|c| format!("{}.{}", c.book.info().osis, c.chapter))
         .collect();
     assert_eq!(osis, ["Gen.1", "Gen.2"]);
+    assert!(contents.iter().all(|c| c.text_length > 0));
 }
 
 #[test]

@@ -10,7 +10,9 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 void initTypesetting({required List<int> fontData}) =>
     RustLib.instance.api.crateApiTypesetInitTypesetting(fontData: fontData);
 
-ChapterLayoutView layoutChapter({
+/// Async on purpose: runs on a worker thread so scrolling never blocks on
+/// shaping and breaking.
+Future<ChapterLayoutView> layoutChapter({
   required String moduleCode,
   required String bookOsis,
   required int chapter,

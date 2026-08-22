@@ -25,6 +25,21 @@ Future<void> _enter(WidgetTester tester, String input) async {
   await tester.pump();
 }
 
+/// Chapter layouts arrive from the Rust worker thread; pump real async until
+/// every built chapter has one (no placeholders left) or time out.
+Future<void> _settleLayouts(WidgetTester tester) async {
+  for (var i = 0; i < 100; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pump();
+    if (find.byKey(const Key('chapter-placeholder')).evaluate().isEmpty) {
+      return;
+    }
+  }
+  fail('chapter layouts did not settle');
+}
+
 void main() {
   late Directory tempDir;
 
@@ -47,7 +62,7 @@ void main() {
   testWidgets('shows the imported module and its first chapter', (tester) async {
     final semantics = tester.ensureSemantics();
     await tester.pumpWidget(const GrammaApp());
-    await tester.pump();
+    await _settleLayouts(tester);
     expect(find.text('Fixtur Deutsch'), findsOneWidget);
     expect(find.text('1. Mose 1'), findsWidgets);
     expect(
@@ -69,9 +84,9 @@ void main() {
   testWidgets('jumps to a resolved reference', (tester) async {
     final semantics = tester.ensureSemantics();
     await tester.pumpWidget(const GrammaApp());
-    await tester.pump();
+    await _settleLayouts(tester);
     await _enter(tester, '1. Mose 2');
-    await tester.pump();
+    await _settleLayouts(tester);
     expect(
       find.bySemanticsLabel(RegExp('Also ward vollendet Himmel und Erde')),
       findsOneWidget,

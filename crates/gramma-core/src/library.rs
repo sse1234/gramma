@@ -37,6 +37,8 @@ pub struct Verse {
 pub struct ChapterRef {
     pub book: BookId,
     pub chapter: u16,
+    /// Total text length in bytes, for layout-size estimation.
+    pub text_length: i64,
 }
 
 const SCHEMA: &str = "
@@ -166,16 +168,24 @@ impl Library {
     pub fn contents(&self, module_code: &str) -> Result<Vec<ChapterRef>, LibraryError> {
         let module_id = self.module_id(module_code)?;
         let mut stmt = self.conn.prepare(
-            "SELECT DISTINCT book, chapter FROM verse
-             WHERE module_id = ?1 ORDER BY book, chapter",
+            "SELECT book, chapter, SUM(LENGTH(text)) FROM verse
+             WHERE module_id = ?1 GROUP BY book, chapter ORDER BY book, chapter",
         )?;
         let contents = stmt
             .query_map([module_id], |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, u16>(1)?))
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, u16>(1)?,
+                    row.get::<_, i64>(2)?,
+                ))
             })?
             .filter_map(|row| {
-                row.map(|(book, chapter)| {
-                    BookId::from_index(book as usize).map(|book| ChapterRef { book, chapter })
+                row.map(|(book, chapter, text_length)| {
+                    BookId::from_index(book as usize).map(|book| ChapterRef {
+                        book,
+                        chapter,
+                        text_length,
+                    })
                 })
                 .transpose()
             })
