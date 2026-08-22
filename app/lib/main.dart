@@ -5,7 +5,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'src/rust/api/library.dart';
 import 'src/rust/frb_generated.dart';
-import 'reference_screen.dart';
+import 'reader_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,7 +24,7 @@ class GrammaApp extends StatelessWidget {
     return MaterialApp(
       title: 'gramma',
       theme: ThemeData(colorSchemeSeed: const Color(0xFF7A5C3E)),
-      home: const ReferenceScreen(),
+      home: const ReaderScreen(),
     );
   }
 }

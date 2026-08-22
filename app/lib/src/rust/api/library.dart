@@ -15,12 +15,51 @@ Future<ModuleView> importOsisFile({required String path}) =>
 
 List<ModuleView> modules() => RustLib.instance.api.crateApiLibraryModules();
 
+List<ChapterRefView> contents({required String moduleCode}) =>
+    RustLib.instance.api.crateApiLibraryContents(moduleCode: moduleCode);
+
+List<VerseView> chapterVerses({
+  required String moduleCode,
+  required String bookOsis,
+  required int chapter,
+}) => RustLib.instance.api.crateApiLibraryChapterVerses(
+  moduleCode: moduleCode,
+  bookOsis: bookOsis,
+  chapter: chapter,
+);
+
 /// Resolve a reference and return the containing chapter of the given module.
 ChapterView chapter({required String moduleCode, required String reference}) =>
     RustLib.instance.api.crateApiLibraryChapter(
       moduleCode: moduleCode,
       reference: reference,
     );
+
+/// One entry of a module's chapter spine, with a heading localized to the
+/// module's language (German book names for `de` modules, English otherwise).
+class ChapterRefView {
+  final String bookOsis;
+  final int chapter;
+  final String heading;
+
+  const ChapterRefView({
+    required this.bookOsis,
+    required this.chapter,
+    required this.heading,
+  });
+
+  @override
+  int get hashCode => bookOsis.hashCode ^ chapter.hashCode ^ heading.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ChapterRefView &&
+          runtimeType == other.runtimeType &&
+          bookOsis == other.bookOsis &&
+          chapter == other.chapter &&
+          heading == other.heading;
+}
 
 class ChapterView {
   final String osis;

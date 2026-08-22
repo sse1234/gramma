@@ -70,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -1413061578;
+  int get rustContentHash => -131032356;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -86,6 +86,14 @@ abstract class RustLibApi extends BaseApi {
     required String moduleCode,
     required String reference,
   });
+
+  List<VerseView> crateApiLibraryChapterVerses({
+    required String moduleCode,
+    required String bookOsis,
+    required int chapter,
+  });
+
+  List<ChapterRefView> crateApiLibraryContents({required String moduleCode});
 
   Future<ModuleView> crateApiLibraryImportOsisFile({required String path});
 
@@ -136,6 +144,61 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  List<VerseView> crateApiLibraryChapterVerses({
+    required String moduleCode,
+    required String bookOsis,
+    required int chapter,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(moduleCode, serializer);
+          sse_encode_String(bookOsis, serializer);
+          sse_encode_u_16(chapter, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_verse_view,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiLibraryChapterVersesConstMeta,
+        argValues: [moduleCode, bookOsis, chapter],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLibraryChapterVersesConstMeta =>
+      const TaskConstMeta(
+        debugName: "chapter_verses",
+        argNames: ["moduleCode", "bookOsis", "chapter"],
+      );
+
+  @override
+  List<ChapterRefView> crateApiLibraryContents({required String moduleCode}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(moduleCode, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_chapter_ref_view,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiLibraryContentsConstMeta,
+        argValues: [moduleCode],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLibraryContentsConstMeta =>
+      const TaskConstMeta(debugName: "contents", argNames: ["moduleCode"]);
+
+  @override
   Future<ModuleView> crateApiLibraryImportOsisFile({required String path}) {
     return handler.executeNormal(
       NormalTask(
@@ -145,7 +208,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 2,
+            funcId: 4,
             port: port_,
           );
         },
@@ -172,7 +235,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 5,
             port: port_,
           );
         },
@@ -196,7 +259,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_module_view,
@@ -219,7 +282,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(path, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -242,7 +305,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(input, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_parse_outcome,
@@ -271,6 +334,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ChapterRefView dco_decode_chapter_ref_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return ChapterRefView(
+      bookOsis: dco_decode_String(arr[0]),
+      chapter: dco_decode_u_16(arr[1]),
+      heading: dco_decode_String(arr[2]),
+    );
+  }
+
+  @protected
   ChapterView dco_decode_chapter_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -280,6 +356,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       osis: dco_decode_String(arr[0]),
       verses: dco_decode_list_verse_view(arr[1]),
     );
+  }
+
+  @protected
+  List<ChapterRefView> dco_decode_list_chapter_ref_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_chapter_ref_view).toList();
   }
 
   @protected
@@ -383,11 +465,38 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ChapterRefView sse_decode_chapter_ref_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_bookOsis = sse_decode_String(deserializer);
+    var var_chapter = sse_decode_u_16(deserializer);
+    var var_heading = sse_decode_String(deserializer);
+    return ChapterRefView(
+      bookOsis: var_bookOsis,
+      chapter: var_chapter,
+      heading: var_heading,
+    );
+  }
+
+  @protected
   ChapterView sse_decode_chapter_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_osis = sse_decode_String(deserializer);
     var var_verses = sse_decode_list_verse_view(deserializer);
     return ChapterView(osis: var_osis, verses: var_verses);
+  }
+
+  @protected
+  List<ChapterRefView> sse_decode_list_chapter_ref_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ChapterRefView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_chapter_ref_view(deserializer));
+    }
+    return ans_;
   }
 
   @protected
@@ -514,10 +623,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_chapter_ref_view(
+    ChapterRefView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.bookOsis, serializer);
+    sse_encode_u_16(self.chapter, serializer);
+    sse_encode_String(self.heading, serializer);
+  }
+
+  @protected
   void sse_encode_chapter_view(ChapterView self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.osis, serializer);
     sse_encode_list_verse_view(self.verses, serializer);
+  }
+
+  @protected
+  void sse_encode_list_chapter_ref_view(
+    List<ChapterRefView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_chapter_ref_view(item, serializer);
+    }
   }
 
   @protected

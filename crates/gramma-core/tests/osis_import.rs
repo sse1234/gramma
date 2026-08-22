@@ -118,3 +118,20 @@ fn library_persists_across_reopen() {
     assert_eq!(library.modules().unwrap().len(), 1);
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn contents_lists_chapters_in_canonical_order() {
+    let library = library_with(CONTAINER);
+    let contents = library.contents("FixDe").unwrap();
+    let osis: Vec<String> = contents
+        .iter()
+        .map(|c| format!("{}.{}", c.book.info().osis, c.chapter))
+        .collect();
+    assert_eq!(osis, ["Gen.1", "Gen.2"]);
+}
+
+#[test]
+fn contents_for_unknown_module_fails() {
+    let library = library_with(CONTAINER);
+    assert!(library.contents("Nope").is_err());
+}

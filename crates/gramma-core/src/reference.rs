@@ -20,6 +20,10 @@ impl BookId {
         self.0 as usize
     }
 
+    pub fn from_index(index: usize) -> Option<BookId> {
+        (index < CANON.len()).then_some(BookId(index as u8))
+    }
+
     pub fn info(self) -> &'static BookInfo {
         &CANON[self.index()]
     }

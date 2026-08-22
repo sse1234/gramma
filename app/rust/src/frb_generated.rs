@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1413061578;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -131032356;
 
 // Section: executor
 
@@ -73,6 +73,76 @@ fn wire__crate__api__library__chapter_impl(
             transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                 (move || {
                     let output_ok = crate::api::library::chapter(api_module_code, api_reference)?;
+                    Ok(output_ok)
+                })(),
+            )
+        },
+    )
+}
+fn wire__crate__api__library__chapter_verses_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "chapter_verses",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_module_code = <String>::sse_decode(&mut deserializer);
+            let api_book_osis = <String>::sse_decode(&mut deserializer);
+            let api_chapter = <u16>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok = crate::api::library::chapter_verses(
+                        api_module_code,
+                        api_book_osis,
+                        api_chapter,
+                    )?;
+                    Ok(output_ok)
+                })(),
+            )
+        },
+    )
+}
+fn wire__crate__api__library__contents_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "contents",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_module_code = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok = crate::api::library::contents(api_module_code)?;
                     Ok(output_ok)
                 })(),
             )
@@ -261,6 +331,20 @@ impl SseDecode for String {
     }
 }
 
+impl SseDecode for crate::api::library::ChapterRefView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_bookOsis = <String>::sse_decode(deserializer);
+        let mut var_chapter = <u16>::sse_decode(deserializer);
+        let mut var_heading = <String>::sse_decode(deserializer);
+        return crate::api::library::ChapterRefView {
+            book_osis: var_bookOsis,
+            chapter: var_chapter,
+            heading: var_heading,
+        };
+    }
+}
+
 impl SseDecode for crate::api::library::ChapterView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -270,6 +354,20 @@ impl SseDecode for crate::api::library::ChapterView {
             osis: var_osis,
             verses: var_verses,
         };
+    }
+}
+
+impl SseDecode for Vec<crate::api::library::ChapterRefView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::library::ChapterRefView>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
     }
 }
 
@@ -409,8 +507,8 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        2 => wire__crate__api__library__import_osis_file_impl(port, ptr, rust_vec_len, data_len),
-        3 => wire__crate__api__references__init_app_impl(port, ptr, rust_vec_len, data_len),
+        4 => wire__crate__api__library__import_osis_file_impl(port, ptr, rust_vec_len, data_len),
+        5 => wire__crate__api__references__init_app_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -424,15 +522,39 @@ fn pde_ffi_dispatcher_sync_impl(
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
         1 => wire__crate__api__library__chapter_impl(ptr, rust_vec_len, data_len),
-        4 => wire__crate__api__library__modules_impl(ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__library__open_library_impl(ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__references__parse_reference_impl(ptr, rust_vec_len, data_len),
+        2 => wire__crate__api__library__chapter_verses_impl(ptr, rust_vec_len, data_len),
+        3 => wire__crate__api__library__contents_impl(ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__library__modules_impl(ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__library__open_library_impl(ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__references__parse_reference_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
 
 // Section: rust2dart
 
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::library::ChapterRefView {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.book_osis.into_into_dart().into_dart(),
+            self.chapter.into_into_dart().into_dart(),
+            self.heading.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::library::ChapterRefView
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::library::ChapterRefView>
+    for crate::api::library::ChapterRefView
+{
+    fn into_into_dart(self) -> crate::api::library::ChapterRefView {
+        self
+    }
+}
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::library::ChapterView {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
@@ -534,11 +656,30 @@ impl SseEncode for String {
     }
 }
 
+impl SseEncode for crate::api::library::ChapterRefView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.book_osis, serializer);
+        <u16>::sse_encode(self.chapter, serializer);
+        <String>::sse_encode(self.heading, serializer);
+    }
+}
+
 impl SseEncode for crate::api::library::ChapterView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.osis, serializer);
         <Vec<crate::api::library::VerseView>>::sse_encode(self.verses, serializer);
+    }
+}
+
+impl SseEncode for Vec<crate::api::library::ChapterRefView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::library::ChapterRefView>::sse_encode(item, serializer);
+        }
     }
 }
 

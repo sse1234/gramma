@@ -32,6 +32,13 @@ pub struct Verse {
     pub text: String,
 }
 
+/// One chapter in a module's table of contents.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChapterRef {
+    pub book: BookId,
+    pub chapter: u16,
+}
+
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS module(
   id INTEGER PRIMARY KEY,
@@ -151,6 +158,29 @@ impl Library {
             })?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(verses)
+    }
+
+    /// The ordered chapter spine of a module: every chapter that has content,
+    /// in canonical order. This is the backbone of the endless-scrolling
+    /// reader.
+    pub fn contents(&self, module_code: &str) -> Result<Vec<ChapterRef>, LibraryError> {
+        let module_id = self.module_id(module_code)?;
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT book, chapter FROM verse
+             WHERE module_id = ?1 ORDER BY book, chapter",
+        )?;
+        let contents = stmt
+            .query_map([module_id], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, u16>(1)?))
+            })?
+            .filter_map(|row| {
+                row.map(|(book, chapter)| {
+                    BookId::from_index(book as usize).map(|book| ChapterRef { book, chapter })
+                })
+                .transpose()
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(contents)
     }
 
     fn module_id(&self, code: &str) -> Result<i64, LibraryError> {

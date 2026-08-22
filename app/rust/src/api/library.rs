@@ -5,7 +5,7 @@ use std::sync::Mutex;
 
 use anyhow::{anyhow, Context};
 use gramma_core::library::Library;
-use gramma_core::reference::Reference;
+use gramma_core::reference::{book_by_osis, Reference};
 
 static LIBRARY: Mutex<Option<Library>> = Mutex::new(None);
 
@@ -24,6 +24,14 @@ pub struct VerseView {
 pub struct ChapterView {
     pub osis: String,
     pub verses: Vec<VerseView>,
+}
+
+/// One entry of a module's chapter spine, with a heading localized to the
+/// module's language (German book names for `de` modules, English otherwise).
+pub struct ChapterRefView {
+    pub book_osis: String,
+    pub chapter: u16,
+    pub heading: String,
 }
 
 #[flutter_rust_bridge::frb(sync)]
@@ -62,6 +70,53 @@ pub fn modules() -> anyhow::Result<Vec<ModuleView>> {
             title: m.title,
             language: m.language,
             verses: m.verses,
+        })
+        .collect())
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn contents(module_code: String) -> anyhow::Result<Vec<ChapterRefView>> {
+    let guard = LIBRARY.lock().unwrap();
+    let library = guard
+        .as_ref()
+        .ok_or_else(|| anyhow!("library not opened"))?;
+    let german = library
+        .modules()?
+        .iter()
+        .find(|m| m.code == module_code)
+        .is_some_and(|m| m.language.starts_with("de"));
+    Ok(library
+        .contents(&module_code)?
+        .into_iter()
+        .map(|c| {
+            let info = c.book.info();
+            let name = if german { info.german } else { info.english };
+            ChapterRefView {
+                book_osis: info.osis.to_string(),
+                chapter: c.chapter,
+                heading: format!("{name} {}", c.chapter),
+            }
+        })
+        .collect())
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn chapter_verses(
+    module_code: String,
+    book_osis: String,
+    chapter: u16,
+) -> anyhow::Result<Vec<VerseView>> {
+    let book = book_by_osis(&book_osis).ok_or_else(|| anyhow!("unknown book: {book_osis}"))?;
+    let guard = LIBRARY.lock().unwrap();
+    let library = guard
+        .as_ref()
+        .ok_or_else(|| anyhow!("library not opened"))?;
+    Ok(library
+        .chapter(&module_code, book, chapter)?
+        .into_iter()
+        .map(|v| VerseView {
+            verse: v.verse,
+            text: v.text,
         })
         .collect())
 }
