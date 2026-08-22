@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -325,5 +326,36 @@ void main() {
       lessThan(1.0),
       reason: 'must settle aligned to a column, was $offset',
     );
+  });
+
+  testWidgets('a mouse wheel tick pages exactly one column', (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1200, 420);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settle(
+      tester,
+      () => _found(find.byKey(const ValueKey('columns-active'))),
+    );
+    final center =
+        tester.getCenter(find.byKey(const ValueKey('columns-active')));
+    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    pointer.hover(center);
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, 50)));
+    await tester.pumpAndSettle();
+    const stride = 448.0;
+    final list = tester.widget<ListView>(find.byType(ListView).first);
+    expect(list.controller!.offset, moreOrLessEquals(stride, epsilon: 1));
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, 50)));
+    await tester.pumpAndSettle();
+    expect(
+      list.controller!.offset,
+      moreOrLessEquals(2 * stride, epsilon: 1),
+    );
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, -50)));
+    await tester.pumpAndSettle();
+    expect(list.controller!.offset, moreOrLessEquals(stride, epsilon: 1));
   });
 }

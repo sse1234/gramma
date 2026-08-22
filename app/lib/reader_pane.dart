@@ -2,8 +2,6 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
-import 'dart:async';
-
 import 'column_plan.dart';
 import 'column_snap_physics.dart';
 import 'pane_model.dart';
@@ -72,7 +70,15 @@ class _ReaderPaneState extends State<ReaderPane> {
   final List<ScrollController> _staleControllers = [];
   ColumnPlan? _hPlan;
   double _hStride = 0;
-  Timer? _wheelSnap;
+
+  /// Mouse-wheel paging: accumulated delta, the in-flight aligned target,
+  /// and the time of the last wheel event.
+  double _wheelAccum = 0;
+  double? _wheelTarget;
+  DateTime _lastWheel = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Wheel travel that advances one column.
+  static const _wheelTick = 50.0;
 
   ParseOutcome? _outcome;
   String? _jumpMiss;
@@ -86,7 +92,6 @@ class _ReaderPaneState extends State<ReaderPane> {
   @override
   void dispose() {
     _vPositions.itemPositions.removeListener(_onVerticalPositions);
-    _wheelSnap?.cancel();
     _hController?.dispose();
     for (final c in _staleControllers) {
       c.dispose();
@@ -455,35 +460,12 @@ class _ReaderPaneState extends State<ReaderPane> {
     return Listener(
       key: const ValueKey('columns-active'),
       onPointerSignal: (event) {
+        // Discrete mouse wheels page by whole columns (trackpads scroll
+        // through the pan-zoom gesture path and the snap physics instead).
         if (event is PointerScrollEvent &&
             event.scrollDelta.dy != 0 &&
             _hController!.hasClients) {
-          final target = (_hController!.offset + event.scrollDelta.dy)
-              .clamp(0.0, _hController!.position.maxScrollExtent);
-          _hController!.jumpTo(target);
-          // Wheel and trackpad deltas move freely; settle on the nearest
-          // column shortly after the burst ends.
-          _wheelSnap?.cancel();
-          _wheelSnap = Timer(const Duration(milliseconds: 180), () {
-            final controller = _hController;
-            if (controller == null || !controller.hasClients || !mounted) {
-              return;
-            }
-            final position = controller.position;
-            final snapped = ColumnSnapPhysics.snapTarget(
-              position.pixels,
-              _hStride,
-              position.minScrollExtent,
-              position.maxScrollExtent,
-            );
-            if ((snapped - position.pixels).abs() > 0.5) {
-              controller.animateTo(
-                snapped,
-                duration: const Duration(milliseconds: 240),
-                curve: Curves.easeOutCubic,
-              );
-            }
-          });
+          _onWheel(event.scrollDelta.dy);
         }
       },
       child: Padding(
@@ -502,6 +484,42 @@ class _ReaderPaneState extends State<ReaderPane> {
         ),
       ),
     );
+  }
+
+  void _onWheel(double delta) {
+    final controller = _hController!;
+    final position = controller.position;
+    final now = DateTime.now();
+    if (now.difference(_lastWheel) > const Duration(milliseconds: 600)) {
+      _wheelAccum = 0;
+      _wheelTarget = null;
+    }
+    _lastWheel = now;
+    _wheelAccum += delta;
+    final steps = _wheelAccum ~/ _wheelTick;
+    if (steps == 0) return;
+    _wheelAccum -= steps * _wheelTick;
+    final base = _wheelTarget ??
+        ColumnSnapPhysics.snapTarget(
+          position.pixels,
+          _hStride,
+          position.minScrollExtent,
+          position.maxScrollExtent,
+        );
+    final target = ColumnSnapPhysics.snapTarget(
+      base + steps * _hStride,
+      _hStride,
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    _wheelTarget = target;
+    if ((target - position.pixels).abs() > 0.5) {
+      controller.animateTo(
+        target,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   double _unitsPerEm() {
