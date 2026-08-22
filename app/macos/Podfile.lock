@@ -1,0 +1,22 @@
+PODS:
+  - FlutterMacOS (1.0.0)
+  - rust_lib_gramma (0.0.1):
+    - FlutterMacOS
+
+DEPENDENCIES:
+  - FlutterMacOS (from `Flutter/ephemeral`)
+  - rust_lib_gramma (from `Flutter/ephemeral/.symlinks/plugins/rust_lib_gramma/macos`)
+
+EXTERNAL SOURCES:
+  FlutterMacOS:
+    :path: Flutter/ephemeral
+  rust_lib_gramma:
+    :path: Flutter/ephemeral/.symlinks/plugins/rust_lib_gramma/macos
+
+SPEC CHECKSUMS:
+  FlutterMacOS: c232990155153907050900a2e175c7773903ba4e
+  rust_lib_gramma: bd7ad726ef588581a8e236ffd48371206b06718c
+
+PODFILE CHECKSUM: 1e95c36afbfd1cb6423ceca4de7a8e1b256fb6ac
+
+COCOAPODS: 1.17.0

@@ -64,6 +64,9 @@ cargo test --workspace          # core + bridge tests
 cargo build -p rust_lib_gramma  # bridge library, needed by Flutter host tests
 cd app && flutter test          # widget tests (load the bridge library above)
 cd app && flutter run           # run the app on a connected device/desktop
+
+# import an OSIS file into a library database from the command line:
+cargo run --release --example import_osis -- <library.db> <file.osis.xml>
 ```
 
 After changing the bridge API in `app/rust/src/api/`, regenerate bindings

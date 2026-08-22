@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osis xmlns="http://www.bibletechnologies.net/2003/OSIS/namespace">
+  <osisText osisIDWork="FixEn" xml:lang="en">
+    <header>
+      <work osisWork="FixEn">
+        <title>Fixture English</title>
+      </work>
+    </header>
+    <div type="book" osisID="John">
+      <chapter sID="John.3" osisID="John.3"/>
+      <verse sID="John.3.16" osisID="John.3.16"/>For God so <w lemma="strong:G25">loved</w> the world,<note type="study">Or: <hi type="italic">loved in this way</hi></note> that he gave his <divineName>only</divineName> Son.<verse eID="John.3.16"/>
+      <verse sID="John.3.17" osisID="John.3.17"/>For God did not send his Son to condemn the world.<verse eID="John.3.17"/>
+      <chapter eID="John.3"/>
+    </div>
+  </osisText>
+</osis>

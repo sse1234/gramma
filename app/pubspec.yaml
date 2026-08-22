@@ -37,6 +37,8 @@ dependencies:
   rust_lib_gramma:
     path: rust_builder
   flutter_rust_bridge: 2.12.0
+  path_provider: ^2.1.6
+  file_selector: ^1.1.0
 
 dev_dependencies:
   flutter_test:

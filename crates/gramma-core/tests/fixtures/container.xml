@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osis xmlns="http://www.bibletechnologies.net/2003/OSIS/namespace">
+  <osisText osisIDWork="FixDe" xml:lang="de">
+    <header>
+      <work osisWork="FixDe">
+        <title>Fixtur Deutsch</title>
+      </work>
+    </header>
+    <div type="book" osisID="Gen">
+      <title type="main">Das erste Buch Mose</title>
+      <chapter osisID="Gen.1">
+        <title>Die Schöpfung</title>
+        <verse osisID="Gen.1.1">Am Anfang schuf Gott Himmel und Erde.</verse>
+        <verse osisID="Gen.1.2">Und die Erde war wüst und leer,
+          und es war finster auf der Tiefe.</verse>
+      </chapter>
+      <chapter osisID="Gen.2">
+        <verse osisID="Gen.2.1">Also ward vollendet Himmel und Erde.</verse>
+      </chapter>
+    </div>
+    <div type="book" osisID="Tob">
+      <chapter osisID="Tob.1">
+        <verse osisID="Tob.1.1">Deuterokanonischer Text wird übersprungen.</verse>
+      </chapter>
+    </div>
+  </osisText>
+</osis>

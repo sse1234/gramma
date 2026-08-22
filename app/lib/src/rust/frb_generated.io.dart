@@ -3,6 +3,7 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
+import 'api/library.dart';
 import 'api/references.dart';
 
 import 'dart:async';
@@ -22,10 +23,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   });
 
   @protected
+  AnyhowException dco_decode_AnyhowException(dynamic raw);
+
+  @protected
   String dco_decode_String(dynamic raw);
 
   @protected
+  ChapterView dco_decode_chapter_view(dynamic raw);
+
+  @protected
+  List<ModuleView> dco_decode_list_module_view(dynamic raw);
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  List<VerseView> dco_decode_list_verse_view(dynamic raw);
+
+  @protected
+  ModuleView dco_decode_module_view(dynamic raw);
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
@@ -34,16 +50,40 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ParseOutcome dco_decode_parse_outcome(dynamic raw);
 
   @protected
+  int dco_decode_u_16(dynamic raw);
+
+  @protected
+  int dco_decode_u_32(dynamic raw);
+
+  @protected
   int dco_decode_u_8(dynamic raw);
 
   @protected
   void dco_decode_unit(dynamic raw);
 
   @protected
+  VerseView dco_decode_verse_view(dynamic raw);
+
+  @protected
+  AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
+  ChapterView sse_decode_chapter_view(SseDeserializer deserializer);
+
+  @protected
+  List<ModuleView> sse_decode_list_module_view(SseDeserializer deserializer);
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  List<VerseView> sse_decode_list_verse_view(SseDeserializer deserializer);
+
+  @protected
+  ModuleView sse_decode_module_view(SseDeserializer deserializer);
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
@@ -52,10 +92,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ParseOutcome sse_decode_parse_outcome(SseDeserializer deserializer);
 
   @protected
+  int sse_decode_u_16(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_u_8(SseDeserializer deserializer);
 
   @protected
   void sse_decode_unit(SseDeserializer deserializer);
+
+  @protected
+  VerseView sse_decode_verse_view(SseDeserializer deserializer);
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
@@ -64,7 +113,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
+  void sse_encode_AnyhowException(
+    AnyhowException self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_chapter_view(ChapterView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_module_view(
+    List<ModuleView> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_prim_u_8_strict(
@@ -73,16 +137,34 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_verse_view(
+    List<VerseView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_module_view(ModuleView self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
   void sse_encode_parse_outcome(ParseOutcome self, SseSerializer serializer);
 
   @protected
+  void sse_encode_u_16(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer);
+
+  @protected
   void sse_encode_u_8(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_verse_view(VerseView self, SseSerializer serializer);
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);

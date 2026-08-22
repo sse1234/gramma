@@ -1,10 +1,18 @@
-import 'package:flutter/material.dart';
+import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+
+import 'src/rust/api/library.dart';
 import 'src/rust/frb_generated.dart';
 import 'reference_screen.dart';
 
 Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   await RustLib.init();
+  final support = await getApplicationSupportDirectory();
+  await Directory(support.path).create(recursive: true);
+  openLibrary(path: '${support.path}/library.db');
   runApp(const GrammaApp());
 }
 
