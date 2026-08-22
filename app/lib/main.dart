@@ -11,6 +11,7 @@ import 'src/rust/api/user.dart';
 import 'src/rust/frb_generated.dart';
 import 'reader_screen.dart';
 import 'settings.dart';
+import 'window_state.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,7 +22,11 @@ Future<void> main() async {
   openUserStore(path: '${support.path}/user.db');
   final font = await rootBundle.load('fonts/GentiumBookPlus-Regular.ttf');
   initTypesetting(fontData: font.buffer.asUint8List());
-  final settings = SettingsController(await SharedPreferences.getInstance());
+  final prefs = await SharedPreferences.getInstance();
+  final settings = SettingsController(prefs);
+  if (WindowStatePersistence.supported) {
+    await WindowStatePersistence(prefs).restoreAndTrack();
+  }
   runApp(GrammaApp(settings: settings));
 }
 

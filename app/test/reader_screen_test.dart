@@ -298,4 +298,32 @@ void main() {
     expect(find.text('Footnotes'), findsOneWidget,
         reason: 'restored from the user store');
   });
+
+  testWidgets('horizontal scrolling settles on a column boundary',
+      (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1200, 420);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settle(
+      tester,
+      () => _found(find.byKey(const ValueKey('columns-active'))),
+    );
+    await tester.drag(
+      find.byKey(const ValueKey('columns-active')),
+      const Offset(-537, 0),
+    );
+    await tester.pumpAndSettle();
+    final list = tester.widget<ListView>(find.byType(ListView).first);
+    final offset = list.controller!.offset;
+    const stride = 448.0; // default 400px column + 48px gutter
+    expect(offset, greaterThan(0), reason: 'the drag must scroll');
+    expect(
+      (offset % stride).abs(),
+      lessThan(1.0),
+      reason: 'must settle aligned to a column, was $offset',
+    );
+  });
 }

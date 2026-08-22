@@ -2,7 +2,10 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
+import 'dart:async';
+
 import 'column_plan.dart';
+import 'column_snap_physics.dart';
 import 'pane_model.dart';
 import 'settings.dart';
 import 'src/rust/api/library.dart';
@@ -69,6 +72,7 @@ class _ReaderPaneState extends State<ReaderPane> {
   final List<ScrollController> _staleControllers = [];
   ColumnPlan? _hPlan;
   double _hStride = 0;
+  Timer? _wheelSnap;
 
   ParseOutcome? _outcome;
   String? _jumpMiss;
@@ -82,6 +86,7 @@ class _ReaderPaneState extends State<ReaderPane> {
   @override
   void dispose() {
     _vPositions.itemPositions.removeListener(_onVerticalPositions);
+    _wheelSnap?.cancel();
     _hController?.dispose();
     for (final c in _staleControllers) {
       c.dispose();
@@ -456,6 +461,29 @@ class _ReaderPaneState extends State<ReaderPane> {
           final target = (_hController!.offset + event.scrollDelta.dy)
               .clamp(0.0, _hController!.position.maxScrollExtent);
           _hController!.jumpTo(target);
+          // Wheel and trackpad deltas move freely; settle on the nearest
+          // column shortly after the burst ends.
+          _wheelSnap?.cancel();
+          _wheelSnap = Timer(const Duration(milliseconds: 180), () {
+            final controller = _hController;
+            if (controller == null || !controller.hasClients || !mounted) {
+              return;
+            }
+            final position = controller.position;
+            final snapped = ColumnSnapPhysics.snapTarget(
+              position.pixels,
+              _hStride,
+              position.minScrollExtent,
+              position.maxScrollExtent,
+            );
+            if ((snapped - position.pixels).abs() > 0.5) {
+              controller.animateTo(
+                snapped,
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeOutCubic,
+              );
+            }
+          });
         }
       },
       child: Padding(
@@ -464,6 +492,7 @@ class _ReaderPaneState extends State<ReaderPane> {
           key: Key('horizontal-reader-$params'),
           controller: _hController,
           scrollDirection: Axis.horizontal,
+          physics: ColumnSnapPhysics(stride: stride),
           itemExtent: stride,
           itemCount: plan.columnCount,
           itemBuilder: (context, column) => Padding(
