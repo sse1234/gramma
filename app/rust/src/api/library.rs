@@ -9,6 +9,18 @@ use gramma_core::reference::{book_by_osis, Reference};
 
 static LIBRARY: Mutex<Option<Library>> = Mutex::new(None);
 
+/// Run `f` against the opened library (bridge-internal helper).
+#[flutter_rust_bridge::frb(ignore)]
+pub(crate) fn with_library<T>(
+    f: impl FnOnce(&Library) -> Result<T, gramma_core::library::LibraryError>,
+) -> anyhow::Result<T> {
+    let guard = LIBRARY.lock().unwrap();
+    let library = guard
+        .as_ref()
+        .ok_or_else(|| anyhow!("library not opened"))?;
+    Ok(f(library)?)
+}
+
 pub struct ModuleView {
     pub code: String,
     pub title: String,

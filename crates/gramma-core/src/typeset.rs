@@ -13,7 +13,9 @@
 //! a permissive tolerance, then a last resort permitting overfull lines, so
 //! well-formed paragraphs always break.
 
+pub mod layout;
 pub mod paragraph;
+pub mod shape;
 
 /// Fixed-point width unit; the shaping layer defines its physical meaning.
 pub type Scaled = i64;

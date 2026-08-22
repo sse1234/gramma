@@ -10,6 +10,7 @@ crate-type = ["cdylib", "staticlib"]
 anyhow = "1.0.104"
 flutter_rust_bridge = "=2.12.0"
 gramma-core = { path = "../../crates/gramma-core" }
+hyphenation = { version = "0.8.4", features = ["embed_all"] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

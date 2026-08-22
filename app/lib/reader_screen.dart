@@ -4,6 +4,8 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'src/rust/api/library.dart';
 import 'src/rust/api/references.dart';
+import 'src/rust/api/typeset.dart';
+import 'typeset_chapter.dart';
 
 /// Endless-scrolling reader: the module's chapter spine backs a lazily
 /// loaded continuous text stream; the reference field jumps to a position.
@@ -17,7 +19,7 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen> {
   ModuleView? _active;
   List<ChapterRefView> _spine = const [];
-  final Map<int, List<VerseView>> _chapterCache = {};
+  final Map<int, ChapterLayoutView> _chapterCache = {};
   final ItemScrollController _scroll = ItemScrollController();
   final ItemPositionsListener _positions = ItemPositionsListener.create();
   int? _topIndex;
@@ -63,10 +65,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
     });
   }
 
-  List<VerseView> _versesFor(int index) {
+  ChapterLayoutView _layoutFor(int index) {
     return _chapterCache.putIfAbsent(index, () {
       final entry = _spine[index];
-      return chapterVerses(
+      return layoutChapter(
         moduleCode: _active!.code,
         bookOsis: entry.bookOsis,
         chapter: entry.chapter,
@@ -231,29 +233,21 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Widget _chapterItem(BuildContext context, int index) {
     final theme = Theme.of(context);
     final entry = _spine[index];
-    final verses = _versesFor(index);
-    final numberStyle = theme.textTheme.labelSmall?.copyWith(
-      color: theme.colorScheme.primary,
-      fontFeatures: const [FontFeature.superscripts()],
-    );
-    final bodyStyle = theme.textTheme.bodyLarge?.copyWith(height: 1.6);
+    final layout = _layoutFor(index);
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 8),
-            child: Text(entry.heading, style: theme.textTheme.headlineSmall),
+            padding: const EdgeInsets.only(top: 8, bottom: 12),
+            child: Text(
+              entry.heading,
+              style: theme.textTheme.headlineSmall
+                  ?.copyWith(fontFamily: 'GentiumBookPlus'),
+            ),
           ),
-          Text.rich(
-            TextSpan(children: [
-              for (final v in verses) ...[
-                TextSpan(text: '${v.verse} ', style: numberStyle),
-                TextSpan(text: '${v.text} ', style: bodyStyle),
-              ],
-            ]),
-          ),
+          TypesetChapter(layout: layout),
         ],
       ),
     );

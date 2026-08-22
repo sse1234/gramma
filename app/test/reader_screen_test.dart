@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gramma/main.dart';
 
 import 'package:gramma/src/rust/api/library.dart';
+import 'package:gramma/src/rust/api/typeset.dart';
 import 'package:gramma/src/rust/frb_generated.dart';
 
 /// Host tests load the bridge library from the Cargo workspace target dir;
@@ -33,6 +34,9 @@ void main() {
     );
     tempDir = await Directory.systemTemp.createTemp('gramma-test');
     openLibrary(path: '${tempDir.path}/library.db');
+    initTypesetting(
+      fontData: File('fonts/GentiumBookPlus-Regular.ttf').readAsBytesSync(),
+    );
     await importOsisFile(path: _fixture);
   });
 
@@ -41,14 +45,16 @@ void main() {
   });
 
   testWidgets('shows the imported module and its first chapter', (tester) async {
+    final semantics = tester.ensureSemantics();
     await tester.pumpWidget(const GrammaApp());
     await tester.pump();
     expect(find.text('Fixtur Deutsch'), findsOneWidget);
     expect(find.text('1. Mose 1'), findsWidgets);
     expect(
-      find.textContaining('Am Anfang schuf Gott Himmel und Erde.'),
+      find.bySemanticsLabel(RegExp('Am Anfang schuf Gott Himmel und Erde')),
       findsOneWidget,
     );
+    semantics.dispose();
   });
 
   testWidgets('reports the current reading position', (tester) async {
@@ -61,18 +67,20 @@ void main() {
   });
 
   testWidgets('jumps to a resolved reference', (tester) async {
+    final semantics = tester.ensureSemantics();
     await tester.pumpWidget(const GrammaApp());
     await tester.pump();
     await _enter(tester, '1. Mose 2');
     await tester.pump();
     expect(
-      find.textContaining('Also ward vollendet Himmel und Erde'),
+      find.bySemanticsLabel(RegExp('Also ward vollendet Himmel und Erde')),
       findsOneWidget,
     );
     final position = tester.widget<Text>(
       find.byKey(const Key('current-position')),
     );
     expect(position.data, '1. Mose 2');
+    semantics.dispose();
   });
 
   testWidgets('echoes the OSIS form of the entered reference', (tester) async {

@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -131032356;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -294965993;
 
 // Section: executor
 
@@ -218,6 +218,76 @@ fn wire__crate__api__references__init_app_impl(
         },
     )
 }
+fn wire__crate__api__typeset__init_typesetting_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "init_typesetting",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_font_data = <Vec<u8>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok = crate::api::typeset::init_typesetting(api_font_data)?;
+                    Ok(output_ok)
+                })(),
+            )
+        },
+    )
+}
+fn wire__crate__api__typeset__layout_chapter_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "layout_chapter",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_module_code = <String>::sse_decode(&mut deserializer);
+            let api_book_osis = <String>::sse_decode(&mut deserializer);
+            let api_chapter = <u16>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok = crate::api::typeset::layout_chapter(
+                        api_module_code,
+                        api_book_osis,
+                        api_chapter,
+                    )?;
+                    Ok(output_ok)
+                })(),
+            )
+        },
+    )
+}
 fn wire__crate__api__library__modules_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -331,6 +401,31 @@ impl SseDecode for String {
     }
 }
 
+impl SseDecode for bool {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_u8().unwrap() != 0
+    }
+}
+
+impl SseDecode for crate::api::typeset::ChapterLayoutView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_lines = <Vec<crate::api::typeset::LineView>>::sse_decode(deserializer);
+        let mut var_unitsPerEm = <u16>::sse_decode(deserializer);
+        let mut var_measureUnits = <i64>::sse_decode(deserializer);
+        let mut var_numberScale = <f64>::sse_decode(deserializer);
+        let mut var_plainText = <String>::sse_decode(deserializer);
+        return crate::api::typeset::ChapterLayoutView {
+            lines: var_lines,
+            units_per_em: var_unitsPerEm,
+            measure_units: var_measureUnits,
+            number_scale: var_numberScale,
+            plain_text: var_plainText,
+        };
+    }
+}
+
 impl SseDecode for crate::api::library::ChapterRefView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -357,6 +452,28 @@ impl SseDecode for crate::api::library::ChapterView {
     }
 }
 
+impl SseDecode for f64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_f64::<NativeEndian>().unwrap()
+    }
+}
+
+impl SseDecode for i64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_i64::<NativeEndian>().unwrap()
+    }
+}
+
+impl SseDecode for crate::api::typeset::LineView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_runs = <Vec<crate::api::typeset::RunView>>::sse_decode(deserializer);
+        return crate::api::typeset::LineView { runs: var_runs };
+    }
+}
+
 impl SseDecode for Vec<crate::api::library::ChapterRefView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -366,6 +483,18 @@ impl SseDecode for Vec<crate::api::library::ChapterRefView> {
             ans_.push(<crate::api::library::ChapterRefView>::sse_decode(
                 deserializer,
             ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::typeset::LineView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::typeset::LineView>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -390,6 +519,18 @@ impl SseDecode for Vec<u8> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<u8>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::typeset::RunView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::typeset::RunView>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -446,6 +587,22 @@ impl SseDecode for crate::api::references::ParseOutcome {
     }
 }
 
+impl SseDecode for crate::api::typeset::RunView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_text = <String>::sse_decode(deserializer);
+        let mut var_x = <f64>::sse_decode(deserializer);
+        let mut var_width = <f64>::sse_decode(deserializer);
+        let mut var_verseNumber = <bool>::sse_decode(deserializer);
+        return crate::api::typeset::RunView {
+            text: var_text,
+            x: var_x,
+            width: var_width,
+            verse_number: var_verseNumber,
+        };
+    }
+}
+
 impl SseDecode for u16 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -491,13 +648,6 @@ impl SseDecode for i32 {
     }
 }
 
-impl SseDecode for bool {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        deserializer.cursor.read_u8().unwrap() != 0
-    }
-}
-
 fn pde_ffi_dispatcher_primary_impl(
     func_id: i32,
     port: flutter_rust_bridge::for_generated::MessagePort,
@@ -524,15 +674,41 @@ fn pde_ffi_dispatcher_sync_impl(
         1 => wire__crate__api__library__chapter_impl(ptr, rust_vec_len, data_len),
         2 => wire__crate__api__library__chapter_verses_impl(ptr, rust_vec_len, data_len),
         3 => wire__crate__api__library__contents_impl(ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__library__modules_impl(ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__library__open_library_impl(ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__references__parse_reference_impl(ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__typeset__init_typesetting_impl(ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__typeset__layout_chapter_impl(ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__library__modules_impl(ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__library__open_library_impl(ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__references__parse_reference_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
 
 // Section: rust2dart
 
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::typeset::ChapterLayoutView {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.lines.into_into_dart().into_dart(),
+            self.units_per_em.into_into_dart().into_dart(),
+            self.measure_units.into_into_dart().into_dart(),
+            self.number_scale.into_into_dart().into_dart(),
+            self.plain_text.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::typeset::ChapterLayoutView
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::typeset::ChapterLayoutView>
+    for crate::api::typeset::ChapterLayoutView
+{
+    fn into_into_dart(self) -> crate::api::typeset::ChapterLayoutView {
+        self
+    }
+}
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::library::ChapterRefView {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
@@ -573,6 +749,20 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::library::ChapterView>
     for crate::api::library::ChapterView
 {
     fn into_into_dart(self) -> crate::api::library::ChapterView {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::typeset::LineView {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [self.runs.into_into_dart().into_dart()].into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::typeset::LineView {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::typeset::LineView>
+    for crate::api::typeset::LineView
+{
+    fn into_into_dart(self) -> crate::api::typeset::LineView {
         self
     }
 }
@@ -621,6 +811,26 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::references::ParseOutcome>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::typeset::RunView {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.text.into_into_dart().into_dart(),
+            self.x.into_into_dart().into_dart(),
+            self.width.into_into_dart().into_dart(),
+            self.verse_number.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::typeset::RunView {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::typeset::RunView>
+    for crate::api::typeset::RunView
+{
+    fn into_into_dart(self) -> crate::api::typeset::RunView {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::library::VerseView {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -656,6 +866,24 @@ impl SseEncode for String {
     }
 }
 
+impl SseEncode for bool {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_u8(self as _).unwrap();
+    }
+}
+
+impl SseEncode for crate::api::typeset::ChapterLayoutView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<crate::api::typeset::LineView>>::sse_encode(self.lines, serializer);
+        <u16>::sse_encode(self.units_per_em, serializer);
+        <i64>::sse_encode(self.measure_units, serializer);
+        <f64>::sse_encode(self.number_scale, serializer);
+        <String>::sse_encode(self.plain_text, serializer);
+    }
+}
+
 impl SseEncode for crate::api::library::ChapterRefView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -673,12 +901,43 @@ impl SseEncode for crate::api::library::ChapterView {
     }
 }
 
+impl SseEncode for f64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_f64::<NativeEndian>(self).unwrap();
+    }
+}
+
+impl SseEncode for i64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_i64::<NativeEndian>(self).unwrap();
+    }
+}
+
+impl SseEncode for crate::api::typeset::LineView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<crate::api::typeset::RunView>>::sse_encode(self.runs, serializer);
+    }
+}
+
 impl SseEncode for Vec<crate::api::library::ChapterRefView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::library::ChapterRefView>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::typeset::LineView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::typeset::LineView>::sse_encode(item, serializer);
         }
     }
 }
@@ -699,6 +958,16 @@ impl SseEncode for Vec<u8> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <u8>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::typeset::RunView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::typeset::RunView>::sse_encode(item, serializer);
         }
     }
 }
@@ -741,6 +1010,16 @@ impl SseEncode for crate::api::references::ParseOutcome {
     }
 }
 
+impl SseEncode for crate::api::typeset::RunView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.text, serializer);
+        <f64>::sse_encode(self.x, serializer);
+        <f64>::sse_encode(self.width, serializer);
+        <bool>::sse_encode(self.verse_number, serializer);
+    }
+}
+
 impl SseEncode for u16 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -779,13 +1058,6 @@ impl SseEncode for i32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_i32::<NativeEndian>(self).unwrap();
-    }
-}
-
-impl SseEncode for bool {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        serializer.cursor.write_u8(self as _).unwrap();
     }
 }
 

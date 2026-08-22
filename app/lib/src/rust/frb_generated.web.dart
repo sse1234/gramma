@@ -8,6 +8,7 @@
 
 import 'api/library.dart';
 import 'api/references.dart';
+import 'api/typeset.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -31,19 +32,43 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
+  bool dco_decode_bool(dynamic raw);
+
+  @protected
+  ChapterLayoutView dco_decode_chapter_layout_view(dynamic raw);
+
+  @protected
   ChapterRefView dco_decode_chapter_ref_view(dynamic raw);
 
   @protected
   ChapterView dco_decode_chapter_view(dynamic raw);
 
   @protected
+  double dco_decode_f_64(dynamic raw);
+
+  @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw);
+
+  @protected
+  LineView dco_decode_line_view(dynamic raw);
+
+  @protected
   List<ChapterRefView> dco_decode_list_chapter_ref_view(dynamic raw);
+
+  @protected
+  List<LineView> dco_decode_list_line_view(dynamic raw);
 
   @protected
   List<ModuleView> dco_decode_list_module_view(dynamic raw);
 
   @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  List<RunView> dco_decode_list_run_view(dynamic raw);
 
   @protected
   List<VerseView> dco_decode_list_verse_view(dynamic raw);
@@ -56,6 +81,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ParseOutcome dco_decode_parse_outcome(dynamic raw);
+
+  @protected
+  RunView dco_decode_run_view(dynamic raw);
 
   @protected
   int dco_decode_u_16(dynamic raw);
@@ -79,10 +107,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
+  bool sse_decode_bool(SseDeserializer deserializer);
+
+  @protected
+  ChapterLayoutView sse_decode_chapter_layout_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ChapterRefView sse_decode_chapter_ref_view(SseDeserializer deserializer);
 
   @protected
   ChapterView sse_decode_chapter_view(SseDeserializer deserializer);
+
+  @protected
+  double sse_decode_f_64(SseDeserializer deserializer);
+
+  @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+  @protected
+  LineView sse_decode_line_view(SseDeserializer deserializer);
 
   @protected
   List<ChapterRefView> sse_decode_list_chapter_ref_view(
@@ -90,10 +135,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<LineView> sse_decode_list_line_view(SseDeserializer deserializer);
+
+  @protected
   List<ModuleView> sse_decode_list_module_view(SseDeserializer deserializer);
 
   @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  List<RunView> sse_decode_list_run_view(SseDeserializer deserializer);
 
   @protected
   List<VerseView> sse_decode_list_verse_view(SseDeserializer deserializer);
@@ -106,6 +160,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ParseOutcome sse_decode_parse_outcome(SseDeserializer deserializer);
+
+  @protected
+  RunView sse_decode_run_view(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_16(SseDeserializer deserializer);
@@ -126,9 +183,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
-  bool sse_decode_bool(SseDeserializer deserializer);
-
-  @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
     SseSerializer serializer,
@@ -136,6 +190,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_String(String self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_chapter_layout_view(
+    ChapterLayoutView self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_chapter_ref_view(
@@ -147,10 +210,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_chapter_view(ChapterView self, SseSerializer serializer);
 
   @protected
+  void sse_encode_f_64(double self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_line_view(LineView self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_chapter_ref_view(
     List<ChapterRefView> self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_list_line_view(List<LineView> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_module_view(
@@ -159,10 +234,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_prim_u_8_strict(
     Uint8List self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_list_run_view(List<RunView> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_verse_view(
@@ -178,6 +259,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_parse_outcome(ParseOutcome self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_run_view(RunView self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_16(int self, SseSerializer serializer);
@@ -196,9 +280,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_bool(bool self, SseSerializer serializer);
 }
 
 // Section: wire_class
