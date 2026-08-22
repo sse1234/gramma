@@ -48,6 +48,30 @@ Quality and robustness come first: test-driven development, deterministic
 core logic that is testable without a UI, and recorded architecture
 decisions (see [docs/adr](docs/adr/)).
 
+## Repository layout
+
+```text
+crates/gramma-core/   headless Rust domain core (all logic lives here)
+app/                  Flutter application for all five platforms
+app/rust/             bridge crate exposing gramma-core via flutter_rust_bridge
+docs/adr/             architecture decision records
+```
+
+## Development
+
+```bash
+cargo test --workspace          # core + bridge tests
+cargo build -p rust_lib_gramma  # bridge library, needed by Flutter host tests
+cd app && flutter test          # widget tests (load the bridge library above)
+cd app && flutter run           # run the app on a connected device/desktop
+```
+
+After changing the bridge API in `app/rust/src/api/`, regenerate bindings
+with `flutter_rust_bridge_codegen generate` (run inside `app/`).
+
 ## Status
 
-Early — technology selection in progress.
+Walking skeleton: Cargo workspace + Flutter app wired via
+flutter_rust_bridge, with the canonical reference model (66-book canon,
+German/English alias resolution, OSIS output) as the first TDD-built
+core module. CI runs Rust and Flutter test suites on every push.
