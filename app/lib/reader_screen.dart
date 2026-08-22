@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'column_plan.dart';
+import 'settings.dart';
+import 'settings_screen.dart';
 import 'src/rust/api/library.dart';
 import 'src/rust/api/references.dart';
 import 'src/rust/api/typeset.dart';
@@ -26,12 +28,13 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen> {
   static const _cacheLimit = 80;
   static const _headingLines = 2;
-  /// Fixed column width: the constant zoom level (a user setting later).
-  /// Viewport width that is not an integer multiple of columns becomes side
-  /// padding instead of scaling the type.
-  static const _baseColumnWidth = 400.0;
   static const _gutter = 48.0;
-  static const _measureEms = 26.0;
+
+  /// Column width (zoom) and measure, mirrored from settings; the measure is
+  /// the identity of the layout — changing it invalidates every line count
+  /// and layout.
+  double _columnWidth = SettingsController.defaultColumnWidth;
+  int? _measure;
 
   ModuleView? _active;
   List<ChapterRefView> _spine = const [];
@@ -62,7 +65,50 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void initState() {
     super.initState();
     _vPositions.itemPositions.addListener(_onVerticalPositions);
-    _refreshModules();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final settings = SettingsScope.of(context);
+    _columnWidth = settings.columnWidth;
+    final measure = settings.measureEms;
+    if (_measure == null) {
+      _measure = measure;
+      _refreshModules();
+    } else if (_measure != measure) {
+      _measure = measure;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _remeasure());
+    }
+  }
+
+  /// The measure changed: every line count and layout is stale. Recompute
+  /// and re-anchor at the chapter that was being read.
+  void _remeasure() {
+    if (!mounted) return;
+    final keepChapter = _topChapter;
+    setState(() {
+      _layouts.clear();
+      _loading.clear();
+      _lineCounts = null;
+      _hParams = null;
+      _hPlan = null;
+      _anchorLine = 0;
+    });
+    final active = _active;
+    if (active == null) return;
+    moduleLineCounts(moduleCode: active.code, measureEms: _measure!)
+        .then((counts) {
+      if (!mounted || _active?.code != active.code) return;
+      setState(() {
+        _lineCounts = counts.map((c) => c.toInt()).toList();
+        final plan = _linePlan();
+        if (plan != null && keepChapter < _spine.length) {
+          _anchorLine = plan.blockStart(keepChapter);
+          _topChapter = keepChapter;
+        }
+      });
+    });
   }
 
   @override
@@ -107,7 +153,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     });
     final active = _active;
     if (active != null) {
-      moduleLineCounts(moduleCode: active.code).then((counts) {
+      moduleLineCounts(moduleCode: active.code, measureEms: _measure!)
+          .then((counts) {
         if (!mounted || _active?.code != active.code) return;
         setState(() => _lineCounts = counts.map((c) => c.toInt()).toList());
       });
@@ -122,6 +169,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       moduleCode: _active!.code,
       bookOsis: entry.bookOsis,
       chapter: entry.chapter,
+      measureEms: _measure!,
     ).then((layout) {
       if (!mounted) return;
       setState(() {
@@ -222,6 +270,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
         title: const Text('gramma'),
         actions: [
           IconButton(
+            key: const Key('open-settings'),
+            tooltip: 'Settings',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
+          ),
+          IconButton(
             key: const Key('import-osis'),
             tooltip: 'Import OSIS…',
             icon: const Icon(Icons.library_add_outlined),
@@ -298,7 +354,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   int _columnsFor(double width) {
-    final n = ((width + _gutter) / (_baseColumnWidth + _gutter)).floor();
+    final n = ((width + _gutter) / (_columnWidth + _gutter)).floor();
     return n < 1 ? 1 : n;
   }
 
@@ -311,7 +367,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: _baseColumnWidth),
+        constraints: BoxConstraints(maxWidth: _columnWidth),
         child: ScrollablePositionedList.builder(
           key: const Key('vertical-reader'),
           itemScrollController: _vScroll,
@@ -325,11 +381,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Widget _horizontalReader(BoxConstraints constraints, int columns) {
-    const columnWidth = _baseColumnWidth;
+    final columnWidth = _columnWidth;
     final contentWidth = columns * columnWidth + (columns - 1) * _gutter;
     final sidePadding = ((constraints.maxWidth - contentWidth) / 2)
         .clamp(0.0, double.infinity);
-    final fontSize = columnWidth / _measureEms;
+    final fontSize = columnWidth / _measure!;
     final lineHeight = fontSize * TypesetChapter.lineHeightEm;
     var linesPerColumn = (constraints.maxHeight / lineHeight).floor();
     if (linesPerColumn < 1) linesPerColumn = 1;
@@ -349,7 +405,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
     _hPlan = plan;
     _hStride = stride;
-    final scale = columnWidth / (_measureEms * _unitsPerEm());
+    final scale = columnWidth / (_measure! * _unitsPerEm());
     return Listener(
       key: const ValueKey('columns-active'),
       onPointerSignal: (event) {
@@ -457,11 +513,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   /// Rough chapter height before its layout arrives, from the spine's text
-  /// length: ~55 characters per line at the 26em measure.
+  /// length and roughly 2.1 characters per em of measure.
   double _estimatedHeight(int index, double columnWidth) {
-    final fontSize = columnWidth / _measureEms;
+    final fontSize = columnWidth / _measure!;
     final lineHeight = fontSize * TypesetChapter.lineHeightEm;
-    final lines = (_spine[index].textLength / 55).ceil() + 1;
+    final charsPerLine = _measure! * 2.1;
+    final lines = (_spine[index].textLength / charsPerLine).ceil() + 1;
     return lines * lineHeight;
   }
 

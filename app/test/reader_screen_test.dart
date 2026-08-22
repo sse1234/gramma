@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gramma/main.dart';
+import 'package:gramma/settings.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:gramma/src/rust/api/library.dart';
 import 'package:gramma/src/rust/api/typeset.dart';
@@ -63,8 +65,11 @@ bool _found(Finder f) => f.evaluate().isNotEmpty;
 
 void main() {
   late Directory tempDir;
+  late SharedPreferences prefs;
 
   setUpAll(() async {
+    SharedPreferences.setMockInitialValues({});
+    prefs = await SharedPreferences.getInstance();
     await RustLib.init(
       externalLibrary: ExternalLibrary.open(_bridgeLibraryPath()),
     );
@@ -83,7 +88,7 @@ void main() {
   testWidgets('shows the imported module and its first chapter', (tester) async {
     _phoneViewport(tester);
     final semantics = tester.ensureSemantics();
-    await tester.pumpWidget(const GrammaApp());
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await _settleLayouts(tester);
     expect(find.text('Fixtur Deutsch'), findsOneWidget);
     expect(find.text('1. Mose 1'), findsWidgets);
@@ -96,7 +101,7 @@ void main() {
 
   testWidgets('reports the current reading position', (tester) async {
     _phoneViewport(tester);
-    await tester.pumpWidget(const GrammaApp());
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await tester.pump();
     final position = tester.widget<Text>(
       find.byKey(const Key('current-position')),
@@ -107,7 +112,7 @@ void main() {
   testWidgets('jumps to a resolved reference', (tester) async {
     _phoneViewport(tester);
     final semantics = tester.ensureSemantics();
-    await tester.pumpWidget(const GrammaApp());
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await _settleLayouts(tester);
     await _enter(tester, '1. Mose 2');
     await _settleLayouts(tester);
@@ -124,7 +129,7 @@ void main() {
 
   testWidgets('echoes the OSIS form of the entered reference', (tester) async {
     _phoneViewport(tester);
-    await tester.pumpWidget(const GrammaApp());
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await tester.pump();
     await _enter(tester, '1. Mose 2,1');
     expect(find.text('Gen.2.1'), findsOneWidget);
@@ -132,7 +137,7 @@ void main() {
 
   testWidgets('reports a reference outside the module', (tester) async {
     _phoneViewport(tester);
-    await tester.pumpWidget(const GrammaApp());
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await tester.pump();
     await _enter(tester, 'Joh 3,16');
     expect(find.byKey(const Key('jump-miss')), findsOneWidget);
@@ -140,7 +145,7 @@ void main() {
 
   testWidgets('shows an error for an unknown book', (tester) async {
     _phoneViewport(tester);
-    await tester.pumpWidget(const GrammaApp());
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await tester.pump();
     await _enter(tester, 'Foo 3,16');
     expect(find.byKey(const Key('parse-error')), findsOneWidget);
@@ -149,7 +154,7 @@ void main() {
 
   testWidgets('clearing the input clears status but keeps the reader', (tester) async {
     _phoneViewport(tester);
-    await tester.pumpWidget(const GrammaApp());
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await tester.pump();
     await _enter(tester, '1. Mose 2');
     await _enter(tester, '');
@@ -162,7 +167,7 @@ void main() {
   testWidgets('wide viewports switch to horizontal columns', (tester) async {
     _desktopViewport(tester);
     final semantics = tester.ensureSemantics();
-    await tester.pumpWidget(const GrammaApp());
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await _settle(
       tester,
       () => _found(find.byKey(const ValueKey('columns-active'))),
@@ -186,7 +191,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final semantics = tester.ensureSemantics();
-    await tester.pumpWidget(const GrammaApp());
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await _settle(
       tester,
       () => _found(find.byKey(const ValueKey('columns-active'))),
@@ -209,7 +214,7 @@ void main() {
   testWidgets('narrowing the window falls back to one vertical column',
       (tester) async {
     _desktopViewport(tester);
-    await tester.pumpWidget(const GrammaApp());
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await _settle(
       tester,
       () => _found(find.byKey(const ValueKey('columns-active'))),

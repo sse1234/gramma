@@ -275,6 +275,7 @@ fn wire__crate__api__typeset__layout_chapter_impl(
             let api_module_code = <String>::sse_decode(&mut deserializer);
             let api_book_osis = <String>::sse_decode(&mut deserializer);
             let api_chapter = <u16>::sse_decode(&mut deserializer);
+            let api_measure_ems = <u16>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -283,6 +284,7 @@ fn wire__crate__api__typeset__layout_chapter_impl(
                             api_module_code,
                             api_book_osis,
                             api_chapter,
+                            api_measure_ems,
                         )?;
                         Ok(output_ok)
                     })(),
@@ -314,11 +316,15 @@ fn wire__crate__api__typeset__module_line_counts_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_module_code = <String>::sse_decode(&mut deserializer);
+            let api_measure_ems = <u16>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || {
-                        let output_ok = crate::api::typeset::module_line_counts(api_module_code)?;
+                        let output_ok = crate::api::typeset::module_line_counts(
+                            api_module_code,
+                            api_measure_ems,
+                        )?;
                         Ok(output_ok)
                     })(),
                 )

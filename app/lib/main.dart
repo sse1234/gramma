@@ -3,11 +3,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'src/rust/api/library.dart';
 import 'src/rust/api/typeset.dart';
 import 'src/rust/frb_generated.dart';
 import 'reader_screen.dart';
+import 'settings.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,18 +19,28 @@ Future<void> main() async {
   openLibrary(path: '${support.path}/library.db');
   final font = await rootBundle.load('fonts/GentiumBookPlus-Regular.ttf');
   initTypesetting(fontData: font.buffer.asUint8List());
-  runApp(const GrammaApp());
+  final settings = SettingsController(await SharedPreferences.getInstance());
+  runApp(GrammaApp(settings: settings));
 }
 
 class GrammaApp extends StatelessWidget {
-  const GrammaApp({super.key});
+  const GrammaApp({super.key, required this.settings});
+
+  final SettingsController settings;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'gramma',
-      theme: ThemeData(colorSchemeSeed: const Color(0xFF7A5C3E)),
-      home: const ReaderScreen(),
+    return ListenableBuilder(
+      listenable: settings,
+      builder: (context, _) => MaterialApp(
+        title: 'gramma',
+        themeMode: settings.themeMode,
+        theme: grammaTheme(Brightness.light, settings.contrast),
+        darkTheme: grammaTheme(Brightness.dark, settings.contrast),
+        builder: (context, child) =>
+            SettingsScope(controller: settings, child: child!),
+        home: const ReaderScreen(),
+      ),
     );
   }
 }

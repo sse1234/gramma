@@ -16,20 +16,25 @@ Future<ChapterLayoutView> layoutChapter({
   required String moduleCode,
   required String bookOsis,
   required int chapter,
+  required int measureEms,
 }) => RustLib.instance.api.crateApiTypesetLayoutChapter(
   moduleCode: moduleCode,
   bookOsis: bookOsis,
   chapter: chapter,
+  measureEms: measureEms,
 );
 
 /// Text-line count of every chapter in the module's spine order, at the
 /// canonical measure. This makes global line numbering possible, which the
 /// multi-column reader chunks into viewport-sized columns — layout itself
 /// never depends on the viewport.
-Future<Uint32List> moduleLineCounts({required String moduleCode}) => RustLib
-    .instance
-    .api
-    .crateApiTypesetModuleLineCounts(moduleCode: moduleCode);
+Future<Uint32List> moduleLineCounts({
+  required String moduleCode,
+  required int measureEms,
+}) => RustLib.instance.api.crateApiTypesetModuleLineCounts(
+  moduleCode: moduleCode,
+  measureEms: measureEms,
+);
 
 class ChapterLayoutView {
   final List<LineView> lines;

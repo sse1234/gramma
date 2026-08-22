@@ -106,10 +106,12 @@ abstract class RustLibApi extends BaseApi {
     required String moduleCode,
     required String bookOsis,
     required int chapter,
+    required int measureEms,
   });
 
   Future<Uint32List> crateApiTypesetModuleLineCounts({
     required String moduleCode,
+    required int measureEms,
   });
 
   List<ModuleView> crateApiLibraryModules();
@@ -297,6 +299,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String moduleCode,
     required String bookOsis,
     required int chapter,
+    required int measureEms,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -305,6 +308,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(moduleCode, serializer);
           sse_encode_String(bookOsis, serializer);
           sse_encode_u_16(chapter, serializer);
+          sse_encode_u_16(measureEms, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -317,7 +321,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiTypesetLayoutChapterConstMeta,
-        argValues: [moduleCode, bookOsis, chapter],
+        argValues: [moduleCode, bookOsis, chapter, measureEms],
         apiImpl: this,
       ),
     );
@@ -326,18 +330,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiTypesetLayoutChapterConstMeta =>
       const TaskConstMeta(
         debugName: "layout_chapter",
-        argNames: ["moduleCode", "bookOsis", "chapter"],
+        argNames: ["moduleCode", "bookOsis", "chapter", "measureEms"],
       );
 
   @override
   Future<Uint32List> crateApiTypesetModuleLineCounts({
     required String moduleCode,
+    required int measureEms,
   }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(moduleCode, serializer);
+          sse_encode_u_16(measureEms, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -350,7 +356,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiTypesetModuleLineCountsConstMeta,
-        argValues: [moduleCode],
+        argValues: [moduleCode, measureEms],
         apiImpl: this,
       ),
     );
@@ -359,7 +365,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiTypesetModuleLineCountsConstMeta =>
       const TaskConstMeta(
         debugName: "module_line_counts",
-        argNames: ["moduleCode"],
+        argNames: ["moduleCode", "measureEms"],
       );
 
   @override

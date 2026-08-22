@@ -8,10 +8,6 @@ use hyphenation::{Language, Load, Standard};
 
 use super::library::with_library;
 
-/// The canonical measure: line width in ems, identical on every device.
-/// Column pixel width divided by this gives the rendering font size.
-pub const MEASURE_EMS: i64 = 26;
-
 static MEASURE: OnceLock<FontMeasure<'static>> = OnceLock::new();
 static GERMAN: OnceLock<Standard> = OnceLock::new();
 
@@ -58,6 +54,7 @@ pub fn layout_chapter(
     module_code: String,
     book_osis: String,
     chapter: u16,
+    measure_ems: u16,
 ) -> anyhow::Result<ChapterLayoutView> {
     let measure = MEASURE
         .get()
@@ -77,7 +74,7 @@ pub fn layout_chapter(
         })
     });
     let verse_refs: Vec<(u16, &str)> = verses.iter().map(|v| (v.verse, v.text.as_str())).collect();
-    let measure_units = MEASURE_EMS * measure.units_per_em() as i64;
+    let measure_units = measure_ems as i64 * measure.units_per_em() as i64;
     let lines = layout_verses(&verse_refs, measure, hyphenator, measure_units);
     let plain_text = verses
         .iter()
@@ -111,7 +108,7 @@ pub fn layout_chapter(
 /// canonical measure. This makes global line numbering possible, which the
 /// multi-column reader chunks into viewport-sized columns — layout itself
 /// never depends on the viewport.
-pub fn module_line_counts(module_code: String) -> anyhow::Result<Vec<u32>> {
+pub fn module_line_counts(module_code: String, measure_ems: u16) -> anyhow::Result<Vec<u32>> {
     let measure = MEASURE
         .get()
         .ok_or_else(|| anyhow!("typesetting not initialized"))?;
@@ -128,7 +125,7 @@ pub fn module_line_counts(module_code: String) -> anyhow::Result<Vec<u32>> {
             Standard::from_embedded(Language::German1996).expect("embedded patterns")
         })
     });
-    let measure_units = MEASURE_EMS * measure.units_per_em() as i64;
+    let measure_units = measure_ems as i64 * measure.units_per_em() as i64;
     let mut counts = Vec::with_capacity(contents.len());
     for c in &contents {
         let verses = with_library(|library| library.chapter(&module_code, c.book, c.chapter))?;
