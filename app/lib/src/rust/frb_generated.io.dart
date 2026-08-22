@@ -6,6 +6,7 @@
 import 'api/library.dart';
 import 'api/references.dart';
 import 'api/typeset.dart';
+import 'api/user.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -60,6 +61,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ModuleView> dco_decode_list_module_view(dynamic raw);
 
   @protected
+  List<NoteView> dco_decode_list_note_view(dynamic raw);
+
+  @protected
   Uint32List dco_decode_list_prim_u_32_strict(dynamic raw);
 
   @protected
@@ -76,6 +80,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ModuleView dco_decode_module_view(dynamic raw);
+
+  @protected
+  NoteView dco_decode_note_view(dynamic raw);
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
@@ -142,6 +149,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ModuleView> sse_decode_list_module_view(SseDeserializer deserializer);
 
   @protected
+  List<NoteView> sse_decode_list_note_view(SseDeserializer deserializer);
+
+  @protected
   Uint32List sse_decode_list_prim_u_32_strict(SseDeserializer deserializer);
 
   @protected
@@ -158,6 +168,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ModuleView sse_decode_module_view(SseDeserializer deserializer);
+
+  @protected
+  NoteView sse_decode_note_view(SseDeserializer deserializer);
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
@@ -238,6 +251,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_note_view(List<NoteView> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_prim_u_32_strict(
     Uint32List self,
     SseSerializer serializer,
@@ -263,6 +279,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_module_view(ModuleView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_note_view(NoteView self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);

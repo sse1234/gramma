@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:gramma/src/rust/api/library.dart';
 import 'package:gramma/src/rust/api/typeset.dart';
+import 'package:gramma/src/rust/api/user.dart';
 import 'package:gramma/src/rust/frb_generated.dart';
 
 /// Host tests load the bridge library from the Cargo workspace target dir;
@@ -63,6 +64,14 @@ void _desktopViewport(WidgetTester tester) {
 
 bool _found(Finder f) => f.evaluate().isNotEmpty;
 
+var _storeCounter = 0;
+
+/// A fresh user store per test isolates persisted layout objects.
+void _freshUserStore() {
+  final dir = Directory.systemTemp.createTempSync('gramma-user');
+  openUserStore(path: '${dir.path}/user-${_storeCounter++}.db');
+}
+
 void main() {
   late Directory tempDir;
   late SharedPreferences prefs;
@@ -79,6 +88,7 @@ void main() {
       fontData: File('fonts/GentiumBookPlus-Regular.ttf').readAsBytesSync(),
     );
     await importOsisFile(path: _fixture);
+    _freshUserStore();
   });
 
   tearDownAll(() async {
@@ -86,6 +96,7 @@ void main() {
   });
 
   testWidgets('shows the imported module and its first chapter', (tester) async {
+    _freshUserStore();
     _phoneViewport(tester);
     final semantics = tester.ensureSemantics();
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
@@ -100,6 +111,7 @@ void main() {
   });
 
   testWidgets('reports the current reading position', (tester) async {
+    _freshUserStore();
     _phoneViewport(tester);
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await tester.pump();
@@ -110,6 +122,7 @@ void main() {
   });
 
   testWidgets('jumps to a resolved reference', (tester) async {
+    _freshUserStore();
     _phoneViewport(tester);
     final semantics = tester.ensureSemantics();
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
@@ -128,6 +141,7 @@ void main() {
   });
 
   testWidgets('echoes the OSIS form of the entered reference', (tester) async {
+    _freshUserStore();
     _phoneViewport(tester);
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await tester.pump();
@@ -136,6 +150,7 @@ void main() {
   });
 
   testWidgets('reports a reference outside the module', (tester) async {
+    _freshUserStore();
     _phoneViewport(tester);
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await tester.pump();
@@ -144,6 +159,7 @@ void main() {
   });
 
   testWidgets('shows an error for an unknown book', (tester) async {
+    _freshUserStore();
     _phoneViewport(tester);
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await tester.pump();
@@ -153,6 +169,7 @@ void main() {
   });
 
   testWidgets('clearing the input clears status but keeps the reader', (tester) async {
+    _freshUserStore();
     _phoneViewport(tester);
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await tester.pump();
@@ -165,6 +182,7 @@ void main() {
   });
 
   testWidgets('wide viewports switch to horizontal columns', (tester) async {
+    _freshUserStore();
     _desktopViewport(tester);
     final semantics = tester.ensureSemantics();
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
@@ -223,5 +241,61 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.byKey(const Key('vertical-reader')), findsOneWidget);
+  });
+
+  testWidgets('footnotes view follows the text view', (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Footnotes view'));
+    await _settle(tester, () => _found(find.textContaining('Anmerkung Alpha')));
+    await _enter(tester, '1. Mose 3');
+    await _settle(tester, () => _found(find.textContaining('Anmerkung Beta')));
+    expect(find.textContaining('Anmerkung Alpha'), findsNothing);
+  });
+
+  testWidgets('a second text view follows the first', (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1400, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Text view'));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('link-select')).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('View 1').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, '1. Mose 3');
+    await _settle(tester, () {
+      final labels = find.byKey(const Key('current-position'));
+      if (labels.evaluate().length < 2) return false;
+      return tester.widget<Text>(labels.last).data == '1. Mose 3';
+    });
+  });
+
+  testWidgets('the layout object survives a restart', (tester) async {
+    _freshUserStore();
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Footnotes view'));
+    await tester.pumpAndSettle();
+    expect(find.text('Footnotes'), findsOneWidget);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await tester.pump();
+    expect(find.text('Footnotes'), findsOneWidget,
+        reason: 'restored from the user store');
   });
 }

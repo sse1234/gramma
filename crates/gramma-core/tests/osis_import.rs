@@ -136,3 +136,47 @@ fn contents_for_unknown_module_fails() {
     let library = library_with(CONTAINER);
     assert!(library.contents("Nope").is_err());
 }
+
+#[test]
+fn notes_are_extracted_per_verse_in_order() {
+    let library = library_with(CONTAINER);
+    let genesis = book_by_osis("Gen").unwrap();
+    let notes = library.notes("FixDe", genesis, 1).unwrap();
+    assert_eq!(notes.len(), 2);
+    assert_eq!(notes[0].verse, 1);
+    assert_eq!(notes[0].seq, 1);
+    assert_eq!(notes[0].text, "Hebr. bereschit");
+    assert_eq!(notes[1].seq, 2);
+    assert_eq!(notes[1].text, "Im Hebr. steht »Himmel« in der Mehrzahl");
+}
+
+#[test]
+fn notes_keep_out_of_verse_text() {
+    let library = library_with(CONTAINER);
+    let genesis = book_by_osis("Gen").unwrap();
+    let verses = library.chapter("FixDe", genesis, 1).unwrap();
+    assert_eq!(verses[0].text, "Am Anfang schuf Gott Himmel und Erde.");
+}
+
+#[test]
+fn milestone_note_with_markup_is_flattened() {
+    let library = library_with(MILESTONE);
+    let john = book_by_osis("John").unwrap();
+    let notes = library.notes("FixEn", john, 3).unwrap();
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0].verse, 16);
+    assert_eq!(notes[0].text, "Or: loved in this way");
+}
+
+#[test]
+fn module_info_reports_note_count() {
+    let library = library_with(CONTAINER);
+    assert_eq!(library.modules().unwrap()[0].notes, 2);
+}
+
+#[test]
+fn chapters_without_notes_yield_empty_list() {
+    let library = library_with(CONTAINER);
+    let genesis = book_by_osis("Gen").unwrap();
+    assert!(library.notes("FixDe", genesis, 2).unwrap().is_empty());
+}

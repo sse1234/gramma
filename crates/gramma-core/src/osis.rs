@@ -4,8 +4,9 @@
 //! Both encoding styles found in CrossWire content are supported: container
 //! verses (`<verse osisID="…">text</verse>`) and milestone verses
 //! (`<verse sID="…"/>text<verse eID="…"/>`). Formatting markup (`w`, `hi`,
-//! `seg`, `divineName`, …) is unwrapped to its text; `note` and `title`
-//! content is excluded from verse text. Books outside the 66-book canon are
+//! `seg`, `divineName`, …) is unwrapped to its text; `title` content is
+//! excluded; `note` content is excluded from verse text but captured as a
+//! footnote attached to its verse. Books outside the 66-book canon are
 //! skipped.
 
 use std::io::BufRead;
@@ -33,6 +34,7 @@ pub struct OsisDocument {
     pub title: String,
     pub language: String,
     pub verses: Vec<OsisVerse>,
+    pub notes: Vec<OsisNote>,
 }
 
 #[derive(Debug)]
@@ -40,6 +42,17 @@ pub struct OsisVerse {
     pub book: BookId,
     pub chapter: u16,
     pub verse: u16,
+    pub text: String,
+}
+
+/// A footnote attached to a verse; `seq` numbers multiple notes within one
+/// verse starting at 1.
+#[derive(Debug)]
+pub struct OsisNote {
+    pub book: BookId,
+    pub chapter: u16,
+    pub verse: u16,
+    pub seq: u16,
     pub text: String,
 }
 
@@ -53,9 +66,12 @@ pub fn parse(source: impl BufRead) -> Result<OsisDocument, OsisError> {
     let mut in_header = false;
     let mut capture_work_title = false;
     let mut skip_depth: u32 = 0;
+    let mut note_depth: u32 = 0;
+    let mut note_text = String::new();
     let mut current: Option<(BookId, u16, u16)> = None;
     let mut text = String::new();
     let mut verses: Vec<OsisVerse> = Vec::new();
+    let mut notes: Vec<OsisNote> = Vec::new();
 
     loop {
         match reader.read_event_into(&mut buf)? {
@@ -68,7 +84,8 @@ pub fn parse(source: impl BufRead) -> Result<OsisDocument, OsisError> {
                 }
                 b"header" => in_header = true,
                 b"title" if in_header => capture_work_title = title.is_empty(),
-                b"title" | b"note" => skip_depth += 1,
+                b"title" => skip_depth += 1,
+                b"note" => note_depth += 1,
                 b"verse" => {
                     if let Some(id) = attr(&e, b"osisID") {
                         current = parse_osis_id(&id);
@@ -92,7 +109,13 @@ pub fn parse(source: impl BufRead) -> Result<OsisDocument, OsisError> {
             Event::End(e) => match e.local_name().as_ref() {
                 b"header" => in_header = false,
                 b"title" if in_header => capture_work_title = false,
-                b"title" | b"note" => skip_depth = skip_depth.saturating_sub(1),
+                b"title" => skip_depth = skip_depth.saturating_sub(1),
+                b"note" => {
+                    note_depth = note_depth.saturating_sub(1);
+                    if note_depth == 0 {
+                        commit_note(&current, &mut note_text, &mut notes);
+                    }
+                }
                 b"verse" => commit(&mut current, &mut text, &mut verses),
                 _ => {}
             },
@@ -102,6 +125,10 @@ pub fn parse(source: impl BufRead) -> Result<OsisDocument, OsisError> {
                     .map_err(quick_xml::Error::from)?;
                 if capture_work_title {
                     title.push_str(&content);
+                } else if note_depth > 0 {
+                    if skip_depth == 0 && current.is_some() {
+                        note_text.push_str(&content);
+                    }
                 } else if skip_depth == 0 && current.is_some() {
                     text.push_str(&content);
                 }
@@ -120,7 +147,35 @@ pub fn parse(source: impl BufRead) -> Result<OsisDocument, OsisError> {
         title: normalize(&title),
         language,
         verses,
+        notes,
     })
+}
+
+fn commit_note(
+    current: &Option<(BookId, u16, u16)>,
+    note_text: &mut String,
+    notes: &mut Vec<OsisNote>,
+) {
+    let text = normalize(note_text);
+    note_text.clear();
+    let Some((book, chapter, verse)) = *current else {
+        return;
+    };
+    if text.is_empty() {
+        return;
+    }
+    let seq = notes
+        .last()
+        .filter(|n| (n.book, n.chapter, n.verse) == (book, chapter, verse))
+        .map(|n| n.seq + 1)
+        .unwrap_or(1);
+    notes.push(OsisNote {
+        book,
+        chapter,
+        verse,
+        seq,
+        text,
+    });
 }
 
 fn commit(

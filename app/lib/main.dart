@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'src/rust/api/library.dart';
 import 'src/rust/api/typeset.dart';
+import 'src/rust/api/user.dart';
 import 'src/rust/frb_generated.dart';
 import 'reader_screen.dart';
 import 'settings.dart';
@@ -17,6 +18,7 @@ Future<void> main() async {
   final support = await getApplicationSupportDirectory();
   await Directory(support.path).create(recursive: true);
   openLibrary(path: '${support.path}/library.db');
+  openUserStore(path: '${support.path}/user.db');
   final font = await rootBundle.load('fonts/GentiumBookPlus-Regular.ttf');
   initTypesetting(fontData: font.buffer.asUint8List());
   final settings = SettingsController(await SharedPreferences.getInstance());

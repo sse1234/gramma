@@ -26,9 +26,15 @@ pub struct ModuleView {
     pub title: String,
     pub language: String,
     pub verses: u32,
+    pub notes: u32,
 }
 
 pub struct VerseView {
+    pub verse: u16,
+    pub text: String,
+}
+
+pub struct NoteView {
     pub verse: u16,
     pub text: String,
 }
@@ -67,6 +73,7 @@ pub fn import_osis_file(path: String) -> anyhow::Result<ModuleView> {
         title: info.title,
         language: info.language,
         verses: info.verses,
+        notes: info.notes,
     })
 }
 
@@ -84,6 +91,7 @@ pub fn modules() -> anyhow::Result<Vec<ModuleView>> {
             title: m.title,
             language: m.language,
             verses: m.verses,
+            notes: m.notes,
         })
         .collect())
 }
@@ -113,6 +121,25 @@ pub fn contents(module_code: String) -> anyhow::Result<Vec<ChapterRefView>> {
             }
         })
         .collect())
+}
+
+/// Footnotes of one chapter, ordered by verse and sequence.
+#[flutter_rust_bridge::frb(sync)]
+pub fn chapter_notes(
+    module_code: String,
+    book_osis: String,
+    chapter: u16,
+) -> anyhow::Result<Vec<NoteView>> {
+    let book = book_by_osis(&book_osis).ok_or_else(|| anyhow!("unknown book: {book_osis}"))?;
+    with_library(|library| library.notes(&module_code, book, chapter)).map(|notes| {
+        notes
+            .into_iter()
+            .map(|n| NoteView {
+                verse: n.verse,
+                text: n.text,
+            })
+            .collect()
+    })
 }
 
 #[flutter_rust_bridge::frb(sync)]

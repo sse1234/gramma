@@ -20,6 +20,17 @@ List<ModuleView> modules() => RustLib.instance.api.crateApiLibraryModules();
 List<ChapterRefView> contents({required String moduleCode}) =>
     RustLib.instance.api.crateApiLibraryContents(moduleCode: moduleCode);
 
+/// Footnotes of one chapter, ordered by verse and sequence.
+List<NoteView> chapterNotes({
+  required String moduleCode,
+  required String bookOsis,
+  required int chapter,
+}) => RustLib.instance.api.crateApiLibraryChapterNotes(
+  moduleCode: moduleCode,
+  bookOsis: bookOsis,
+  chapter: chapter,
+);
+
 List<VerseView> chapterVerses({
   required String moduleCode,
   required String bookOsis,
@@ -95,17 +106,23 @@ class ModuleView {
   final String title;
   final String language;
   final int verses;
+  final int notes;
 
   const ModuleView({
     required this.code,
     required this.title,
     required this.language,
     required this.verses,
+    required this.notes,
   });
 
   @override
   int get hashCode =>
-      code.hashCode ^ title.hashCode ^ language.hashCode ^ verses.hashCode;
+      code.hashCode ^
+      title.hashCode ^
+      language.hashCode ^
+      verses.hashCode ^
+      notes.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -115,7 +132,26 @@ class ModuleView {
           code == other.code &&
           title == other.title &&
           language == other.language &&
-          verses == other.verses;
+          verses == other.verses &&
+          notes == other.notes;
+}
+
+class NoteView {
+  final int verse;
+  final String text;
+
+  const NoteView({required this.verse, required this.text});
+
+  @override
+  int get hashCode => verse.hashCode ^ text.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NoteView &&
+          runtimeType == other.runtimeType &&
+          verse == other.verse &&
+          text == other.text;
 }
 
 class VerseView {

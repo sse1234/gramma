@@ -10,7 +10,7 @@
       <title type="main">Das erste Buch Mose</title>
       <chapter osisID="Gen.1">
         <title>Die Schöpfung</title>
-        <verse osisID="Gen.1.1">Am Anfang schuf Gott Himmel und Erde.</verse>
+        <verse osisID="Gen.1.1">Am Anfang<note>Hebr. bereschit</note> schuf Gott Himmel und Erde.<note>Im Hebr. steht »Himmel« in der Mehrzahl</note></verse>
         <verse osisID="Gen.1.2">Und die Erde war wüst und leer,
           und es war finster auf der Tiefe.</verse>
       </chapter>

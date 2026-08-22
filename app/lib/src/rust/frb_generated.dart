@@ -6,6 +6,7 @@
 import 'api/library.dart';
 import 'api/references.dart';
 import 'api/typeset.dart';
+import 'api/user.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -71,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -458430742;
+  int get rustContentHash => 136518077;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -86,6 +87,12 @@ abstract class RustLibApi extends BaseApi {
   ChapterView crateApiLibraryChapter({
     required String moduleCode,
     required String reference,
+  });
+
+  List<NoteView> crateApiLibraryChapterNotes({
+    required String moduleCode,
+    required String bookOsis,
+    required int chapter,
   });
 
   List<VerseView> crateApiLibraryChapterVerses({
@@ -109,6 +116,8 @@ abstract class RustLibApi extends BaseApi {
     required int measureEms,
   });
 
+  String? crateApiUserLoadLayout();
+
   Future<Uint32List> crateApiTypesetModuleLineCounts({
     required String moduleCode,
     required int measureEms,
@@ -118,7 +127,11 @@ abstract class RustLibApi extends BaseApi {
 
   void crateApiLibraryOpenLibrary({required String path});
 
+  void crateApiUserOpenUserStore({required String path});
+
   ParseOutcome crateApiReferencesParseReference({required String input});
+
+  void crateApiUserSaveLayout({required String json});
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -159,7 +172,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
-  List<VerseView> crateApiLibraryChapterVerses({
+  List<NoteView> crateApiLibraryChapterNotes({
     required String moduleCode,
     required String bookOsis,
     required int chapter,
@@ -172,6 +185,38 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(bookOsis, serializer);
           sse_encode_u_16(chapter, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_note_view,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiLibraryChapterNotesConstMeta,
+        argValues: [moduleCode, bookOsis, chapter],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLibraryChapterNotesConstMeta =>
+      const TaskConstMeta(
+        debugName: "chapter_notes",
+        argNames: ["moduleCode", "bookOsis", "chapter"],
+      );
+
+  @override
+  List<VerseView> crateApiLibraryChapterVerses({
+    required String moduleCode,
+    required String bookOsis,
+    required int chapter,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(moduleCode, serializer);
+          sse_encode_String(bookOsis, serializer);
+          sse_encode_u_16(chapter, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_verse_view,
@@ -197,7 +242,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(moduleCode, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_chapter_ref_view,
@@ -223,7 +268,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 5,
             port: port_,
           );
         },
@@ -250,7 +295,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 6,
             port: port_,
           );
         },
@@ -275,7 +320,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_u_8_loose(fontData, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -312,7 +357,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 8,
             port: port_,
           );
         },
@@ -334,6 +379,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  String? crateApiUserLoadLayout() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiUserLoadLayoutConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiUserLoadLayoutConstMeta =>
+      const TaskConstMeta(debugName: "load_layout", argNames: []);
+
+  @override
   Future<Uint32List> crateApiTypesetModuleLineCounts({
     required String moduleCode,
     required int measureEms,
@@ -347,7 +414,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 10,
             port: port_,
           );
         },
@@ -374,7 +441,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_module_view,
@@ -397,7 +464,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(path, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -414,13 +481,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "open_library", argNames: ["path"]);
 
   @override
+  void crateApiUserOpenUserStore({required String path}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(path, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiUserOpenUserStoreConstMeta,
+        argValues: [path],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiUserOpenUserStoreConstMeta =>
+      const TaskConstMeta(debugName: "open_user_store", argNames: ["path"]);
+
+  @override
   ParseOutcome crateApiReferencesParseReference({required String input}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(input, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_parse_outcome,
@@ -435,6 +525,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiReferencesParseReferenceConstMeta =>
       const TaskConstMeta(debugName: "parse_reference", argNames: ["input"]);
+
+  @override
+  void crateApiUserSaveLayout({required String json}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(json, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiUserSaveLayoutConstMeta,
+        argValues: [json],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiUserSaveLayoutConstMeta =>
+      const TaskConstMeta(debugName: "save_layout", argNames: ["json"]);
 
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw) {
@@ -535,6 +648,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<NoteView> dco_decode_list_note_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_note_view).toList();
+  }
+
+  @protected
   Uint32List dco_decode_list_prim_u_32_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Uint32List;
@@ -568,13 +687,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ModuleView dco_decode_module_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return ModuleView(
       code: dco_decode_String(arr[0]),
       title: dco_decode_String(arr[1]),
       language: dco_decode_String(arr[2]),
       verses: dco_decode_u_32(arr[3]),
+      notes: dco_decode_u_32(arr[4]),
+    );
+  }
+
+  @protected
+  NoteView dco_decode_note_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return NoteView(
+      verse: dco_decode_u_16(arr[0]),
+      text: dco_decode_String(arr[1]),
     );
   }
 
@@ -766,6 +898,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<NoteView> sse_decode_list_note_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <NoteView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_note_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   Uint32List sse_decode_list_prim_u_32_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
@@ -817,12 +961,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_title = sse_decode_String(deserializer);
     var var_language = sse_decode_String(deserializer);
     var var_verses = sse_decode_u_32(deserializer);
+    var var_notes = sse_decode_u_32(deserializer);
     return ModuleView(
       code: var_code,
       title: var_title,
       language: var_language,
       verses: var_verses,
+      notes: var_notes,
     );
+  }
+
+  @protected
+  NoteView sse_decode_note_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_verse = sse_decode_u_16(deserializer);
+    var var_text = sse_decode_String(deserializer);
+    return NoteView(verse: var_verse, text: var_text);
   }
 
   @protected
@@ -1004,6 +1158,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_note_view(
+    List<NoteView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_note_view(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_prim_u_32_strict(
     Uint32List self,
     SseSerializer serializer,
@@ -1063,6 +1229,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.title, serializer);
     sse_encode_String(self.language, serializer);
     sse_encode_u_32(self.verses, serializer);
+    sse_encode_u_32(self.notes, serializer);
+  }
+
+  @protected
+  void sse_encode_note_view(NoteView self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_16(self.verse, serializer);
+    sse_encode_String(self.text, serializer);
   }
 
   @protected

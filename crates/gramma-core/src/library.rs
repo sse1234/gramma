@@ -24,11 +24,20 @@ pub struct ModuleInfo {
     pub title: String,
     pub language: String,
     pub verses: u32,
+    pub notes: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Verse {
     pub verse: u16,
+    pub text: String,
+}
+
+/// A footnote of a verse; `seq` numbers notes within one verse from 1.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Note {
+    pub verse: u16,
+    pub seq: u16,
     pub text: String,
 }
 
@@ -55,6 +64,15 @@ CREATE TABLE IF NOT EXISTS verse(
   verse INTEGER NOT NULL,
   text TEXT NOT NULL,
   PRIMARY KEY(module_id, book, chapter, verse)
+) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS note(
+  module_id INTEGER NOT NULL REFERENCES module(id) ON DELETE CASCADE,
+  book INTEGER NOT NULL,
+  chapter INTEGER NOT NULL,
+  verse INTEGER NOT NULL,
+  seq INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  PRIMARY KEY(module_id, book, chapter, verse, seq)
 ) WITHOUT ROWID;
 ";
 
@@ -110,6 +128,22 @@ impl Library {
                 ))?;
             }
         }
+        {
+            let mut insert = tx.prepare(
+                "INSERT OR REPLACE INTO note(module_id, book, chapter, verse, seq, text)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            )?;
+            for n in &doc.notes {
+                insert.execute((
+                    module_id,
+                    n.book.index() as i64,
+                    n.chapter,
+                    n.verse,
+                    n.seq,
+                    &n.text,
+                ))?;
+            }
+        }
         tx.commit()?;
         let verses = self.verse_count(module_id)?;
         Ok(ModuleInfo {
@@ -117,13 +151,15 @@ impl Library {
             title: doc.title,
             language: doc.language,
             verses,
+            notes: doc.notes.len() as u32,
         })
     }
 
     pub fn modules(&self) -> Result<Vec<ModuleInfo>, LibraryError> {
         let mut stmt = self.conn.prepare(
             "SELECT code, title, language,
-                    (SELECT COUNT(*) FROM verse v WHERE v.module_id = m.id)
+                    (SELECT COUNT(*) FROM verse v WHERE v.module_id = m.id),
+                    (SELECT COUNT(*) FROM note n WHERE n.module_id = m.id)
              FROM module m ORDER BY code",
         )?;
         let modules = stmt
@@ -133,6 +169,7 @@ impl Library {
                     title: row.get(1)?,
                     language: row.get(2)?,
                     verses: row.get(3)?,
+                    notes: row.get(4)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -160,6 +197,31 @@ impl Library {
             })?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(verses)
+    }
+
+    /// Footnotes of one chapter, ordered by verse and sequence.
+    pub fn notes(
+        &self,
+        module_code: &str,
+        book: BookId,
+        chapter: u16,
+    ) -> Result<Vec<Note>, LibraryError> {
+        let module_id = self.module_id(module_code)?;
+        let mut stmt = self.conn.prepare(
+            "SELECT verse, seq, text FROM note
+             WHERE module_id = ?1 AND book = ?2 AND chapter = ?3
+             ORDER BY verse, seq",
+        )?;
+        let notes = stmt
+            .query_map((module_id, book.index() as i64, chapter), |row| {
+                Ok(Note {
+                    verse: row.get(0)?,
+                    seq: row.get(1)?,
+                    text: row.get(2)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(notes)
     }
 
     /// The ordered chapter spine of a module: every chapter that has content,

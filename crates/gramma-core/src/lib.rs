@@ -7,3 +7,4 @@ pub mod library;
 pub mod osis;
 pub mod reference;
 pub mod typeset;
+pub mod user;
