@@ -96,8 +96,7 @@ pub(crate) fn hyphen_offsets(word: &str, hyphenator: &Standard) -> Vec<usize> {
     };
     let core_end = word
         .char_indices()
-        .filter(|(_, c)| c.is_alphabetic())
-        .next_back()
+        .rfind(|(_, c)| c.is_alphabetic())
         .map(|(i, c)| i + c.len_utf8())
         .expect("core has at least one letter");
     let core = &word[core_start..core_end];
