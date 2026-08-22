@@ -6,6 +6,10 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+hyphenation = { version = "0.8.4", features = ["embed_all"] }
 quick-xml = "0.41.0"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 thiserror = "2.0.20"
+
+[dev-dependencies]
+proptest = "1.11.0"
