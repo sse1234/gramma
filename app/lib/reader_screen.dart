@@ -1,14 +1,21 @@
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
+import 'column_plan.dart';
 import 'src/rust/api/library.dart';
 import 'src/rust/api/references.dart';
 import 'src/rust/api/typeset.dart';
 import 'typeset_chapter.dart';
+import 'typeset_column.dart';
 
-/// Endless-scrolling reader: the module's chapter spine backs a lazily
-/// loaded continuous text stream; the reference field jumps to a position.
+/// Endless-scrolling reader over a module's chapter spine.
+///
+/// Narrow viewports read as one vertical column. When two or more columns
+/// fit, the same canonical line stream wraps into viewport-height columns
+/// scrolled horizontally; resizing re-chunks the stream without any
+/// re-layout, and the reading position carries across mode switches.
 class ReaderScreen extends StatefulWidget {
   const ReaderScreen({super.key});
 
@@ -17,39 +24,65 @@ class ReaderScreen extends StatefulWidget {
 }
 
 class _ReaderScreenState extends State<ReaderScreen> {
+  static const _cacheLimit = 80;
+  static const _headingLines = 2;
+  static const _minColumnWidth = 340.0;
+  static const _maxColumnWidth = 560.0;
+  static const _gutter = 48.0;
+  static const _measureEms = 26.0;
+
   ModuleView? _active;
   List<ChapterRefView> _spine = const [];
+  List<int>? _lineCounts;
   final Map<int, ChapterLayoutView> _layouts = {};
   final Set<int> _loading = {};
-  static const _cacheLimit = 80;
-  final ItemScrollController _scroll = ItemScrollController();
-  final ItemPositionsListener _positions = ItemPositionsListener.create();
-  int? _topIndex;
+
+  /// Global line at the top/left of the viewport; survives mode switches
+  /// and window resizes.
+  int _anchorLine = 0;
+
+  // Vertical mode.
+  final ItemScrollController _vScroll = ItemScrollController();
+  final ItemPositionsListener _vPositions = ItemPositionsListener.create();
+  int _topChapter = 0;
+
+  // Horizontal mode; the controller is recreated when the chunking changes.
+  ScrollController? _hController;
+  String? _hParams;
+  final List<ScrollController> _staleControllers = [];
+  ColumnPlan? _hPlan;
+  double _hStride = 0;
+
   ParseOutcome? _outcome;
   String? _jumpMiss;
 
   @override
   void initState() {
     super.initState();
-    _positions.itemPositions.addListener(_onPositionsChanged);
+    _vPositions.itemPositions.addListener(_onVerticalPositions);
     _refreshModules();
   }
 
   @override
   void dispose() {
-    _positions.itemPositions.removeListener(_onPositionsChanged);
+    _vPositions.itemPositions.removeListener(_onVerticalPositions);
+    _hController?.dispose();
+    for (final c in _staleControllers) {
+      c.dispose();
+    }
     super.dispose();
   }
 
-  void _onPositionsChanged() {
-    final positions = _positions.itemPositions.value;
-    if (positions.isEmpty) return;
-    final top = positions
-        .where((p) => p.itemTrailingEdge > 0)
-        .fold<int?>(null, (min, p) => min == null || p.index < min ? p.index : min);
-    if (top != null && top != _topIndex) {
-      setState(() => _topIndex = top);
+  ColumnPlan? _linePlan({int linesPerColumn = 1}) {
+    final counts = _lineCounts;
+    if (counts == null || counts.length != _spine.length || counts.isEmpty) {
+      return null;
     }
+    return ColumnPlan(
+      textLines: counts,
+      headingLines: _headingLines,
+      linesPerColumn: linesPerColumn,
+    );
   }
 
   void _refreshModules({String? select}) {
@@ -64,8 +97,19 @@ class _ReaderScreenState extends State<ReaderScreen> {
       _spine = _active == null ? const [] : contents(moduleCode: _active!.code);
       _layouts.clear();
       _loading.clear();
-      _topIndex = _spine.isEmpty ? null : 0;
+      _lineCounts = null;
+      _anchorLine = 0;
+      _topChapter = 0;
+      _hParams = null;
+      _hPlan = null;
     });
+    final active = _active;
+    if (active != null) {
+      moduleLineCounts(moduleCode: active.code).then((counts) {
+        if (!mounted || _active?.code != active.code) return;
+        setState(() => _lineCounts = counts.map((c) => c.toInt()).toList());
+      });
+    }
   }
 
   void _requestLayout(int index) {
@@ -87,13 +131,35 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }).whenComplete(() => _loading.remove(index));
   }
 
-  /// Rough chapter height before its layout arrives, from the spine's text
-  /// length: ~55 characters per line at the 26em measure.
-  double _estimatedHeight(int index, double columnWidth) {
-    final fontSize = columnWidth / 26;
-    final lineHeight = fontSize * TypesetChapter.lineHeightEm;
-    final lines = (_spine[index].textLength / 55).ceil() + 1;
-    return lines * lineHeight;
+  void _onVerticalPositions() {
+    final positions = _vPositions.itemPositions.value;
+    if (positions.isEmpty) return;
+    final top = positions.where((p) => p.itemTrailingEdge > 0).fold<int?>(
+        null, (min, p) => min == null || p.index < min ? p.index : min);
+    if (top != null && top != _topChapter) {
+      setState(() {
+        _topChapter = top;
+        final plan = _linePlan();
+        if (plan != null) {
+          _anchorLine = plan.blockStart(top);
+        }
+      });
+    }
+  }
+
+  void _onHorizontalScroll() {
+    final controller = _hController;
+    final plan = _hPlan;
+    if (controller == null || plan == null || !controller.hasClients) return;
+    final column =
+        (controller.offset / _hStride).floor().clamp(0, plan.columnCount - 1);
+    final line = plan.firstLineOfColumn(column);
+    if (line != _anchorLine) {
+      setState(() {
+        _anchorLine = line;
+        _topChapter = plan.chapterOfLine(line.clamp(0, plan.totalLines - 1));
+      });
+    }
   }
 
   void _onInput(String input) {
@@ -110,8 +176,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
         _spine.indexWhere((c) => c.bookOsis == book && c.chapter == chapter);
     if (index < 0) {
       setState(() => _jumpMiss = 'Not in this module: $book $chapter');
-    } else if (_scroll.isAttached) {
-      _scroll.jumpTo(index: index);
+      return;
+    }
+    final plan = _hPlan;
+    if (plan != null && _hController != null && _hController!.hasClients) {
+      final line = plan.blockStart(index);
+      final column = plan.columnOfLine(line);
+      _anchorLine = line;
+      _hController!.jumpTo(
+        (column * _hStride).clamp(0.0, _hController!.position.maxScrollExtent),
+      );
+    } else if (_vScroll.isAttached) {
+      _vScroll.jumpTo(index: index);
     }
   }
 
@@ -127,8 +203,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       final imported = await importOsisFile(path: file.path);
       _refreshModules(select: imported.code);
       messenger.showSnackBar(SnackBar(
-        content:
-            Text('Imported ${imported.title} (${imported.verses} verses)'),
+        content: Text('Imported ${imported.title} (${imported.verses} verses)'),
       ));
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Import failed: $e')));
@@ -138,7 +213,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final position = _topIndex == null ? null : _spine[_topIndex!].heading;
+    final position =
+        _topChapter < _spine.length ? _spine[_topChapter].heading : null;
     return Scaffold(
       appBar: AppBar(
         title: const Text('gramma'),
@@ -151,15 +227,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
           ),
         ],
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(
+      body: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: TextField(
                   decoration: InputDecoration(
                     border: const OutlineInputBorder(),
                     isDense: true,
@@ -171,47 +247,171 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   ),
                   onChanged: _onInput,
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    if (position != null)
-                      Text(
-                        position,
-                        key: const Key('current-position'),
-                        style: theme.textTheme.labelLarge
-                            ?.copyWith(color: theme.colorScheme.primary),
-                      ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: _statusText(theme),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                if (position != null)
+                  Text(
+                    position,
+                    key: const Key('current-position'),
+                    style: theme.textTheme.labelLarge
+                        ?.copyWith(color: theme.colorScheme.primary),
+                  ),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: _spine.isEmpty
-                      ? Center(
-                          child: Text(
-                            'Import an OSIS module to begin reading',
-                            style: theme.textTheme.bodyLarge,
-                          ),
-                        )
-                      : ScrollablePositionedList.builder(
-                          key: const Key('reader'),
-                          itemScrollController: _scroll,
-                          itemPositionsListener: _positions,
-                          itemCount: _spine.length,
-                          itemBuilder: _chapterItem,
-                        ),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: _statusText(theme),
+                  ),
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _spine.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Import an OSIS module to begin reading',
+                        style: theme.textTheme.bodyLarge,
+                      ),
+                    )
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final columns = _columnsFor(constraints.maxWidth);
+                        if (columns >= 2 && _linePlan() != null) {
+                          return _horizontalReader(constraints, columns);
+                        }
+                        _hPlan = null;
+                        _hParams = null;
+                        return _verticalReader();
+                      },
+                    ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  int _columnsFor(double width) {
+    final n = ((width + _gutter) / (_minColumnWidth + _gutter)).floor();
+    return n < 1 ? 1 : n;
+  }
+
+  Widget _verticalReader() {
+    final plan = _linePlan();
+    var initial = 0;
+    if (plan != null && plan.totalLines > 0) {
+      initial =
+          plan.chapterOfLine(_anchorLine.clamp(0, plan.totalLines - 1));
+    }
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _maxColumnWidth),
+        child: ScrollablePositionedList.builder(
+          key: const Key('vertical-reader'),
+          itemScrollController: _vScroll,
+          itemPositionsListener: _vPositions,
+          initialScrollIndex: initial,
+          itemCount: _spine.length,
+          itemBuilder: _chapterItem,
+        ),
+      ),
+    );
+  }
+
+  Widget _horizontalReader(BoxConstraints constraints, int columns) {
+    var columnWidth =
+        (constraints.maxWidth - (columns - 1) * _gutter) / columns;
+    if (columnWidth > _maxColumnWidth) columnWidth = _maxColumnWidth;
+    final fontSize = columnWidth / _measureEms;
+    final lineHeight = fontSize * TypesetChapter.lineHeightEm;
+    var linesPerColumn = (constraints.maxHeight / lineHeight).floor();
+    if (linesPerColumn < 1) linesPerColumn = 1;
+    final plan = _linePlan(linesPerColumn: linesPerColumn)!;
+    final stride = columnWidth + _gutter;
+    final params = '$columns-$linesPerColumn-${columnWidth.round()}';
+    if (params != _hParams) {
+      final old = _hController;
+      if (old != null) {
+        old.removeListener(_onHorizontalScroll);
+        _staleControllers.add(old);
+      }
+      _hController = ScrollController(
+        initialScrollOffset: plan.columnOfLine(_anchorLine) * stride,
+      )..addListener(_onHorizontalScroll);
+      _hParams = params;
+    }
+    _hPlan = plan;
+    _hStride = stride;
+    final scale = columnWidth / (_measureEms * _unitsPerEm());
+    return Listener(
+      key: const ValueKey('columns-active'),
+      onPointerSignal: (event) {
+        if (event is PointerScrollEvent &&
+            event.scrollDelta.dy != 0 &&
+            _hController!.hasClients) {
+          final target = (_hController!.offset + event.scrollDelta.dy)
+              .clamp(0.0, _hController!.position.maxScrollExtent);
+          _hController!.jumpTo(target);
+        }
+      },
+      child: ListView.builder(
+        key: Key('horizontal-reader-$params'),
+        controller: _hController,
+        scrollDirection: Axis.horizontal,
+        itemExtent: stride,
+        itemCount: plan.columnCount,
+        itemBuilder: (context, column) => Padding(
+          padding: const EdgeInsets.only(right: _gutter),
+          child: _columnItem(plan, column, scale, fontSize, lineHeight),
+        ),
+      ),
+    );
+  }
+
+  double _unitsPerEm() {
+    for (final layout in _layouts.values) {
+      return layout.unitsPerEm.toDouble();
+    }
+    return 2048;
+  }
+
+  Widget _columnItem(
+    ColumnPlan plan,
+    int column,
+    double scale,
+    double fontSize,
+    double lineHeight,
+  ) {
+    final rows = <ColumnRow>[];
+    final first = plan.firstLineOfColumn(column);
+    for (var row = 0; row < plan.linesPerColumn; row++) {
+      final located = plan.locate(first + row);
+      if (located == null) break;
+      final (:chapter, :local) = located;
+      if (local == 0) {
+        rows.add(HeadingRow(row, _spine[chapter].heading));
+      } else if (local >= _headingLines) {
+        final layout = _layouts[chapter];
+        if (layout == null) {
+          _requestLayout(chapter);
+          continue;
+        }
+        final lineIndex = local - _headingLines;
+        if (lineIndex < layout.lines.length) {
+          rows.add(TextRow(row, layout.lines[lineIndex], layout.numberScale));
+        }
+      }
+    }
+    return TypesetColumn(
+      rows: rows,
+      rowCount: plan.linesPerColumn,
+      scale: scale,
+      fontSize: fontSize,
+      lineHeight: lineHeight,
     );
   }
 
@@ -248,6 +448,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
       );
     }
     return const SizedBox.shrink();
+  }
+
+  /// Rough chapter height before its layout arrives, from the spine's text
+  /// length: ~55 characters per line at the 26em measure.
+  double _estimatedHeight(int index, double columnWidth) {
+    final fontSize = columnWidth / _measureEms;
+    final lineHeight = fontSize * TypesetChapter.lineHeightEm;
+    final lines = (_spine[index].textLength / 55).ceil() + 1;
+    return lines * lineHeight;
   }
 
   Widget _chapterItem(BuildContext context, int index) {

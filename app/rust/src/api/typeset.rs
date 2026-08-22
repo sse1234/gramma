@@ -106,3 +106,34 @@ pub fn layout_chapter(
         plain_text,
     })
 }
+
+/// Text-line count of every chapter in the module's spine order, at the
+/// canonical measure. This makes global line numbering possible, which the
+/// multi-column reader chunks into viewport-sized columns — layout itself
+/// never depends on the viewport.
+pub fn module_line_counts(module_code: String) -> anyhow::Result<Vec<u32>> {
+    let measure = MEASURE
+        .get()
+        .ok_or_else(|| anyhow!("typesetting not initialized"))?;
+    let (contents, german) = with_library(|library| {
+        let contents = library.contents(&module_code)?;
+        let german = library
+            .modules()?
+            .iter()
+            .any(|m| m.code == module_code && m.language.starts_with("de"));
+        Ok((contents, german))
+    })?;
+    let hyphenator = german.then(|| {
+        GERMAN.get_or_init(|| {
+            Standard::from_embedded(Language::German1996).expect("embedded patterns")
+        })
+    });
+    let measure_units = MEASURE_EMS * measure.units_per_em() as i64;
+    let mut counts = Vec::with_capacity(contents.len());
+    for c in &contents {
+        let verses = with_library(|library| library.chapter(&module_code, c.book, c.chapter))?;
+        let refs: Vec<(u16, &str)> = verses.iter().map(|v| (v.verse, v.text.as_str())).collect();
+        counts.push(layout_verses(&refs, measure, hyphenator, measure_units).len() as u32);
+    }
+    Ok(counts)
+}
