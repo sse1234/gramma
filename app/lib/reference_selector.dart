@@ -5,6 +5,20 @@ import 'src/rust/api/library.dart';
 
 typedef SelectorResult = ({String book, int chapter, int? verse});
 
+/// Splits [items] into brick-bond rows: odd rows are shifted by half a tile
+/// and therefore hold [shiftedCapacity] items instead of [capacity].
+List<List<T>> brickRows<T>(List<T> items, int capacity, int shiftedCapacity) {
+  final rows = <List<T>>[];
+  var index = 0;
+  while (index < items.length) {
+    final take = rows.length.isOdd ? shiftedCapacity : capacity;
+    rows.add(items.sublist(
+        index, (index + take).clamp(0, items.length).toInt()));
+    index += take;
+  }
+  return rows;
+}
+
 /// The book → chapter → verse selector: the first popup workflow. Books are
 /// a grid tinted by canon category (Grammar-of-Graphics hues); chapters and
 /// verses are plain grids.
@@ -117,32 +131,66 @@ class _SelectorFlowState extends State<_SelectorFlow> {
         }
         groups.last.add(b);
       }
-      return ListView(
-        shrinkWrap: true,
-        children: [
-          for (final group in groups)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (final b in group)
-                    SizedBox(
-                      width: 56,
-                      height: 40,
-                      child: _tile(
-                        key: Key('sel-book-${b.osis}'),
-                        label: b.abbrev,
-                        background:
-                            bookCategoryColor(b.category, brightness),
-                        onTap: () => setState(() => _book = b),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-        ],
+      // Brick bond within each category: consecutive rows shift by half a
+      // tile, so a category reads as one cohesive shape.
+      const tileWidth = 56.0;
+      const spacing = 6.0;
+      const shift = (tileWidth + spacing) / 2;
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final capacity =
+              ((width + spacing) / (tileWidth + spacing)).floor().clamp(1, 66);
+          final shiftedCapacity =
+              ((width - shift + spacing) / (tileWidth + spacing))
+                  .floor()
+                  .clamp(1, 66);
+          return ListView(
+            shrinkWrap: true,
+            children: [
+              for (final group in groups)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final (rowIndex, row) in brickRows(
+                              group, capacity, shiftedCapacity)
+                          .indexed)
+                        Padding(
+                          padding: EdgeInsets.only(
+                            top: rowIndex > 0 ? spacing : 0,
+                            left: rowIndex.isOdd ? shift : 0,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (final (i, b) in row.indexed)
+                                Padding(
+                                  padding: EdgeInsets.only(
+                                      left: i > 0 ? spacing : 0),
+                                  child: SizedBox(
+                                    width: tileWidth,
+                                    height: 40,
+                                    child: _tile(
+                                      key: Key('sel-book-${b.osis}'),
+                                      label: b.abbrev,
+                                      background: bookCategoryColor(
+                                          b.category, brightness),
+                                      onTap: () =>
+                                          setState(() => _book = b),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          );
+        },
       );
     }
     final chapter = _chapter;
