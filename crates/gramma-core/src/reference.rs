@@ -112,6 +112,28 @@ pub enum Reference {
     VerseRange { start: VerseRef, end_verse: u16 },
 }
 
+impl Reference {
+    /// Concise human-readable form using the German reference scheme
+    /// ("1Mo 3,1", "Joh 3,16-18", "Ps 23").
+    pub fn display_concise(&self) -> String {
+        match *self {
+            Reference::Chapter { book, chapter } => {
+                format!("{} {}", book.info().abbrev, chapter)
+            }
+            Reference::Verse(v) => {
+                format!("{} {},{}", v.book.info().abbrev, v.chapter, v.verse)
+            }
+            Reference::VerseRange { start, end_verse } => format!(
+                "{} {},{}-{}",
+                start.book.info().abbrev,
+                start.chapter,
+                start.verse,
+                end_verse
+            ),
+        }
+    }
+}
+
 impl fmt::Display for Reference {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {

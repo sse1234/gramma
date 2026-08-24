@@ -173,3 +173,15 @@ fn categories_follow_canonical_order() {
         );
     }
 }
+
+#[test]
+fn concise_display_uses_the_abbreviation_scheme() {
+    for (input, expected) in [
+        ("Gen.3.1", "1Mo 3,1"),
+        ("John.3.16-John.3.18", "Joh 3,16-18"),
+        ("Ps.23", "Ps 23"),
+    ] {
+        let reference: Reference = input.parse().unwrap();
+        assert_eq!(reference.display_concise(), expected);
+    }
+}

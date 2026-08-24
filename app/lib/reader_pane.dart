@@ -18,6 +18,15 @@ typedef FollowOption = ({String id, String label, String badge, int badgeIndex})
 /// A one-shot navigation command; a new epoch triggers the jump.
 typedef NavCommand = ({int epoch, String osis});
 
+/// One dropdown row of the desk history (most recent first).
+typedef HistoryItem = ({
+  int index,
+  String label,
+  String badge,
+  int badgeIndex,
+  bool current,
+});
+
 /// One text view (ADR 0008): the endless-scrolling reader of ADR 0006 with
 /// a header for choosing its module and its position link. Emits its
 /// reading position and follows a linked pane's position when set.
@@ -35,6 +44,13 @@ class ReaderPane extends StatefulWidget {
     required this.onAnchorEnd,
     required this.onModule,
     required this.onFollow,
+    required this.onJump,
+    required this.canGoBack,
+    required this.canGoForward,
+    required this.onBack,
+    required this.onForward,
+    required this.historyItems,
+    required this.onHistorySelect,
     this.command,
     this.dragHandle,
     this.onClose,
@@ -57,6 +73,17 @@ class ReaderPane extends StatefulWidget {
   final ValueChanged<String?> onAnchorEnd;
   final ValueChanged<String> onModule;
   final ValueChanged<String?> onFollow;
+
+  /// Reports a deliberate jump (selector pick) for the desk history.
+  final ValueChanged<String> onJump;
+
+  /// Desk-global navigation history controls.
+  final bool canGoBack;
+  final bool canGoForward;
+  final VoidCallback onBack;
+  final VoidCallback onForward;
+  final List<HistoryItem> historyItems;
+  final ValueChanged<int> onHistorySelect;
 
   /// External navigation (e.g. from a passage preview's Open action).
   final NavCommand? command;
@@ -84,6 +111,11 @@ class _ReaderPaneState extends State<ReaderPane> {
 
   int _anchorLine = 0;
   bool _suppressEmit = false;
+
+  /// Whether this pane has announced its position at least once; the first
+  /// layout tick emits unconditionally so the desk (history, followers)
+  /// always knows the starting position.
+  bool _announced = false;
 
   /// First visible verse of the top chapter (verse-level link granularity);
   /// null when unknown (layout not loaded yet).
@@ -183,6 +215,7 @@ class _ReaderPaneState extends State<ReaderPane> {
 
   void _emitPosition() {
     if (_suppressEmit || _topChapter >= _spine.length) return;
+    _announced = true;
     widget.onAnchor(_anchorString());
     widget.onAnchorEnd(_anchorEndString());
   }
@@ -308,6 +341,7 @@ class _ReaderPaneState extends State<ReaderPane> {
       _topChapter = 0;
       _hParams = null;
       _hPlan = null;
+      _announced = false;
     });
     final active = _active;
     if (active == null) return;
@@ -418,7 +452,7 @@ class _ReaderPaneState extends State<ReaderPane> {
         verse = _verseAtLine(top, 0);
       }
     }
-    if (top != _topChapter || verse != _visibleVerse) {
+    if (!_announced || top != _topChapter || verse != _visibleVerse) {
       setState(() {
         _topChapter = top;
         _visibleVerse = verse;
@@ -439,7 +473,7 @@ class _ReaderPaneState extends State<ReaderPane> {
     final top = plan.chapterOfLine(line.clamp(0, plan.totalLines - 1));
     final local = line - plan.blockStart(top) - _headingLines;
     final verse = local >= 0 ? _verseAtLine(top, local) : _verseAtLine(top, 0);
-    if (top != _topChapter || verse != _visibleVerse) {
+    if (!_announced || top != _topChapter || verse != _visibleVerse) {
       setState(() {
         _topChapter = top;
         _visibleVerse = verse;
@@ -501,8 +535,71 @@ class _ReaderPaneState extends State<ReaderPane> {
     if (result == null || !mounted) return;
     final index = _indexOfOsis('${result.book}.${result.chapter}');
     if (index >= 0) {
+      final base = '${result.book}.${result.chapter}';
+      widget.onJump(
+          result.verse == null ? base : '$base.${result.verse}');
       _jumpToChapter(index, verse: result.verse);
     }
+  }
+
+  Widget _navCluster(ThemeData theme) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          key: const Key('nav-back'),
+          tooltip: 'Back',
+          visualDensity: VisualDensity.compact,
+          iconSize: 16,
+          icon: const Icon(Icons.arrow_back),
+          onPressed: widget.canGoBack ? widget.onBack : null,
+        ),
+        IconButton(
+          key: const Key('nav-forward'),
+          tooltip: 'Forward',
+          visualDensity: VisualDensity.compact,
+          iconSize: 16,
+          icon: const Icon(Icons.arrow_forward),
+          onPressed: widget.canGoForward ? widget.onForward : null,
+        ),
+        PopupMenuButton<int>(
+          key: const Key('nav-history'),
+          tooltip: 'History',
+          enabled: widget.historyItems.isNotEmpty,
+          icon: Icon(
+            Icons.history,
+            size: 16,
+            color: widget.historyItems.isEmpty
+                ? theme.disabledColor
+                : theme.colorScheme.onSurfaceVariant,
+          ),
+          onSelected: widget.onHistorySelect,
+          itemBuilder: (context) => [
+            for (final item in widget.historyItems)
+              PopupMenuItem(
+                value: item.index,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    PaneBadge(
+                      badge: item.badge,
+                      badgeIndex: item.badgeIndex,
+                      small: true,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      item.label,
+                      style: item.current
+                          ? const TextStyle(fontWeight: FontWeight.w700)
+                          : null,
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
   }
 
   @override
@@ -571,6 +668,7 @@ class _ReaderPaneState extends State<ReaderPane> {
               if (code != null) widget.onModule(code);
             },
           ),
+          navigation: _navCluster(theme),
           followValue: widget.spec.follow,
           followOptions: widget.followOptions,
           onFollow: widget.onFollow,
@@ -827,6 +925,7 @@ class PaneHeader extends StatelessWidget {
     this.badge,
     this.moduleSelector,
     this.position,
+    this.navigation,
     required this.followValue,
     required this.followOptions,
     required this.onFollow,
@@ -840,6 +939,9 @@ class PaneHeader extends StatelessWidget {
 
   /// Position chip (the reference-selector trigger) for text panes.
   final Widget? position;
+
+  /// Back/forward/history controls for sender panes.
+  final Widget? navigation;
   final Widget? dragHandle;
   final String? followValue;
   final List<FollowOption> followOptions;
@@ -859,6 +961,10 @@ class PaneHeader extends StatelessWidget {
         if (position != null) ...[
           const SizedBox(width: 8),
           Flexible(child: position!),
+        ],
+        if (navigation != null) ...[
+          const SizedBox(width: 4),
+          navigation!,
         ],
         const SizedBox(width: 8),
         DropdownButton<String>(

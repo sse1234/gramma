@@ -90,12 +90,85 @@ class PaneColumn {
   double weight;
 }
 
+/// One step of the desk's navigation history: a position in a pane.
+class HistoryEntry {
+  const HistoryEntry({required this.paneId, required this.osis});
+
+  final String paneId;
+  final String osis;
+
+  Map<String, dynamic> toJson() => {'pane': paneId, 'osis': osis};
+}
+
 /// The layout object (ADR 0008, extended): a row of columns, each a stack
-/// of panes, with resizable weights — the whole reading desk.
+/// of panes, with resizable weights and the desk-global navigation
+/// history — the whole reading desk.
 class LayoutModel {
   LayoutModel(this.columns);
 
+  static const historyLimit = 100;
+
   final List<PaneColumn> columns;
+
+  /// Desk-global navigation history: deliberate jumps across all panes.
+  final List<HistoryEntry> history = [];
+  int historyCursor = -1;
+
+  bool get canGoBack => historyCursor > 0;
+  bool get canGoForward =>
+      historyCursor >= 0 && historyCursor < history.length - 1;
+
+  /// Record a deliberate navigation of [paneId] to [targetOsis]: the pane's
+  /// current position becomes the departure entry (so Back returns there),
+  /// any forward tail is discarded, and the target becomes the newest
+  /// entry.
+  void recordNavigation(String paneId, String targetOsis) {
+    final pane = byId(paneId);
+    if (pane == null) return;
+    if (historyCursor < history.length - 1) {
+      history.removeRange(historyCursor + 1, history.length);
+    }
+    final departure = pane.anchor;
+    final last = history.lastOrNull;
+    if (departure != null &&
+        (last == null || last.paneId != paneId || last.osis != departure)) {
+      history.add(HistoryEntry(paneId: paneId, osis: departure));
+    }
+    history.add(HistoryEntry(paneId: paneId, osis: targetOsis));
+    while (history.length > historyLimit) {
+      history.removeAt(0);
+    }
+    historyCursor = history.length - 1;
+  }
+
+  HistoryEntry? goBack() {
+    if (!canGoBack) return null;
+    historyCursor -= 1;
+    return history[historyCursor];
+  }
+
+  HistoryEntry? goForward() {
+    if (!canGoForward) return null;
+    historyCursor += 1;
+    return history[historyCursor];
+  }
+
+  HistoryEntry? jumpToHistory(int index) {
+    if (index < 0 || index >= history.length) return null;
+    historyCursor = index;
+    return history[index];
+  }
+
+  void _pruneHistory() {
+    final current =
+        historyCursor >= 0 && historyCursor < history.length
+            ? history[historyCursor]
+            : null;
+    history.removeWhere((e) => byId(e.paneId) == null);
+    historyCursor =
+        current == null ? history.length - 1 : history.indexOf(current);
+    if (historyCursor < 0) historyCursor = history.length - 1;
+  }
 
   Iterable<PaneSpec> get allPanes =>
       columns.expand((column) => column.panes);
@@ -198,6 +271,7 @@ class LayoutModel {
     for (final pane in allPanes) {
       if (pane.follow == id) pane.follow = null;
     }
+    _pruneHistory();
   }
 
   String encode() => jsonEncode({
@@ -209,6 +283,8 @@ class LayoutModel {
               'panes': [for (final p in column.panes) p.toJson()],
             },
         ],
+        'history': [for (final e in history) e.toJson()],
+        'cursor': historyCursor,
       });
 
   /// Decodes a layout object (current and v1 formats); returns null for
@@ -235,6 +311,24 @@ class LayoutModel {
           final model = LayoutModel(columns);
           for (final pane in model.allPanes) {
             if (model.byId(pane.follow) == null) pane.follow = null;
+          }
+          final rawHistory = data['history'];
+          if (rawHistory is List) {
+            for (final raw in rawHistory) {
+              if (raw is Map<String, dynamic> &&
+                  raw['pane'] is String &&
+                  raw['osis'] is String) {
+                model.history.add(HistoryEntry(
+                  paneId: raw['pane'] as String,
+                  osis: raw['osis'] as String,
+                ));
+              }
+            }
+            final cursor = data['cursor'];
+            model.historyCursor = cursor is int
+                ? cursor.clamp(-1, model.history.length - 1)
+                : model.history.length - 1;
+            model._pruneHistory();
           }
           return model;
         case 1:

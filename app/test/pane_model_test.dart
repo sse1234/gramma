@@ -83,6 +83,7 @@ void main() {
         reason: 'never beyond the available space');
   });
   _moveTests();
+  _historyTests();
 
   test('badges go to sender-capable panes only and persist', () {
     final f = _Fixture();
@@ -166,5 +167,84 @@ void _moveTests() {
     f.model.moveToNewColumn(f.c.id, after: f.model.columns[1]);
     expect(f.model.columns.length, 2);
     expect(f.model.columns[1].panes.single.id, f.c.id);
+  });
+}
+
+void _historyTests() {
+  test('deliberate jumps push the departure and the target', () {
+    final f = _Fixture();
+    f.a.anchor = 'Gen.1.1';
+    f.model.recordNavigation(f.a.id, 'Gen.3.1');
+    expect(f.model.history.map((e) => e.osis).toList(),
+        ['Gen.1.1', 'Gen.3.1']);
+    expect(f.model.historyCursor, 1);
+    expect(f.model.canGoBack, isTrue);
+    expect(f.model.canGoForward, isFalse);
+  });
+
+  test('back and forward move the cursor and return entries', () {
+    final f = _Fixture();
+    f.a.anchor = 'Gen.1.1';
+    f.model.recordNavigation(f.a.id, 'Gen.3.1');
+    f.a.anchor = 'Gen.3.1';
+    f.model.recordNavigation(f.a.id, 'Exod.1.1');
+    final back = f.model.goBack()!;
+    expect(back.osis, 'Gen.3.1');
+    final back2 = f.model.goBack()!;
+    expect(back2.osis, 'Gen.1.1');
+    expect(f.model.canGoBack, isFalse);
+    final forward = f.model.goForward()!;
+    expect(forward.osis, 'Gen.3.1');
+    expect(f.model.canGoForward, isTrue);
+  });
+
+  test('navigating after going back truncates the forward tail', () {
+    final f = _Fixture();
+    f.a.anchor = 'Gen.1.1';
+    f.model.recordNavigation(f.a.id, 'Gen.3.1');
+    f.a.anchor = 'Gen.3.1';
+    f.model.goBack();
+    f.a.anchor = 'Gen.1.1';
+    f.model.recordNavigation(f.a.id, 'Exod.1.1');
+    expect(f.model.history.map((e) => e.osis).toList(),
+        ['Gen.1.1', 'Exod.1.1']);
+    expect(f.model.canGoForward, isFalse);
+  });
+
+  test('history survives encoding and prunes removed panes', () {
+    final f = _Fixture();
+    f.a.anchor = 'Gen.1.1';
+    f.model.recordNavigation(f.a.id, 'Gen.3.1');
+    f.c.anchor = 'Exod.1.1';
+    f.model.recordNavigation(f.c.id, 'Exod.2.1');
+    final decoded = LayoutModel.decode(f.model.encode())!;
+    expect(decoded.history.length, 4);
+    expect(decoded.historyCursor, 3);
+    decoded.removePane(decoded.byId(f.c.id)!.id);
+    expect(decoded.history.length, 2,
+        reason: 'entries of removed panes are pruned');
+    expect(decoded.historyCursor, 1);
+  });
+
+  test('duplicate departures are not pushed twice', () {
+    final f = _Fixture();
+    f.a.anchor = 'Gen.1.1';
+    f.model.recordNavigation(f.a.id, 'Gen.3.1');
+    f.a.anchor = 'Gen.3.1';
+    f.model.recordNavigation(f.a.id, 'Gen.5.1');
+    expect(f.model.history.map((e) => e.osis).toList(),
+        ['Gen.1.1', 'Gen.3.1', 'Gen.5.1']);
+  });
+
+  test('jumping into history places the cursor there', () {
+    final f = _Fixture();
+    f.a.anchor = 'Gen.1.1';
+    f.model.recordNavigation(f.a.id, 'Gen.3.1');
+    f.a.anchor = 'Gen.3.1';
+    f.model.recordNavigation(f.a.id, 'Exod.1.1');
+    final entry = f.model.jumpToHistory(0)!;
+    expect(entry.osis, 'Gen.1.1');
+    expect(f.model.historyCursor, 0);
+    expect(f.model.canGoForward, isTrue);
   });
 }

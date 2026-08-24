@@ -8,6 +8,7 @@ import 'reader_pane.dart';
 import 'settings.dart';
 import 'settings_screen.dart';
 import 'src/rust/api/library.dart';
+import 'src/rust/api/references.dart';
 import 'src/rust/api/user.dart';
 
 /// Orchestrates the layout object (ADR 0008): a resizable grid of columns,
@@ -85,7 +86,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _save();
   }
 
-  /// Navigate the pane a footnotes view follows (from a passage preview).
+  /// Navigate the pane a footnotes view follows (from a passage preview);
+  /// recorded in the desk history like any deliberate jump.
   void _openReference(PaneSpec source, String osis) {
     final targetId = source.follow ??
         _layout.allPanes
@@ -94,8 +96,39 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ?.id;
     if (targetId == null) return;
     setState(() {
+      _layout.recordNavigation(targetId, osis);
       _commands[targetId] = (epoch: ++_commandEpoch, osis: osis);
     });
+    _save();
+  }
+
+  void _recordJump(String paneId, String osis) {
+    setState(() => _layout.recordNavigation(paneId, osis));
+    _save();
+  }
+
+  void _applyHistoryEntry(HistoryEntry? entry) {
+    if (entry == null) return;
+    setState(() {
+      _commands[entry.paneId] = (epoch: ++_commandEpoch, osis: entry.osis);
+    });
+    _save();
+  }
+
+  List<HistoryItem> _historyItems() {
+    final items = <HistoryItem>[];
+    for (var i = _layout.history.length - 1; i >= 0; i--) {
+      final entry = _layout.history[i];
+      final pane = _layout.byId(entry.paneId);
+      items.add((
+        index: i,
+        label: formatReference(osis: entry.osis),
+        badge: pane?.badge ?? '?',
+        badgeIndex: pane?.badgeIndex ?? 0,
+        current: i == _layout.historyCursor,
+      ));
+    }
+    return items;
   }
 
   void _setModule(String id, String code) {
@@ -475,6 +508,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
           dragHandle: _dragHandle(spec),
           onAnchor: (osis) => _setAnchor(spec.id, osis),
           onAnchorEnd: (osis) => _setAnchorEnd(spec.id, osis),
+          onJump: (osis) => _recordJump(spec.id, osis),
+          canGoBack: _layout.canGoBack,
+          canGoForward: _layout.canGoForward,
+          onBack: () => _applyHistoryEntry(_layout.goBack()),
+          onForward: () => _applyHistoryEntry(_layout.goForward()),
+          historyItems: _historyItems(),
+          onHistorySelect: (index) =>
+              _applyHistoryEntry(_layout.jumpToHistory(index)),
           command: _commands[spec.id],
           onModule: (code) => _setModule(spec.id, code),
           onFollow: (follow) => _setFollow(spec.id, follow),

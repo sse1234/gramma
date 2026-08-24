@@ -10,6 +10,11 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 ParseOutcome parseReference({required String input}) =>
     RustLib.instance.api.crateApiReferencesParseReference(input: input);
 
+/// Concise display form of a canonical OSIS reference ("1Mo 3,1"); falls
+/// back to the input when it does not parse.
+String formatReference({required String osis}) =>
+    RustLib.instance.api.crateApiReferencesFormatReference(osis: osis);
+
 /// Outcome of parsing user input as a Bible reference: exactly one of the two
 /// fields is set.
 class ParseOutcome {

@@ -580,4 +580,59 @@ void main() {
     expect(position.data, '1. Mose 1',
         reason: 'Open navigates the linked text view');
   });
+
+  testWidgets('desk history: back, forward, and the dropdown', (tester) async {
+    _freshUserStore();
+    _phoneViewport(tester);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+
+    String label() => tester
+        .widget<Text>(find.byKey(const Key('current-position')))
+        .data!;
+    Future<void> settleJump() async {
+      for (var i = 0; i < 3; i++) {
+        await tester.pumpAndSettle();
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 30)),
+        );
+      }
+      await _settleLayouts(tester);
+      await tester.pumpAndSettle();
+    }
+
+    expect(
+      tester.widget<IconButton>(find.byKey(const Key('nav-back'))).onPressed,
+      isNull,
+      reason: 'nothing to go back to yet',
+    );
+
+    await _selectRef(tester, book: 'Gen', chapter: 3);
+    await _selectRef(tester, book: 'Exod', chapter: 1);
+    await settleJump();
+    expect(label(), '2. Mose 1');
+
+    await tester.tap(find.byKey(const Key('nav-back')));
+    await settleJump();
+    expect(label(), '1. Mose 3');
+
+    await tester.tap(find.byKey(const Key('nav-back')));
+    await settleJump();
+    expect(label(), '1. Mose 1');
+    expect(
+      tester.widget<IconButton>(find.byKey(const Key('nav-back'))).onPressed,
+      isNull,
+      reason: 'at the oldest entry',
+    );
+
+    await tester.tap(find.byKey(const Key('nav-forward')));
+    await settleJump();
+    expect(label(), '1. Mose 3');
+
+    await tester.tap(find.byKey(const Key('nav-history')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('2Mo 1,1').last);
+    await settleJump();
+    expect(label(), '2. Mose 1');
+  });
 }
