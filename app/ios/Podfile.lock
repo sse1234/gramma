@@ -1,0 +1,22 @@
+PODS:
+  - Flutter (1.0.0)
+  - rust_lib_gramma (0.0.1):
+    - Flutter
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - rust_lib_gramma (from `.symlinks/plugins/rust_lib_gramma/ios`)
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  rust_lib_gramma:
+    :path: ".symlinks/plugins/rust_lib_gramma/ios"
+
+SPEC CHECKSUMS:
+  Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
+  rust_lib_gramma: 2d133c889e75ea3d6c42c672adcabc6c09b79789
+
+PODFILE CHECKSUM: 3ba3a73b1b12adcf321a227a745625fe0888cc82
+
+COCOAPODS: 1.17.0
