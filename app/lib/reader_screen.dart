@@ -229,10 +229,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
     setState(() {
       final a = columns[left];
       final b = columns[left + 1];
-      final applied = dw.clamp(
-        minWeight - a.weight,
-        b.weight - minWeight,
-      );
+      final lower = minWeight - a.weight;
+      final upper = b.weight - minWeight;
+      // Too narrow for two minimum-width panes: nothing to resize.
+      if (lower > upper) return;
+      final applied = dw.clamp(lower, upper);
       a.weight += applied;
       b.weight -= applied;
     });
@@ -263,10 +264,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
     setState(() {
       final a = column.panes[top];
       final b = column.panes[top + 1];
-      final applied = dw.clamp(
-        minWeight - a.weight,
-        b.weight - minWeight,
-      );
+      final lower = minWeight - a.weight;
+      final upper = b.weight - minWeight;
+      if (lower > upper) return;
+      final applied = dw.clamp(lower, upper);
       a.weight += applied;
       b.weight -= applied;
     });
@@ -419,9 +420,26 @@ class _ReaderScreenState extends State<ReaderScreen> {
           ),
         ],
       ),
-      body: Padding(
-        padding: EdgeInsets.fromLTRB(24, reading ? 16 : 12, 24, 0),
+      // SafeArea keeps the desk clear of the status bar, notch, and home
+      // indicator — with hidden chrome in reading mode the body would
+      // otherwise extend under all of them.
+      body: SafeArea(
         child: LayoutBuilder(
+          builder: (context, outer) {
+            final narrow = outer.maxWidth < 500;
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                  narrow ? 10 : 24, reading ? 16 : 12, narrow ? 10 : 24, 0),
+              child: _desk(),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _desk() {
+    return LayoutBuilder(
           builder: (context, constraints) {
             final columns = _layout.columns;
             final contentWidth = constraints.maxWidth -
@@ -451,9 +469,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 if (_draggingPane != null) ..._dropTargets(constraints),
               ],
             );
-          },
-        ),
-      ),
+      },
     );
   }
 

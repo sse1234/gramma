@@ -4,6 +4,14 @@ import 'dart:convert';
 /// footnotes views are receivers only.
 enum PaneKind { text, footnotes }
 
+/// Weights are user-dragged and persisted; anything non-finite or
+/// non-positive (from a corrupted store or a historical resize bug) resets
+/// to 1.0 so a pane can never be squeezed out of existence on restore.
+double _sanitizeWeight(num? raw) {
+  final w = raw?.toDouble() ?? 1.0;
+  return w.isFinite && w > 0.01 ? w : 1.0;
+}
+
 /// One view of the layout object: kind, loaded asset, link target (by pane
 /// id), reading position, and its share of its column's height.
 class PaneSpec {
@@ -74,7 +82,7 @@ class PaneSpec {
       follow: json['follow'] as String?,
       anchor: json['anchor'] as String?,
       anchorEnd: json['anchorEnd'] as String?,
-      weight: (json['weight'] as num?)?.toDouble() ?? 1.0,
+      weight: _sanitizeWeight(json['weight'] as num?),
       badge: json['badge'] as String?,
     );
   }
@@ -304,7 +312,7 @@ class LayoutModel {
             if (panes.any((p) => p == null) || panes.isEmpty) return null;
             columns.add(PaneColumn(
               panes: panes.cast<PaneSpec>(),
-              weight: (map['weight'] as num?)?.toDouble() ?? 1.0,
+              weight: _sanitizeWeight(map['weight'] as num?),
             ));
           }
           if (columns.isEmpty) return null;
@@ -364,9 +372,9 @@ class LayoutModel {
 }
 
 /// Nearest column width holding a whole number of typeset columns
-/// (`n * columnWidth + (n-1) * gutter`), at least one and within
-/// [available]. Vertical tiling is only meaningful at these widths under
-/// the constant-zoom model.
+/// (`n * columnWidth + (n-1) * gutter`), within [available]. When not even
+/// one whole column fits (narrow screens), returns [width] unchanged — the
+/// divider stays where the user put it rather than forcing an overflow.
 double snapToColumns(
   double width,
   double columnWidth,
@@ -374,6 +382,7 @@ double snapToColumns(
   double available,
 ) {
   double widthFor(int n) => n * columnWidth + (n - 1) * gutter;
+  if (widthFor(1) > available) return width;
   var best = widthFor(1);
   var n = 2;
   while (true) {

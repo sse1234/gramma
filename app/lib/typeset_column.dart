@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'run_paint.dart';
 import 'src/rust/api/typeset.dart';
 
 /// One resolved row of a column: a chapter heading or a typeset text line.
@@ -102,11 +103,7 @@ class _ColumnPainter extends CustomPainter {
       final y = row.row * lineHeight;
       switch (row) {
         case HeadingRow(:final text):
-          final painter = TextPainter(
-            text: TextSpan(text: text, style: headingStyle),
-            textDirection: TextDirection.ltr,
-          )..layout();
-          painter.paint(canvas, Offset(0, y + lineHeight * 0.3));
+          paintRun(canvas, text, headingStyle, Offset(0, y + lineHeight * 0.3));
         case TextRow(:final line, :final numberScale):
           final numberStyle = TextStyle(
             fontFamily: 'GentiumBookPlus',
@@ -120,22 +117,16 @@ class _ColumnPainter extends CustomPainter {
           final subSectionStyle =
               textStyle.copyWith(fontStyle: FontStyle.italic);
           for (final run in line.runs) {
-            final painter = TextPainter(
-              text: TextSpan(
-                text: run.text,
-                style: run.verseNumber
-                    ? numberStyle
-                    : run.noteMarker
-                        ? markerStyle
-                        : run.headingLevel == 1
-                            ? sectionStyle
-                            : run.headingLevel == 2
-                                ? subSectionStyle
-                                : textStyle,
-              ),
-              textDirection: TextDirection.ltr,
-            )..layout();
-            painter.paint(canvas, Offset(run.x * scale, y));
+            final style = run.verseNumber
+                ? numberStyle
+                : run.noteMarker
+                    ? markerStyle
+                    : run.headingLevel == 1
+                        ? sectionStyle
+                        : run.headingLevel == 2
+                            ? subSectionStyle
+                            : textStyle;
+            paintRun(canvas, run.text, style, Offset(run.x * scale, y));
           }
       }
     }

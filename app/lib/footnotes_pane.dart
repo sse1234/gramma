@@ -118,7 +118,7 @@ class _FootnotesPaneState extends State<FootnotesPane> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (!widget.readingMode)
+        if (!widget.readingMode) ...[
           PaneHeader(
             title: 'Footnotes',
             badge: widget.badge,
@@ -128,7 +128,8 @@ class _FootnotesPaneState extends State<FootnotesPane> {
             onFollow: widget.onFollow,
             onClose: widget.onClose,
           ),
-        const SizedBox(height: 8),
+          const SizedBox(height: 8),
+        ],
         Expanded(
           child: GestureDetector(
             behavior: HitTestBehavior.translucent,

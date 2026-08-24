@@ -542,66 +542,6 @@ class _ReaderPaneState extends State<ReaderPane> {
     }
   }
 
-  Widget _navCluster(ThemeData theme) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          key: const Key('nav-back'),
-          tooltip: 'Back',
-          visualDensity: VisualDensity.compact,
-          iconSize: 16,
-          icon: const Icon(Icons.arrow_back),
-          onPressed: widget.canGoBack ? widget.onBack : null,
-        ),
-        IconButton(
-          key: const Key('nav-forward'),
-          tooltip: 'Forward',
-          visualDensity: VisualDensity.compact,
-          iconSize: 16,
-          icon: const Icon(Icons.arrow_forward),
-          onPressed: widget.canGoForward ? widget.onForward : null,
-        ),
-        PopupMenuButton<int>(
-          key: const Key('nav-history'),
-          tooltip: 'History',
-          enabled: widget.historyItems.isNotEmpty,
-          icon: Icon(
-            Icons.history,
-            size: 16,
-            color: widget.historyItems.isEmpty
-                ? theme.disabledColor
-                : theme.colorScheme.onSurfaceVariant,
-          ),
-          onSelected: widget.onHistorySelect,
-          itemBuilder: (context) => [
-            for (final item in widget.historyItems)
-              PopupMenuItem(
-                value: item.index,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    PaneBadge(
-                      badge: item.badge,
-                      badgeIndex: item.badgeIndex,
-                      small: true,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      item.label,
-                      style: item.current
-                          ? const TextStyle(fontWeight: FontWeight.w700)
-                          : null,
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -655,20 +595,17 @@ class _ReaderPaneState extends State<ReaderPane> {
                     ),
                   ),
                 ),
-          moduleSelector: DropdownButton<String>(
-            key: const Key('module-select'),
-            isExpanded: true,
-            underline: const SizedBox.shrink(),
-            value: _active?.code,
-            items: [
-              for (final m in widget.modules)
-                DropdownMenuItem(value: m.code, child: Text(m.title)),
-            ],
-            onChanged: (code) {
-              if (code != null) widget.onModule(code);
-            },
-          ),
-          navigation: _navCluster(theme),
+          moduleCode: _active?.code,
+          modules: [
+            for (final m in widget.modules) (code: m.code, title: m.title),
+          ],
+          onModule: widget.onModule,
+          canGoBack: widget.canGoBack,
+          canGoForward: widget.canGoForward,
+          onBack: widget.onBack,
+          onForward: widget.onForward,
+          historyItems: widget.historyItems,
+          onHistorySelect: widget.onHistorySelect,
           followValue: widget.spec.follow,
           followOptions: widget.followOptions,
           onFollow: widget.onFollow,
@@ -916,16 +853,28 @@ class _ReaderPaneState extends State<ReaderPane> {
   }
 }
 
-/// Shared pane chrome: an optional title or module selector, the position
-/// link selector, and an optional close button.
+typedef ModuleOption = ({String code, String title});
+
+/// Shared pane chrome: badge, module and position-link selectors, the
+/// navigation cluster, and close/drag controls. Wide panes show everything
+/// in one row; panes too narrow for that (phones) collapse the module,
+/// history, link, and close controls into an overflow menu so nothing runs
+/// off the screen edge.
 class PaneHeader extends StatelessWidget {
   const PaneHeader({
     super.key,
     required this.title,
     this.badge,
-    this.moduleSelector,
+    this.moduleCode,
+    this.modules = const [],
+    this.onModule,
     this.position,
-    this.navigation,
+    this.canGoBack = false,
+    this.canGoForward = false,
+    this.onBack,
+    this.onForward,
+    this.historyItems = const [],
+    this.onHistorySelect,
     required this.followValue,
     required this.followOptions,
     required this.onFollow,
@@ -933,15 +882,28 @@ class PaneHeader extends StatelessWidget {
     this.onClose,
   });
 
+  /// The pane width below which the chrome collapses to its compact form.
+  static const compactBelow = 460.0;
+
   final String? title;
   final Widget? badge;
-  final Widget? moduleSelector;
+
+  /// Loaded module and the available alternatives (text panes only).
+  final String? moduleCode;
+  final List<ModuleOption> modules;
+  final ValueChanged<String>? onModule;
 
   /// Position chip (the reference-selector trigger) for text panes.
   final Widget? position;
 
-  /// Back/forward/history controls for sender panes.
-  final Widget? navigation;
+  /// Desk-global navigation (sender panes only; onBack == null hides it).
+  final bool canGoBack;
+  final bool canGoForward;
+  final VoidCallback? onBack;
+  final VoidCallback? onForward;
+  final List<HistoryItem> historyItems;
+  final ValueChanged<int>? onHistorySelect;
+
   final Widget? dragHandle;
   final String? followValue;
   final List<FollowOption> followOptions;
@@ -951,20 +913,43 @@ class PaneHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) =>
+          constraints.maxWidth < compactBelow
+              ? _compact(theme)
+              : _wide(theme),
+    );
+  }
+
+  Widget _wide(ThemeData theme) {
     return Row(
       children: [
         if (badge != null) ...[badge!, const SizedBox(width: 8)],
         Expanded(
-          child: moduleSelector ??
-              Text(title ?? '', style: theme.textTheme.titleMedium),
+          child: onModule != null
+              ? DropdownButton<String>(
+                  key: const Key('module-select'),
+                  isExpanded: true,
+                  underline: const SizedBox.shrink(),
+                  value: moduleCode,
+                  items: [
+                    for (final m in modules)
+                      DropdownMenuItem(value: m.code, child: Text(m.title)),
+                  ],
+                  onChanged: (code) {
+                    if (code != null) onModule!(code);
+                  },
+                )
+              : Text(title ?? '', style: theme.textTheme.titleMedium),
         ),
         if (position != null) ...[
           const SizedBox(width: 8),
           Flexible(child: position!),
         ],
-        if (navigation != null) ...[
+        if (onBack != null) ...[
           const SizedBox(width: 4),
-          navigation!,
+          _backForward(),
+          _historyButton(theme),
         ],
         const SizedBox(width: 8),
         DropdownButton<String>(
@@ -977,18 +962,7 @@ class PaneHeader extends StatelessWidget {
             for (final option in followOptions)
               DropdownMenuItem(
                 value: option.id,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    PaneBadge(
-                      badge: option.badge,
-                      badgeIndex: option.badgeIndex,
-                      small: true,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(option.label),
-                  ],
-                ),
+                child: _linkRow(option),
               ),
           ],
           onChanged: onFollow,
@@ -1002,6 +976,157 @@ class PaneHeader extends StatelessWidget {
           ),
         ?dragHandle,
       ],
+    );
+  }
+
+  Widget _compact(ThemeData theme) {
+    return Row(
+      children: [
+        if (badge != null) ...[badge!, const SizedBox(width: 6)],
+        Expanded(
+          child: position ??
+              Text(
+                title ?? '',
+                style: theme.textTheme.titleMedium,
+                overflow: TextOverflow.ellipsis,
+              ),
+        ),
+        if (onBack != null) _backForward(),
+        _overflowMenu(theme),
+        ?dragHandle,
+      ],
+    );
+  }
+
+  Widget _backForward() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          key: const Key('nav-back'),
+          tooltip: 'Back',
+          visualDensity: VisualDensity.compact,
+          iconSize: 16,
+          icon: const Icon(Icons.arrow_back),
+          onPressed: canGoBack ? onBack : null,
+        ),
+        IconButton(
+          key: const Key('nav-forward'),
+          tooltip: 'Forward',
+          visualDensity: VisualDensity.compact,
+          iconSize: 16,
+          icon: const Icon(Icons.arrow_forward),
+          onPressed: canGoForward ? onForward : null,
+        ),
+      ],
+    );
+  }
+
+  Widget _historyButton(ThemeData theme) {
+    return PopupMenuButton<int>(
+      key: const Key('nav-history'),
+      tooltip: 'History',
+      enabled: historyItems.isNotEmpty,
+      icon: Icon(
+        Icons.history,
+        size: 16,
+        color: historyItems.isEmpty
+            ? theme.disabledColor
+            : theme.colorScheme.onSurfaceVariant,
+      ),
+      onSelected: onHistorySelect,
+      itemBuilder: (context) => [
+        for (final item in historyItems) _historyRow(item),
+      ],
+    );
+  }
+
+  PopupMenuItem<int> _historyRow(HistoryItem item) {
+    return PopupMenuItem(
+      value: item.index,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PaneBadge(badge: item.badge, badgeIndex: item.badgeIndex, small: true),
+          const SizedBox(width: 6),
+          Text(
+            item.label,
+            style: item.current
+                ? const TextStyle(fontWeight: FontWeight.w700)
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _linkRow(FollowOption option) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        PaneBadge(
+          badge: option.badge,
+          badgeIndex: option.badgeIndex,
+          small: true,
+        ),
+        const SizedBox(width: 6),
+        Text(option.label),
+      ],
+    );
+  }
+
+  /// Everything that has no room in the compact row, as one menu whose
+  /// items carry their own action.
+  Widget _overflowMenu(ThemeData theme) {
+    final entries = <PopupMenuEntry<VoidCallback>>[];
+    if (onModule != null) {
+      for (final m in modules) {
+        entries.add(CheckedPopupMenuItem(
+          key: Key('menu-module-${m.code}'),
+          checked: m.code == moduleCode,
+          value: () => onModule!(m.code),
+          child: Text(m.title, overflow: TextOverflow.ellipsis),
+        ));
+      }
+    }
+    if (onHistorySelect != null && historyItems.isNotEmpty) {
+      if (entries.isNotEmpty) entries.add(const PopupMenuDivider());
+      for (final item in historyItems.take(6)) {
+        entries.add(PopupMenuItem(
+          value: () => onHistorySelect!(item.index),
+          child: _historyRow(item).child!,
+        ));
+      }
+    }
+    if (entries.isNotEmpty) entries.add(const PopupMenuDivider());
+    entries.add(CheckedPopupMenuItem(
+      key: const Key('menu-unlinked'),
+      checked: followValue == null,
+      value: () => onFollow(null),
+      child: const Text('Unlinked'),
+    ));
+    for (final option in followOptions) {
+      entries.add(CheckedPopupMenuItem(
+        key: Key('menu-link-${option.badge}'),
+        checked: followValue == option.id,
+        value: () => onFollow(option.id),
+        child: _linkRow(option),
+      ));
+    }
+    if (onClose != null) {
+      entries.add(const PopupMenuDivider());
+      entries.add(PopupMenuItem(
+        key: const Key('menu-close'),
+        value: onClose,
+        child: const Text('Close view'),
+      ));
+    }
+    return PopupMenuButton<VoidCallback>(
+      key: const Key('pane-menu'),
+      tooltip: 'View menu',
+      icon: const Icon(Icons.more_vert, size: 18),
+      onSelected: (action) => action(),
+      itemBuilder: (context) => entries,
     );
   }
 }

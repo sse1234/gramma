@@ -8,6 +8,7 @@ import 'package:gramma/reader_pane.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gramma/main.dart';
+import 'package:gramma/pane_model.dart';
 import 'package:gramma/settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -634,5 +635,70 @@ void main() {
     await tester.tap(find.text('2Mo 1,1').last);
     await settleJump();
     expect(label(), '2. Mose 1');
+  });
+
+  /// An iPhone-like viewport: too narrow for the wide pane chrome, with
+  /// status-bar/notch and home-indicator insets.
+  void notchedPhoneViewport(WidgetTester tester) {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.padding = const FakeViewPadding(
+        left: 0, top: 59, right: 0, bottom: 34);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPadding);
+  }
+
+  testWidgets('phone-width panes collapse chrome into the overflow menu',
+      (tester) async {
+    _freshUserStore();
+    notchedPhoneViewport(tester);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    // No overflow errors were thrown (pumpWidget rethrows them), and the
+    // wide-chrome widgets gave way to the compact form.
+    expect(find.byKey(const Key('pane-menu')), findsOneWidget);
+    expect(find.byKey(const Key('module-select')), findsNothing);
+    expect(find.byKey(const Key('link-select')), findsNothing);
+    expect(find.byKey(const Key('current-position')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('pane-menu')));
+    await tester.pumpAndSettle();
+    expect(find.text('Fixtur Deutsch'), findsOneWidget,
+        reason: 'module switching lives in the menu');
+    expect(find.byKey(const Key('menu-unlinked')), findsOneWidget);
+  });
+
+  testWidgets('reading mode stays clear of the status bar inset',
+      (tester) async {
+    _freshUserStore();
+    notchedPhoneViewport(tester);
+    await prefs.setBool('readingMode', true);
+    addTearDown(() => prefs.setBool('readingMode', false));
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    final top = tester.getTopLeft(find.byKey(const Key('vertical-reader'))).dy;
+    expect(top, greaterThanOrEqualTo(59),
+        reason: 'without chrome the text must not slide under the notch');
+  });
+
+  testWidgets('corrupted pane weights restore to a usable desk',
+      (tester) async {
+    _freshUserStore();
+    final broken = LayoutModel([
+      PaneColumn(
+          panes: [PaneSpec(kind: PaneKind.text, module: 'FixDe')],
+          weight: -0.4),
+      PaneColumn(
+          panes: [PaneSpec(kind: PaneKind.text, module: 'FixDe')]),
+    ]);
+    saveLayout(json: broken.encode());
+    _desktopViewport(tester);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    expect(find.byType(ReaderPane), findsNWidgets(2));
+    for (final pane in find.byType(ReaderPane).evaluate()) {
+      expect(pane.size!.width, greaterThan(100),
+          reason: 'no pane may be squeezed off the desk on restore');
+    }
   });
 }

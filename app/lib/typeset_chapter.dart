@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'run_paint.dart';
 import 'src/rust/api/typeset.dart';
 
 /// Paints a chapter laid out by gramma-core's Knuth–Plass engine.
@@ -78,23 +79,17 @@ class _ChapterPainter extends CustomPainter {
     for (var i = 0; i < layout.lines.length; i++) {
       final y = i * lineHeight;
       for (final run in layout.lines[i].runs) {
-        final painter = TextPainter(
-          text: TextSpan(
-            text: run.text,
-            style: run.verseNumber
-                ? numberStyle
-                : run.noteMarker
-                    ? markerStyle
-                    : run.headingLevel == 1
-                        ? sectionStyle
-                        : run.headingLevel == 2
-                            ? subSectionStyle
-                            : textStyle,
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
+        final style = run.verseNumber
+            ? numberStyle
+            : run.noteMarker
+                ? markerStyle
+                : run.headingLevel == 1
+                    ? sectionStyle
+                    : run.headingLevel == 2
+                        ? subSectionStyle
+                        : textStyle;
         // Tops align, so the smaller verse numbers sit raised.
-        painter.paint(canvas, Offset(run.x * scale, y));
+        paintRun(canvas, run.text, style, Offset(run.x * scale, y));
       }
     }
   }

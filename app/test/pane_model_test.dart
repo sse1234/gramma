@@ -247,4 +247,35 @@ void _historyTests() {
     expect(f.model.historyCursor, 0);
     expect(f.model.canGoForward, isTrue);
   });
+
+  test('column snapping never exceeds the available width', () {
+    // 400px columns, 48px gutter, generous space: snaps to whole columns.
+    expect(snapToColumns(430, 400, 48, 1200), 400);
+    expect(snapToColumns(700, 400, 48, 1200), 848);
+    // The snapped width always fits what is available.
+    expect(snapToColumns(700, 400, 48, 800), 400);
+  });
+
+  test('column snapping leaves the width alone on narrow screens', () {
+    // A portrait phone: not even one whole 400px column fits in the space
+    // left of the divider — the user's drag position must survive, never a
+    // forced overflow past the screen edge.
+    expect(snapToColumns(180, 400, 48, 220), 180);
+    expect(snapToColumns(140, 400, 48, 100), 140);
+  });
+
+  test('decode sanitizes corrupted weights', () {
+    final model = LayoutModel([
+      PaneColumn(panes: [PaneSpec(kind: PaneKind.text)], weight: -0.4),
+      PaneColumn(
+          panes: [PaneSpec(kind: PaneKind.text, weight: 0.0)], weight: 2),
+    ]);
+    final decoded = LayoutModel.decode(model.encode())!;
+    expect(decoded.columns[0].weight, 1.0,
+        reason: 'negative column weights reset so the pane stays reachable');
+    expect(decoded.columns[0].panes[0].weight, 1.0);
+    expect(decoded.columns[1].weight, 2.0, reason: 'valid weights survive');
+    expect(decoded.columns[1].panes[0].weight, 1.0,
+        reason: 'zero pane weights reset');
+  });
 }
