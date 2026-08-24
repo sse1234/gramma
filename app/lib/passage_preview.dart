@@ -50,7 +50,7 @@ Future<void> showPassagePreview(
       );
       final textStyle = theme.textTheme.bodyMedium?.copyWith(
         fontFamily: 'GentiumBookPlus',
-        height: 1.5,
+        height: 1.3,
         color: theme.colorScheme.onSurface,
         fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) * scale,
       );
