@@ -28,6 +28,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
   late LayoutModel _layout;
   bool _initialized = false;
 
+  /// Pane id currently being dragged for rearrangement, if any.
+  String? _draggingPane;
+
   @override
   void initState() {
     super.initState();
@@ -198,11 +201,119 @@ class _ReaderScreenState extends State<ReaderScreen> {
     });
   }
 
+  Widget _dragHandle(PaneSpec spec) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.grab,
+      child: Draggable<String>(
+        data: spec.id,
+        onDragStarted: () => setState(() => _draggingPane = spec.id),
+        onDragEnd: (_) => setState(() => _draggingPane = null),
+        feedback: Material(
+          elevation: 4,
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Icon(
+              spec.kind == PaneKind.footnotes
+                  ? Icons.notes_outlined
+                  : Icons.menu_book_outlined,
+              size: 20,
+            ),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Icon(
+            Icons.drag_indicator,
+            size: 18,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _dropIntoStack(PaneColumn column, int index, String id) {
+    setState(() => _layout.moveIntoStack(id, column, index));
+    _save();
+  }
+
+  void _dropAsNewColumn(PaneColumn? after, String id) {
+    setState(() => _layout.moveToNewColumn(id, after: after));
+    _save();
+  }
+
+  /// Drop zones shown while a pane is being dragged: vertical strips at
+  /// every column boundary (drop = new column there) and horizontal strips
+  /// at every stack boundary (drop = insert into that stack).
+  List<Widget> _dropTargets(BoxConstraints constraints) {
+    final columns = _layout.columns;
+    final contentWidth =
+        constraints.maxWidth - (columns.length - 1) * _gripThickness;
+    final sumW = columns.fold(0.0, (a, c) => a + c.weight);
+    final widths = [
+      for (final c in columns) c.weight / sumW * contentWidth,
+    ];
+    final targets = <Widget>[];
+    var x = 0.0;
+    for (var k = 0; k <= columns.length; k++) {
+      final centerX = k == 0
+          ? 0.0
+          : k == columns.length
+              ? constraints.maxWidth
+              : x - _gripThickness / 2;
+      targets.add(Positioned(
+        left: (centerX - 28).clamp(0.0, constraints.maxWidth - 56),
+        width: 56,
+        top: 0,
+        height: constraints.maxHeight,
+        child: _DropZone(
+          key: Key('drop-column-$k'),
+          onAccept: (id) =>
+              _dropAsNewColumn(k == 0 ? null : columns[k - 1], id),
+        ),
+      ));
+      if (k < columns.length) {
+        final columnLeft = x;
+        final width = widths[k];
+        final panes = columns[k].panes;
+        final contentHeight =
+            constraints.maxHeight - (panes.length - 1) * _gripThickness;
+        final sumH = panes.fold(0.0, (a, p) => a + p.weight);
+        var y = 0.0;
+        for (var j = 0; j <= panes.length; j++) {
+          final centerY = j == 0
+              ? 0.0
+              : j == panes.length
+                  ? constraints.maxHeight
+                  : y - _gripThickness / 2;
+          targets.add(Positioned(
+            left: columnLeft + 64,
+            width: (width - 128).clamp(48.0, double.infinity),
+            top: (centerY - 30).clamp(0.0, constraints.maxHeight - 60),
+            height: 60,
+            child: _DropZone(
+              key: Key('drop-stack-$k-$j'),
+              onAccept: (id) => _dropIntoStack(columns[k], j, id),
+            ),
+          ));
+          if (j < panes.length) {
+            y += panes[j].weight / sumH * contentHeight + _gripThickness;
+          }
+        }
+        x += width + _gripThickness;
+      }
+    }
+    return targets;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_initialized) return const SizedBox.shrink();
+    final settings = SettingsScope.of(context);
+    final reading = settings.readingMode;
     return Scaffold(
-      appBar: AppBar(
+      appBar: reading ? null : AppBar(
         title: const Text('gramma'),
         actions: [
           PopupMenuButton<PaneKind>(
@@ -238,30 +349,35 @@ class _ReaderScreenState extends State<ReaderScreen> {
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+        padding: EdgeInsets.fromLTRB(24, reading ? 16 : 12, 24, 0),
         child: LayoutBuilder(
           builder: (context, constraints) {
             final columns = _layout.columns;
             final contentWidth = constraints.maxWidth -
                 (columns.length - 1) * _gripThickness;
             final sum = columns.fold(0.0, (a, c) => a + c.weight);
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            return Stack(
               children: [
-                for (var i = 0; i < columns.length; i++) ...[
-                  if (i > 0)
-                    _Grip(
-                      key: Key('column-grip-${i - 1}'),
-                      axis: Axis.horizontal,
-                      onDrag: (delta) =>
-                          _dragColumns(i - 1, delta, contentWidth),
-                      onEnd: () => _snapColumns(i - 1, contentWidth),
-                    ),
-                  SizedBox(
-                    width: columns[i].weight / sum * contentWidth,
-                    child: _columnWidget(columns[i]),
-                  ),
-                ],
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < columns.length; i++) ...[
+                      if (i > 0)
+                        _Grip(
+                          key: Key('column-grip-${i - 1}'),
+                          axis: Axis.horizontal,
+                          onDrag: (delta) =>
+                              _dragColumns(i - 1, delta, contentWidth),
+                          onEnd: () => _snapColumns(i - 1, contentWidth),
+                        ),
+                      SizedBox(
+                        width: columns[i].weight / sum * contentWidth,
+                        child: _columnWidget(columns[i]),
+                      ),
+                    ],
+                  ],
+                ),
+                if (_draggingPane != null) ..._dropTargets(constraints),
               ],
             );
           },
@@ -301,8 +417,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Widget _pane(PaneSpec spec) {
+    final settings = SettingsScope.of(context);
     final followedAnchor = _layout.byId(spec.follow)?.anchor;
     final closable = _layout.allPanes.length > 1;
+    void toggleMode() => settings.setReadingMode(!settings.readingMode);
     switch (spec.kind) {
       case PaneKind.text:
         return ReaderPane(
@@ -311,6 +429,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
           modules: _modules,
           followedAnchor: followedAnchor,
           followOptions: _followOptionsFor(spec),
+          readingMode: settings.readingMode,
+          onToggleMode: toggleMode,
+          dragHandle: _dragHandle(spec),
           onAnchor: (osis) => _setAnchor(spec.id, osis),
           onModule: (code) => _setModule(spec.id, code),
           onFollow: (follow) => _setFollow(spec.id, follow),
@@ -323,6 +444,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
           sourceModule: _layout.byId(spec.follow)?.module,
           followValue: spec.follow,
           followOptions: _followOptionsFor(spec),
+          readingMode: settings.readingMode,
+          onToggleMode: toggleMode,
+          dragHandle: _dragHandle(spec),
           onFollow: (follow) => _setFollow(spec.id, follow),
           onClose: closable ? () => _closePane(spec.id) : null,
         );
@@ -372,6 +496,32 @@ class _Grip extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A rearrangement drop zone, highlighted while a drag hovers over it.
+class _DropZone extends StatelessWidget {
+  const _DropZone({super.key, required this.onAccept});
+
+  final ValueChanged<String> onAccept;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return DragTarget<String>(
+      onAcceptWithDetails: (details) => onAccept(details.data),
+      builder: (context, candidates, rejected) => Container(
+        decoration: BoxDecoration(
+          color: candidates.isEmpty
+              ? Colors.transparent
+              : scheme.primary.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(8),
+          border: candidates.isEmpty
+              ? null
+              : Border.all(color: scheme.primary, width: 1.5),
         ),
       ),
     );

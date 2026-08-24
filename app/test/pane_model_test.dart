@@ -82,4 +82,61 @@ void main() {
     expect(snapToColumns(1900, colW, gutter, 1000), 848,
         reason: 'never beyond the available space');
   });
+  _moveTests();
+}
+
+// Rearrangement operations (drag-to-rearrange).
+class _Fixture {
+  _Fixture() {
+    a = PaneSpec(kind: PaneKind.text, module: 'a');
+    b = PaneSpec(kind: PaneKind.footnotes, follow: a.id);
+    c = PaneSpec(kind: PaneKind.text, module: 'c');
+    model = LayoutModel([
+      PaneColumn(panes: [a, b]),
+      PaneColumn(panes: [c]),
+    ]);
+  }
+  late PaneSpec a, b, c;
+  late LayoutModel model;
+}
+
+void _moveTests() {
+  test('a pane can move into another stack at a position', () {
+    final f = _Fixture();
+    f.model.moveIntoStack(f.c.id, f.model.columns[0], 1);
+    expect(f.model.columns.length, 1, reason: 'emptied column removed');
+    expect(f.model.columns[0].panes.map((p) => p.id).toList(),
+        [f.a.id, f.c.id, f.b.id]);
+    expect(f.model.byId(f.b.id)!.follow, f.a.id,
+        reason: 'links survive rearrangement');
+  });
+
+  test('a pane can leave a stack to become a new column', () {
+    final f = _Fixture();
+    f.model.moveToNewColumn(f.b.id, after: f.model.columns[1]);
+    expect(f.model.columns.length, 3);
+    expect(f.model.columns[0].panes.single.id, f.a.id);
+    expect(f.model.columns[2].panes.single.id, f.b.id);
+  });
+
+  test('moving to a new leftmost column', () {
+    final f = _Fixture();
+    f.model.moveToNewColumn(f.c.id, after: null);
+    expect(f.model.columns.first.panes.single.id, f.c.id);
+    expect(f.model.columns.length, 2, reason: 'old singleton column removed');
+  });
+
+  test('reordering within the same stack adjusts for removal', () {
+    final f = _Fixture();
+    f.model.moveIntoStack(f.a.id, f.model.columns[0], 2);
+    expect(f.model.columns[0].panes.map((p) => p.id).toList(),
+        [f.b.id, f.a.id]);
+  });
+
+  test('moving a sole pane to a new column beside itself is harmless', () {
+    final f = _Fixture();
+    f.model.moveToNewColumn(f.c.id, after: f.model.columns[1]);
+    expect(f.model.columns.length, 2);
+    expect(f.model.columns[1].panes.single.id, f.c.id);
+  });
 }

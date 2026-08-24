@@ -38,3 +38,13 @@ typeset column width.
   (planned) will also use.
 - Drag-to-rearrange (moving panes between columns) is a natural follow-up
   on the same model.
+
+## Addendum (2026-08-24): rearrangement and the dual-state UI
+
+- Panes are **rearranged by dragging** a handle in the pane header: drop
+  zones appear at every stack boundary (insert into that stack) and every
+  column boundary (become a new column there). The operations are model
+  methods over pane ids, so position links survive any rearrangement.
+- The UI has two states: **setup mode** (app bar and pane headers visible)
+  and **reading mode** (all chrome hidden, text only). A single tap in any
+  pane's content toggles between them; the state persists per device.

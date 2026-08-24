@@ -84,6 +84,63 @@ class LayoutModel {
   PaneColumn? columnOf(String id) =>
       columns.where((c) => c.panes.any((p) => p.id == id)).firstOrNull;
 
+  /// Detach the pane with [id] from its column, dropping the column if it
+  /// becomes empty. Returns the pane, or null if unknown.
+  PaneSpec? _detach(String id) {
+    for (final column in columns) {
+      final index = column.panes.indexWhere((p) => p.id == id);
+      if (index >= 0) {
+        final pane = column.panes.removeAt(index);
+        columns.removeWhere((c) => c.panes.isEmpty);
+        return pane;
+      }
+    }
+    return null;
+  }
+
+  /// Move a pane into [target]'s stack at [index] (an insertion position in
+  /// the stack as it looked before the move).
+  void moveIntoStack(String id, PaneColumn target, int index) {
+    final source = columnOf(id);
+    if (source == null) return;
+    var insertAt = index;
+    if (identical(source, target)) {
+      final from = source.panes.indexWhere((p) => p.id == id);
+      if (from < insertAt) insertAt -= 1;
+    }
+    final pane = _detach(id);
+    if (pane == null) return;
+    if (!columns.contains(target)) {
+      // The source column vanished with its only pane; re-add it.
+      columns.add(PaneColumn(panes: [pane]));
+      return;
+    }
+    target.panes.insert(insertAt.clamp(0, target.panes.length), pane);
+  }
+
+  /// Move a pane out into a new column placed after [after] (null = become
+  /// the leftmost column).
+  void moveToNewColumn(String id, {required PaneColumn? after}) {
+    final source = columnOf(id);
+    if (source == null) return;
+    final sourceIndex = columns.indexOf(source);
+    final pane = _detach(id);
+    if (pane == null) return;
+    pane.weight = 1.0;
+    final column = PaneColumn(panes: [pane]);
+    final int insertAt;
+    if (after == null) {
+      insertAt = 0;
+    } else if (columns.contains(after)) {
+      insertAt = columns.indexOf(after) + 1;
+    } else {
+      // The anchor was the pane's own singleton column: put it back where
+      // that column was.
+      insertAt = sourceIndex;
+    }
+    columns.insert(insertAt.clamp(0, columns.length), column);
+  }
+
   void removePane(String id) {
     for (final column in columns) {
       column.panes.removeWhere((p) => p.id == id);

@@ -14,6 +14,7 @@ class SettingsController extends ChangeNotifier {
     _lineSpacing = _prefs.getDouble('lineSpacing') ?? defaultLineSpacing;
     _measureEms = _prefs.getInt('measureEms') ?? defaultMeasureEms;
     _trueBlackDark = _prefs.getBool('trueBlackDark') ?? false;
+    _readingMode = _prefs.getBool('readingMode') ?? false;
     _themeMode = switch (_prefs.getString('themeMode')) {
       'light' => ThemeMode.light,
       'dark' => ThemeMode.dark,
@@ -35,6 +36,7 @@ class SettingsController extends ChangeNotifier {
   int _measureEms = defaultMeasureEms;
   ThemeMode _themeMode = ThemeMode.system;
   bool _trueBlackDark = false;
+  bool _readingMode = false;
 
   /// Column width in logical pixels — the zoom level.
   double get columnWidth => _columnWidth;
@@ -53,6 +55,10 @@ class SettingsController extends ChangeNotifier {
   /// Dark mode keeps a pure-black background; contrast dims only the text.
   bool get trueBlackDark => _trueBlackDark;
 
+  /// Reading mode hides all chrome (app bar, pane headers); setup mode
+  /// shows it. Toggled by tapping any pane's content.
+  bool get readingMode => _readingMode;
+
   void setColumnWidth(double value) {
     _columnWidth = value.clamp(320.0, 520.0);
     _prefs.setDouble('columnWidth', _columnWidth);
@@ -68,6 +74,12 @@ class SettingsController extends ChangeNotifier {
   void setLineSpacing(double value) {
     _lineSpacing = value.clamp(1.2, 2.6);
     _prefs.setDouble('lineSpacing', _lineSpacing);
+    notifyListeners();
+  }
+
+  void setReadingMode(bool value) {
+    _readingMode = value;
+    _prefs.setBool('readingMode', value);
     notifyListeners();
   }
 

@@ -24,9 +24,12 @@ class ReaderPane extends StatefulWidget {
     required this.modules,
     required this.followedAnchor,
     required this.followOptions,
+    required this.readingMode,
+    required this.onToggleMode,
     required this.onAnchor,
     required this.onModule,
     required this.onFollow,
+    this.dragHandle,
     this.onClose,
   });
 
@@ -34,9 +37,14 @@ class ReaderPane extends StatefulWidget {
   final List<ModuleView> modules;
   final String? followedAnchor;
   final List<FollowOption> followOptions;
+
+  /// Reading mode hides the pane's chrome; tapping the content toggles it.
+  final bool readingMode;
+  final VoidCallback onToggleMode;
   final ValueChanged<String> onAnchor;
   final ValueChanged<String> onModule;
   final ValueChanged<String?> onFollow;
+  final Widget? dragHandle;
   final VoidCallback? onClose;
 
   @override
@@ -429,8 +437,10 @@ class _ReaderPaneState extends State<ReaderPane> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (!widget.readingMode) ...[
         PaneHeader(
           title: null,
+          dragHandle: widget.dragHandle,
           moduleSelector: DropdownButton<String>(
             key: const Key('module-select'),
             isExpanded: true,
@@ -478,8 +488,12 @@ class _ReaderPaneState extends State<ReaderPane> {
           ],
         ),
         const SizedBox(height: 8),
+        ],
         Expanded(
-          child: _spine.isEmpty
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: widget.onToggleMode,
+            child: _spine.isEmpty
               ? Center(
                   child: Text(
                     'Import an OSIS module to begin reading',
@@ -503,6 +517,7 @@ class _ReaderPaneState extends State<ReaderPane> {
                     return _verticalReader();
                   },
                 ),
+          ),
         ),
       ],
     );
@@ -758,11 +773,13 @@ class PaneHeader extends StatelessWidget {
     required this.followValue,
     required this.followOptions,
     required this.onFollow,
+    this.dragHandle,
     this.onClose,
   });
 
   final String? title;
   final Widget? moduleSelector;
+  final Widget? dragHandle;
   final String? followValue;
   final List<FollowOption> followOptions;
   final ValueChanged<String?> onFollow;
@@ -797,6 +814,7 @@ class PaneHeader extends StatelessWidget {
             tooltip: 'Close view',
             onPressed: onClose,
           ),
+        ?dragHandle,
       ],
     );
   }

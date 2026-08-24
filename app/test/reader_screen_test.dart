@@ -444,4 +444,95 @@ void main() {
     expect(width, moreOrLessEquals(848, epsilon: 2),
         reason: 'left column snaps to two typeset columns');
   });
+
+  testWidgets('tapping content toggles reading mode and persists',
+      (tester) async {
+    _freshUserStore();
+    _phoneViewport(tester);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    expect(find.byType(AppBar), findsOneWidget);
+    expect(find.byKey(const Key('module-select')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('vertical-reader')));
+    await tester.pumpAndSettle();
+    expect(find.byType(AppBar), findsNothing, reason: 'reading mode');
+    expect(find.byKey(const Key('module-select')), findsNothing);
+    expect(find.byType(TextField), findsNothing);
+
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await tester.pump();
+    expect(find.byType(AppBar), findsNothing,
+        reason: 'reading mode persists across restarts');
+
+    await tester.tap(find.byKey(const Key('vertical-reader')));
+    await tester.pumpAndSettle();
+    expect(find.byType(AppBar), findsOneWidget, reason: 'back to setup');
+  });
+
+  testWidgets('a pane can be dragged into another stack', (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1400, 700);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Text view'));
+    await _settleLayouts(tester);
+    final first = tester.getRect(find.byType(ReaderPane).first);
+    expect(tester.getRect(find.byType(ReaderPane).last).left,
+        greaterThan(first.right), reason: 'starts side by side');
+
+    final handle = tester.getCenter(find.byIcon(Icons.drag_indicator).last);
+    final gesture = await tester.startGesture(handle);
+    await gesture.moveBy(const Offset(0, 30));
+    await tester.pump();
+    // Bottom stack boundary of the first column.
+    await gesture.moveTo(Offset(first.center.dx, first.bottom - 20));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    final panes = find.byType(ReaderPane);
+    final a = tester.getRect(panes.first);
+    final b = tester.getRect(panes.last);
+    expect(b.top, greaterThan(a.bottom - 1), reason: 'now stacked');
+    expect((b.left - a.left).abs(), lessThan(1));
+  });
+
+  testWidgets('a stacked pane can be dragged out into its own column',
+      (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1400, 700);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Footnotes view'));
+    await tester.pumpAndSettle();
+    final text = tester.getRect(find.byType(ReaderPane));
+    final notesBefore = tester.getRect(find.byType(FootnotesPane));
+    expect(notesBefore.top, greaterThan(text.bottom - 1));
+
+    final handle = tester.getCenter(find.byIcon(Icons.drag_indicator).last);
+    final gesture = await tester.startGesture(handle);
+    await gesture.moveBy(const Offset(0, 30));
+    await tester.pump();
+    // Far right edge: become a new column.
+    await gesture.moveTo(Offset(1400 - 30, 350));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    final textAfter = tester.getRect(find.byType(ReaderPane));
+    final notesAfter = tester.getRect(find.byType(FootnotesPane));
+    expect(notesAfter.left, greaterThan(textAfter.right - 1),
+        reason: 'footnotes moved into their own column');
+  });
 }

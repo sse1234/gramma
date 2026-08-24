@@ -12,9 +12,17 @@ class FootnotesPane extends StatelessWidget {
     required this.sourceModule,
     required this.followValue,
     required this.followOptions,
+    required this.readingMode,
+    required this.onToggleMode,
     required this.onFollow,
+    this.dragHandle,
     this.onClose,
   });
+
+  /// Reading mode hides the pane's chrome; tapping the content toggles it.
+  final bool readingMode;
+  final VoidCallback onToggleMode;
+  final Widget? dragHandle;
 
   /// Canonical "Book.Chapter" of the followed pane.
   final String? followedAnchor;
@@ -33,15 +41,23 @@ class FootnotesPane extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PaneHeader(
-          title: 'Footnotes',
-          followValue: followValue,
-          followOptions: followOptions,
-          onFollow: onFollow,
-          onClose: onClose,
-        ),
+        if (!readingMode)
+          PaneHeader(
+            title: 'Footnotes',
+            dragHandle: dragHandle,
+            followValue: followValue,
+            followOptions: followOptions,
+            onFollow: onFollow,
+            onClose: onClose,
+          ),
         const SizedBox(height: 8),
-        Expanded(child: _body(theme)),
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: onToggleMode,
+            child: _body(theme),
+          ),
+        ),
       ],
     );
   }
