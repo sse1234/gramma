@@ -1,6 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'palette.dart';
+
+/// Tone families for the reading surface: the hue anchor of the softened
+/// background and ink. Parameters, not hand-picked colors — each tone is
+/// (hue, chroma-light, chroma-dark) fed to the HCL engine.
+enum ToneTheme {
+  paper(85, 22, 8),
+  sepia(55, 30, 10),
+  stone(85, 0, 0),
+  sage(140, 16, 8),
+  mist(250, 14, 8);
+
+  const ToneTheme(this.hue, this.chromaLight, this.chromaDark);
+
+  final double hue;
+  final double chromaLight;
+  final double chromaDark;
+}
+
+/// The tone's softened background, for swatches and theme building.
+Color toneBackground(ToneTheme tone, Brightness brightness) {
+  return brightness == Brightness.light
+      ? hcl(tone.hue, tone.chromaLight, 91)
+      : hcl(tone.hue, tone.chromaDark, 19);
+}
+
+/// The tone's softened ink.
+Color toneInk(ToneTheme tone, Brightness brightness) {
+  return brightness == Brightness.light
+      ? hcl(tone.hue, tone.chromaLight.clamp(0, 8), 38)
+      : hcl(tone.hue, tone.chromaDark.clamp(0, 6), 62);
+}
+
 /// User settings, persisted locally.
 ///
 /// The measure (line width in ems) is deliberately hard to change: it
@@ -16,6 +49,12 @@ class SettingsController extends ChangeNotifier {
     _trueBlackDark = _prefs.getBool('trueBlackDark') ?? false;
     _readingMode = _prefs.getBool('readingMode') ?? false;
     _defaultModule = _prefs.getString('defaultModule');
+    _tone = ToneTheme.values
+            .where((t) => t.name == _prefs.getString('tone'))
+            .firstOrNull ??
+        ToneTheme.paper;
+    _footnoteScale = _prefs.getDouble('footnoteScale') ?? 1.0;
+    _previewScale = _prefs.getDouble('previewScale') ?? 1.0;
     _themeMode = switch (_prefs.getString('themeMode')) {
       'light' => ThemeMode.light,
       'dark' => ThemeMode.dark,
@@ -39,6 +78,9 @@ class SettingsController extends ChangeNotifier {
   bool _trueBlackDark = false;
   bool _readingMode = false;
   String? _defaultModule;
+  ToneTheme _tone = ToneTheme.paper;
+  double _footnoteScale = 1.0;
+  double _previewScale = 1.0;
 
   /// Column width in logical pixels — the zoom level.
   double get columnWidth => _columnWidth;
@@ -61,6 +103,15 @@ class SettingsController extends ChangeNotifier {
   /// shows it. Toggled by tapping any pane's content.
   bool get readingMode => _readingMode;
 
+  /// Tone family of the softened reading surface.
+  ToneTheme get tone => _tone;
+
+  /// Text scale of the footnotes view (1.0 = theme default).
+  double get footnoteScale => _footnoteScale;
+
+  /// Text scale of passage preview popups.
+  double get previewScale => _previewScale;
+
   /// Module used to resolve references outside any pane context
   /// (passage previews, later cross-references in secondary literature).
   String? get defaultModule => _defaultModule;
@@ -80,6 +131,24 @@ class SettingsController extends ChangeNotifier {
   void setLineSpacing(double value) {
     _lineSpacing = value.clamp(1.2, 2.6);
     _prefs.setDouble('lineSpacing', _lineSpacing);
+    notifyListeners();
+  }
+
+  void setTone(ToneTheme tone) {
+    _tone = tone;
+    _prefs.setString('tone', tone.name);
+    notifyListeners();
+  }
+
+  void setFootnoteScale(double value) {
+    _footnoteScale = value.clamp(0.8, 1.6);
+    _prefs.setDouble('footnoteScale', _footnoteScale);
+    notifyListeners();
+  }
+
+  void setPreviewScale(double value) {
+    _previewScale = value.clamp(0.8, 1.6);
+    _prefs.setDouble('previewScale', _previewScale);
     notifyListeners();
   }
 
@@ -149,20 +218,24 @@ class SettingsScope extends InheritedNotifier<SettingsController> {
 /// With [trueBlack], the dark background stays pure black (for OLED panels
 /// and dark rooms) and the contrast setting dims only the text.
 ThemeData grammaTheme(Brightness brightness, double contrast,
-    {bool trueBlack = false}) {
+    {bool trueBlack = false, ToneTheme tone = ToneTheme.paper}) {
   final t = ((contrast - SettingsController.minContrast) /
           (1.0 - SettingsController.minContrast))
       .clamp(0.0, 1.0);
   final Color background;
   final Color ink;
   if (brightness == Brightness.light) {
-    background = Color.lerp(const Color(0xFFEFE8D7), Colors.white, t)!;
-    ink = Color.lerp(const Color(0xFF5C554A), const Color(0xFF14120F), t)!;
+    background =
+        Color.lerp(toneBackground(tone, brightness), Colors.white, t)!;
+    ink = Color.lerp(
+        toneInk(tone, brightness), const Color(0xFF14120F), t)!;
   } else {
     background = trueBlack
         ? Colors.black
-        : Color.lerp(const Color(0xFF2E2E33), const Color(0xFF0D0D0F), t)!;
-    ink = Color.lerp(const Color(0xFF95928A), const Color(0xFFF2EFE8), t)!;
+        : Color.lerp(
+            toneBackground(tone, brightness), const Color(0xFF0D0D0F), t)!;
+    ink = Color.lerp(
+        toneInk(tone, brightness), const Color(0xFFF2EFE8), t)!;
   }
   final base = ThemeData(
     brightness: brightness,

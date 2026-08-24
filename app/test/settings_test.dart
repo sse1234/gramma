@@ -14,9 +14,10 @@ Widget _harness(SettingsController controller) {
     listenable: controller,
     builder: (context, _) => MaterialApp(
       themeMode: controller.themeMode,
-      theme: grammaTheme(Brightness.light, controller.contrast),
+      theme: grammaTheme(Brightness.light, controller.contrast,
+          tone: controller.tone),
       darkTheme: grammaTheme(Brightness.dark, controller.contrast,
-          trueBlack: controller.trueBlackDark),
+          trueBlack: controller.trueBlackDark, tone: controller.tone),
       builder: (context, child) =>
           SettingsScope(controller: controller, child: child!),
       home: const SettingsScreen(),
@@ -44,6 +45,9 @@ void main() {
       ..setContrast(0.7)
       ..setLineSpacing(2.0)
       ..setDefaultModule('GerNeUe')
+      ..setTone(ToneTheme.sage)
+      ..setFootnoteScale(1.2)
+      ..setPreviewScale(1.4)
       ..setThemeMode(ThemeMode.dark);
     first.setMeasureEms(30, confirmed: true);
     final second = SettingsController(prefs);
@@ -51,6 +55,9 @@ void main() {
     expect(second.contrast, 0.7);
     expect(second.lineSpacing, 2.0);
     expect(second.defaultModule, 'GerNeUe');
+    expect(second.tone, ToneTheme.sage);
+    expect(second.footnoteScale, 1.2);
+    expect(second.previewScale, 1.4);
     expect(second.themeMode, ThemeMode.dark);
     expect(second.measureEms, 30);
   });
@@ -86,6 +93,41 @@ void main() {
     final reloaded =
         SettingsController(await SharedPreferences.getInstance());
     expect(reloaded.trueBlackDark, isTrue);
+  });
+
+  test('tones tint the softened surface distinctly, neutral stone included',
+      () {
+    final backgrounds = [
+      for (final tone in ToneTheme.values)
+        grammaTheme(Brightness.light, SettingsController.minContrast,
+                tone: tone)
+            .scaffoldBackgroundColor,
+    ];
+    for (var i = 0; i < backgrounds.length; i++) {
+      for (var j = i + 1; j < backgrounds.length; j++) {
+        expect(backgrounds[i], isNot(backgrounds[j]),
+            reason: 'tones $i and $j must differ');
+      }
+    }
+    final stone = grammaTheme(Brightness.light, SettingsController.minContrast,
+            tone: ToneTheme.stone)
+        .scaffoldBackgroundColor;
+    int ch(double x) => (x * 255).round();
+    expect((ch(stone.r) - ch(stone.b)).abs(), lessThan(3),
+        reason: 'stone is neutral');
+    // Full contrast converges to pure white regardless of tone.
+    expect(
+      grammaTheme(Brightness.light, 1.0, tone: ToneTheme.mist)
+          .scaffoldBackgroundColor,
+      Colors.white,
+    );
+    // True black stays black in every tone.
+    expect(
+      grammaTheme(Brightness.dark, 0.5,
+              trueBlack: true, tone: ToneTheme.sepia)
+          .scaffoldBackgroundColor,
+      Colors.black,
+    );
   });
 
   test('lower contrast softens ink and background', () {
@@ -135,6 +177,10 @@ void main() {
   });
 
   testWidgets('contrast slider updates the controller', (tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final controller = await _controller();
     await tester.pumpWidget(_harness(controller));
     final slider = find.byKey(const Key('contrast-slider'));

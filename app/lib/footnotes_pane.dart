@@ -192,14 +192,17 @@ class _FootnotesPaneState extends State<FootnotesPane> {
         ),
       );
     }
+    final scale = SettingsScope.of(context).footnoteScale;
     final numberStyle = theme.textTheme.labelMedium?.copyWith(
       color: theme.colorScheme.primary,
       fontFamily: 'GentiumBookPlus',
+      fontSize: (theme.textTheme.labelMedium?.fontSize ?? 12) * scale,
     );
     final textStyle = theme.textTheme.bodyMedium?.copyWith(
       fontFamily: 'GentiumBookPlus',
       height: 1.5,
       color: theme.colorScheme.onSurface,
+      fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) * scale,
     );
     final refStyle = textStyle?.copyWith(
       color: theme.colorScheme.primary,

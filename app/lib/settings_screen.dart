@@ -84,6 +84,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
+                title: const Text('Footnote text size'),
+                subtitle: Slider(
+                  key: const Key('footnote-scale'),
+                  min: 0.8,
+                  max: 1.6,
+                  divisions: 8,
+                  value: settings.footnoteScale,
+                  label: '${(settings.footnoteScale * 100).round()} %',
+                  onChanged: settings.setFootnoteScale,
+                ),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Preview text size'),
+                subtitle: Slider(
+                  key: const Key('preview-scale'),
+                  min: 0.8,
+                  max: 1.6,
+                  divisions: 8,
+                  value: settings.previewScale,
+                  label: '${(settings.previewScale * 100).round()} %',
+                  onChanged: settings.setPreviewScale,
+                ),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
                 title: const Text('Line spacing'),
                 subtitle: Slider(
                   key: const Key('spacing-slider'),
@@ -142,6 +168,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 selected: {settings.themeMode},
                 onSelectionChanged: (modes) =>
                     settings.setThemeMode(modes.first),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Tone'),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(
+                    children: [
+                      for (final tone in ToneTheme.values)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 10),
+                          child: Tooltip(
+                            message: tone.name,
+                            child: InkWell(
+                              key: Key('tone-${tone.name}'),
+                              borderRadius: BorderRadius.circular(18),
+                              onTap: () => settings.setTone(tone),
+                              child: Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: toneBackground(
+                                      tone, theme.brightness),
+                                  border: Border.all(
+                                    color: settings.tone == tone
+                                        ? theme.colorScheme.primary
+                                        : theme.colorScheme.outlineVariant,
+                                    width: settings.tone == tone ? 2.5 : 1,
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    'Aa',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontFamily: 'GentiumBookPlus',
+                                      color: toneInk(
+                                          tone, theme.brightness),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
               SwitchListTile(
                 key: const Key('true-black'),

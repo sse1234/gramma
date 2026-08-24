@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'settings.dart';
 import 'src/rust/api/library.dart';
 
 /// Floating preview of a referenced passage: the target verse(s) with their
@@ -41,14 +42,17 @@ Future<void> showPassagePreview(
     context: context,
     builder: (context) {
       final theme = Theme.of(context);
+      final scale = SettingsScope.of(context).previewScale;
       final numberStyle = theme.textTheme.labelSmall?.copyWith(
         color: theme.colorScheme.primary,
         fontFamily: 'GentiumBookPlus',
+        fontSize: (theme.textTheme.labelSmall?.fontSize ?? 11) * scale,
       );
       final textStyle = theme.textTheme.bodyMedium?.copyWith(
         fontFamily: 'GentiumBookPlus',
         height: 1.5,
         color: theme.colorScheme.onSurface,
+        fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) * scale,
       );
       bool highlighted(int v) =>
           verse != null && v >= verse && v <= (endVerse ?? verse);
