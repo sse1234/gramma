@@ -561,6 +561,8 @@ void main() {
     expect(exod.top, gen.top, reason: 'same category shares the row');
     expect(josh.top, greaterThan(gen.top),
         reason: 'next category starts a new row');
+    expect(josh.left, greaterThan(gen.left + 20),
+        reason: 'alternate categories carry the half-tile offset');
     final genColor =
         tester.widget<Material>(find.byKey(const Key('sel-book-Gen'))).color;
     final joshColor =

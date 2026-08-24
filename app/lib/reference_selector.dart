@@ -5,18 +5,12 @@ import 'src/rust/api/library.dart';
 
 typedef SelectorResult = ({String book, int chapter, int? verse});
 
-/// Splits [items] into brick-bond rows: odd rows are shifted by half a tile
-/// and therefore hold [shiftedCapacity] items instead of [capacity].
-List<List<T>> brickRows<T>(List<T> items, int capacity, int shiftedCapacity) {
-  final rows = <List<T>>[];
-  var index = 0;
-  while (index < items.length) {
-    final take = rows.length.isOdd ? shiftedCapacity : capacity;
-    rows.add(items.sublist(
-        index, (index + take).clamp(0, items.length).toInt()));
-    index += take;
-  }
-  return rows;
+/// Splits [items] into rows of at most [capacity].
+List<List<T>> chunkRows<T>(List<T> items, int capacity) {
+  return [
+    for (var i = 0; i < items.length; i += capacity)
+      items.sublist(i, (i + capacity).clamp(0, items.length).toInt()),
+  ];
 }
 
 /// The book → chapter → verse selector: the first popup workflow. Books are
@@ -131,8 +125,9 @@ class _SelectorFlowState extends State<_SelectorFlow> {
         }
         groups.last.add(b);
       }
-      // Brick bond within each category: consecutive rows shift by half a
-      // tile, so a category reads as one cohesive shape.
+      // Categories alternate between zero and half-a-tile left offset; all
+      // rows of one category share its offset, so each group is a solid
+      // block and the zigzag marks every category boundary.
       const tileWidth = 56.0;
       const spacing = 6.0;
       const shift = (tileWidth + spacing) / 2;
@@ -148,19 +143,22 @@ class _SelectorFlowState extends State<_SelectorFlow> {
           return ListView(
             shrinkWrap: true,
             children: [
-              for (final group in groups)
+              for (final (groupIndex, group) in groups.indexed)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (final (rowIndex, row) in brickRows(
-                              group, capacity, shiftedCapacity)
+                      for (final (rowIndex, row) in chunkRows(
+                              group,
+                              groupIndex.isOdd
+                                  ? shiftedCapacity
+                                  : capacity)
                           .indexed)
                         Padding(
                           padding: EdgeInsets.only(
                             top: rowIndex > 0 ? spacing : 0,
-                            left: rowIndex.isOdd ? shift : 0,
+                            left: groupIndex.isOdd ? shift : 0,
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
