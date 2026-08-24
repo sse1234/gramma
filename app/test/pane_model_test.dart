@@ -84,20 +84,27 @@ void main() {
   });
   _moveTests();
 
-  test('badges assign lowest unused characters and persist', () {
+  test('badges go to sender-capable panes only and persist', () {
     final f = _Fixture();
     f.model.ensureBadges();
     expect(f.a.badge, '1');
-    expect(f.b.badge, '2');
-    expect(f.c.badge, '3');
-    f.model.removePane(f.b.id);
+    expect(f.b.badge, isNull, reason: 'receive-only panes carry no badge');
+    expect(f.c.badge, '2');
+    f.model.removePane(f.a.id);
     final d = PaneSpec(kind: PaneKind.text);
     f.model.columns.last.panes.add(d);
     f.model.ensureBadges();
-    expect(d.badge, '2', reason: 'freed badge reused');
-    expect(f.c.badge, '3', reason: 'existing badges never change');
+    expect(d.badge, '1', reason: 'freed badge reused');
+    expect(f.c.badge, '2', reason: 'existing badges never change');
     final decoded = LayoutModel.decode(f.model.encode())!;
-    expect(decoded.allPanes.map((p) => p.badge).toList(), ['1', '3', '2']);
+    expect(decoded.allPanes.map((p) => p.badge).toList(), [null, '2', '1']);
+  });
+
+  test('stray badges on receive-only panes are stripped on load', () {
+    final f = _Fixture();
+    f.b.badge = '9';
+    f.model.ensureBadges();
+    expect(f.b.badge, isNull);
   });
 
   test('badge index maps into the badge alphabet', () {

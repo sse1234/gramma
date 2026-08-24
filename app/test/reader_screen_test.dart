@@ -390,6 +390,9 @@ void main() {
     final notes = tester.getRect(find.byType(FootnotesPane));
     expect(notes.top, greaterThan(text.bottom - 1),
         reason: 'footnotes tile below the text view');
+    expect(find.byKey(const Key('badge-1')), findsOneWidget);
+    expect(find.byKey(const Key('badge-2')), findsNothing,
+        reason: 'receive-only panes carry no badge');
     expect((notes.left - text.left).abs(), lessThan(1),
         reason: 'both tiles share the column');
   });

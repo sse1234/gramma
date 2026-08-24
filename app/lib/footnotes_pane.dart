@@ -23,7 +23,7 @@ class FootnotesPane extends StatelessWidget {
   /// Reading mode hides the pane's chrome; tapping the content toggles it.
   final bool readingMode;
   final VoidCallback onToggleMode;
-  final Widget badge;
+  final Widget? badge;
   final Widget? dragHandle;
 
   /// Canonical "Book.Chapter" of the followed pane.

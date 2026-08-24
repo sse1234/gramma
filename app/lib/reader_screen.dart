@@ -430,11 +430,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final followedAnchor = _layout.byId(spec.follow)?.anchor;
     final closable = _layout.allPanes.length > 1;
     void toggleMode() => settings.setReadingMode(!settings.readingMode);
-    final badge = PaneBadge(
-      key: Key('badge-${spec.badge}'),
-      badge: spec.badge ?? '?',
-      badgeIndex: spec.badgeIndex,
-    );
+    final badge = spec.badge == null
+        ? null
+        : PaneBadge(
+            key: Key('badge-${spec.badge}'),
+            badge: spec.badge!,
+            badgeIndex: spec.badgeIndex,
+          );
     switch (spec.kind) {
       case PaneKind.text:
         return ReaderPane(

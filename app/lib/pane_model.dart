@@ -96,13 +96,17 @@ class LayoutModel {
   PaneSpec? byId(String? id) =>
       id == null ? null : allPanes.where((p) => p.id == id).firstOrNull;
 
-  /// Assign every unbadged pane the lowest unused badge character, in
-  /// traversal order. Panes keep their badge for life; at most
-  /// `badgeChars.length` panes can exist.
+  /// Assign every unbadged sender-capable pane the lowest unused badge
+  /// character, in traversal order. Receive-only panes (footnotes) carry no
+  /// badge — they can never be follow targets. Panes keep their badge for
+  /// life; at most `badgeChars.length` addressable panes can exist.
   void ensureBadges() {
+    for (final pane in allPanes) {
+      if (pane.kind != PaneKind.text) pane.badge = null;
+    }
     final used = allPanes.map((p) => p.badge).whereType<String>().toSet();
     for (final pane in allPanes) {
-      if (pane.badge != null) continue;
+      if (pane.kind != PaneKind.text || pane.badge != null) continue;
       for (final ch in PaneSpec.badgeChars.split('')) {
         if (!used.contains(ch)) {
           pane.badge = ch;
@@ -113,7 +117,7 @@ class LayoutModel {
     }
   }
 
-  /// Whether another pane can still get a badge.
+  /// Whether another addressable pane can still get a badge.
   bool get hasFreeBadge =>
       allPanes.map((p) => p.badge).whereType<String>().length <
       PaneSpec.badgeChars.length;

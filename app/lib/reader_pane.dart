@@ -46,7 +46,7 @@ class ReaderPane extends StatefulWidget {
   final VoidCallback onToggleMode;
 
   /// The pane's identity badge, shown leftmost in the chrome.
-  final Widget badge;
+  final Widget? badge;
   final ValueChanged<String> onAnchor;
   final ValueChanged<String> onModule;
   final ValueChanged<String?> onFollow;
@@ -489,15 +489,38 @@ class _ReaderPaneState extends State<ReaderPane> {
         Row(
           children: [
             if (position != null)
-              InkWell(
-                key: const Key('open-selector'),
-                borderRadius: BorderRadius.circular(4),
-                onTap: _openSelector,
-                child: Text(
-                  position,
-                  key: const Key('current-position'),
-                  style: theme.textTheme.labelLarge
-                      ?.copyWith(color: theme.colorScheme.primary),
+              Tooltip(
+                message: 'Select book, chapter, verse',
+                child: InkWell(
+                  key: const Key('open-selector'),
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: _openSelector,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                          color: theme.colorScheme.outlineVariant),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.grid_view_rounded,
+                          size: 13,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          position,
+                          key: const Key('current-position'),
+                          style: theme.textTheme.labelLarge
+                              ?.copyWith(color: theme.colorScheme.primary),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             const SizedBox(width: 12),
