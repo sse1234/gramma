@@ -27,6 +27,39 @@ impl BookId {
     pub fn info(self) -> &'static BookInfo {
         &CANON[self.index()]
     }
+
+    pub fn category(self) -> BookCategory {
+        match self.index() {
+            0..=4 => BookCategory::Law,
+            5..=16 => BookCategory::HistoryOt,
+            17..=21 => BookCategory::Wisdom,
+            22..=26 => BookCategory::MajorProphets,
+            27..=38 => BookCategory::MinorProphets,
+            39..=43 => BookCategory::GospelsActs,
+            44..=64 => BookCategory::Epistles,
+            _ => BookCategory::Apocalyptic,
+        }
+    }
+}
+
+/// Traditional grouping of the canon, derived from canonical order (the
+/// canon is closed per ADR 0010, so position determines category).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BookCategory {
+    Law,
+    HistoryOt,
+    Wisdom,
+    MajorProphets,
+    MinorProphets,
+    GospelsActs,
+    Epistles,
+    Apocalyptic,
+}
+
+impl BookCategory {
+    pub fn index(self) -> u8 {
+        self as u8
+    }
 }
 
 /// Static metadata for one book of the canon.
@@ -36,6 +69,8 @@ pub struct BookInfo {
     pub osis: &'static str,
     pub english: &'static str,
     pub german: &'static str,
+    /// Most concise display abbreviation (German reference scheme).
+    pub abbrev: &'static str,
     /// Additional accepted abbreviations, pre-normalized (lowercase, no
     /// dots/spaces, umlauts transliterated).
     pub aliases: &'static [&'static str],
@@ -321,106 +356,166 @@ fn alias_map() -> &'static HashMap<String, BookId> {
 }
 
 macro_rules! canon_table {
-    ($(($osis:literal, $english:literal, $german:literal, [$($alias:literal),*])),* $(,)?) => {
+    ($(($osis:literal, $english:literal, $german:literal, $abbrev:literal, [$($alias:literal),*])),* $(,)?) => {
         [$(BookInfo {
             osis: $osis,
             english: $english,
             german: $german,
+            abbrev: $abbrev,
             aliases: &[$($alias),*],
         }),*]
     };
 }
 
 static CANON: [BookInfo; 66] = canon_table![
-    ("Gen", "Genesis", "1. Mose", ["1mo", "1mos"]),
-    ("Exod", "Exodus", "2. Mose", ["2mo", "2mos", "ex"]),
-    ("Lev", "Leviticus", "3. Mose", ["3mo", "3mos"]),
-    ("Num", "Numbers", "4. Mose", ["4mo", "4mos"]),
+    ("Gen", "Genesis", "1. Mose", "1Mo", ["1mo", "1mos"]),
+    ("Exod", "Exodus", "2. Mose", "2Mo", ["2mo", "2mos", "ex"]),
+    ("Lev", "Leviticus", "3. Mose", "3Mo", ["3mo", "3mos"]),
+    ("Num", "Numbers", "4. Mose", "4Mo", ["4mo", "4mos"]),
     (
         "Deut",
         "Deuteronomy",
         "5. Mose",
+        "5Mo",
         ["5mo", "5mos", "dtn", "dt"]
     ),
-    ("Josh", "Joshua", "Josua", ["jos"]),
-    ("Judg", "Judges", "Richter", ["ri"]),
-    ("Ruth", "Ruth", "Rut", []),
-    ("1Sam", "1 Samuel", "1. Samuel", ["1sa", "1sm"]),
-    ("2Sam", "2 Samuel", "2. Samuel", ["2sa", "2sm"]),
-    ("1Kgs", "1 Kings", "1. Könige", ["1koen", "1kg", "1ki"]),
-    ("2Kgs", "2 Kings", "2. Könige", ["2koen", "2kg", "2ki"]),
-    ("1Chr", "1 Chronicles", "1. Chronik", ["1ch"]),
-    ("2Chr", "2 Chronicles", "2. Chronik", ["2ch"]),
-    ("Ezra", "Ezra", "Esra", ["esr"]),
-    ("Neh", "Nehemiah", "Nehemia", []),
-    ("Esth", "Esther", "Ester", ["est"]),
-    ("Job", "Job", "Hiob", ["hi"]),
-    ("Ps", "Psalms", "Psalmen", ["psalm", "pss"]),
-    ("Prov", "Proverbs", "Sprüche", ["spr", "prv"]),
+    ("Josh", "Joshua", "Josua", "Jos", ["jos"]),
+    ("Judg", "Judges", "Richter", "Ri", ["ri"]),
+    ("Ruth", "Ruth", "Rut", "Rut", []),
+    ("1Sam", "1 Samuel", "1. Samuel", "1Sa", ["1sa", "1sm"]),
+    ("2Sam", "2 Samuel", "2. Samuel", "2Sa", ["2sa", "2sm"]),
+    (
+        "1Kgs",
+        "1 Kings",
+        "1. Könige",
+        "1Kö",
+        ["1koen", "1kg", "1ki"]
+    ),
+    (
+        "2Kgs",
+        "2 Kings",
+        "2. Könige",
+        "2Kö",
+        ["2koen", "2kg", "2ki"]
+    ),
+    ("1Chr", "1 Chronicles", "1. Chronik", "1Ch", ["1ch"]),
+    ("2Chr", "2 Chronicles", "2. Chronik", "2Ch", ["2ch"]),
+    ("Ezra", "Ezra", "Esra", "Esr", ["esr"]),
+    ("Neh", "Nehemiah", "Nehemia", "Neh", []),
+    ("Esth", "Esther", "Ester", "Est", ["est"]),
+    ("Job", "Job", "Hiob", "Hi", ["hi"]),
+    ("Ps", "Psalms", "Psalmen", "Ps", ["psalm", "pss"]),
+    ("Prov", "Proverbs", "Sprüche", "Spr", ["spr", "prv"]),
     (
         "Eccl",
         "Ecclesiastes",
         "Prediger",
+        "Pred",
         ["pred", "koh", "kohelet", "ecc", "qoh"]
     ),
     (
         "Song",
         "Song of Solomon",
         "Hoheslied",
+        "Hld",
         ["hld", "hohelied", "sos"]
     ),
-    ("Isa", "Isaiah", "Jesaja", ["jes"]),
-    ("Jer", "Jeremiah", "Jeremia", []),
-    ("Lam", "Lamentations", "Klagelieder", ["klgl", "kla"]),
-    ("Ezek", "Ezekiel", "Hesekiel", ["hes", "ez", "ezechiel"]),
-    ("Dan", "Daniel", "Daniel", ["dn"]),
-    ("Hos", "Hosea", "Hosea", []),
-    ("Joel", "Joel", "Joel", ["jl"]),
-    ("Amos", "Amos", "Amos", ["am"]),
-    ("Obad", "Obadiah", "Obadja", ["obd", "ob"]),
-    ("Jonah", "Jonah", "Jona", ["jon"]),
-    ("Mic", "Micah", "Micha", ["mi"]),
-    ("Nah", "Nahum", "Nahum", ["nam"]),
-    ("Hab", "Habakkuk", "Habakuk", []),
-    ("Zeph", "Zephaniah", "Zefanja", ["zef", "zep"]),
-    ("Hag", "Haggai", "Haggai", ["hgg"]),
-    ("Zech", "Zechariah", "Sacharja", ["sach", "zec"]),
-    ("Mal", "Malachi", "Maleachi", []),
-    ("Matt", "Matthew", "Matthäus", ["mt", "mat"]),
-    ("Mark", "Mark", "Markus", ["mk", "mrk"]),
-    ("Luke", "Luke", "Lukas", ["lk", "luk"]),
-    ("John", "John", "Johannes", ["joh", "jn"]),
-    ("Acts", "Acts", "Apostelgeschichte", ["apg", "act"]),
-    ("Rom", "Romans", "Römer", ["rm"]),
-    ("1Cor", "1 Corinthians", "1. Korinther", ["1kor", "1co"]),
-    ("2Cor", "2 Corinthians", "2. Korinther", ["2kor", "2co"]),
-    ("Gal", "Galatians", "Galater", []),
-    ("Eph", "Ephesians", "Epheser", []),
-    ("Phil", "Philippians", "Philipper", ["php"]),
-    ("Col", "Colossians", "Kolosser", ["kol"]),
+    ("Isa", "Isaiah", "Jesaja", "Jes", ["jes"]),
+    ("Jer", "Jeremiah", "Jeremia", "Jer", []),
+    (
+        "Lam",
+        "Lamentations",
+        "Klagelieder",
+        "Klgl",
+        ["klgl", "kla"]
+    ),
+    (
+        "Ezek",
+        "Ezekiel",
+        "Hesekiel",
+        "Hes",
+        ["hes", "ez", "ezechiel"]
+    ),
+    ("Dan", "Daniel", "Daniel", "Dan", ["dn"]),
+    ("Hos", "Hosea", "Hosea", "Hos", []),
+    ("Joel", "Joel", "Joel", "Joel", ["jl"]),
+    ("Amos", "Amos", "Amos", "Am", ["am"]),
+    ("Obad", "Obadiah", "Obadja", "Ob", ["obd", "ob"]),
+    ("Jonah", "Jonah", "Jona", "Jona", ["jon"]),
+    ("Mic", "Micah", "Micha", "Mi", ["mi"]),
+    ("Nah", "Nahum", "Nahum", "Nah", ["nam"]),
+    ("Hab", "Habakkuk", "Habakuk", "Hab", []),
+    ("Zeph", "Zephaniah", "Zefanja", "Zef", ["zef", "zep"]),
+    ("Hag", "Haggai", "Haggai", "Hag", ["hgg"]),
+    ("Zech", "Zechariah", "Sacharja", "Sach", ["sach", "zec"]),
+    ("Mal", "Malachi", "Maleachi", "Mal", []),
+    ("Matt", "Matthew", "Matthäus", "Mt", ["mt", "mat"]),
+    ("Mark", "Mark", "Markus", "Mk", ["mk", "mrk"]),
+    ("Luke", "Luke", "Lukas", "Lk", ["lk", "luk"]),
+    ("John", "John", "Johannes", "Joh", ["joh", "jn"]),
+    ("Acts", "Acts", "Apostelgeschichte", "Apg", ["apg", "act"]),
+    ("Rom", "Romans", "Römer", "Rö", ["rm"]),
+    (
+        "1Cor",
+        "1 Corinthians",
+        "1. Korinther",
+        "1Ko",
+        ["1kor", "1co"]
+    ),
+    (
+        "2Cor",
+        "2 Corinthians",
+        "2. Korinther",
+        "2Ko",
+        ["2kor", "2co"]
+    ),
+    ("Gal", "Galatians", "Galater", "Gal", []),
+    ("Eph", "Ephesians", "Epheser", "Eph", []),
+    ("Phil", "Philippians", "Philipper", "Phil", ["php"]),
+    ("Col", "Colossians", "Kolosser", "Kol", ["kol"]),
     (
         "1Thess",
         "1 Thessalonians",
         "1. Thessalonicher",
+        "1Th",
         ["1thes", "1th"]
     ),
     (
         "2Thess",
         "2 Thessalonians",
         "2. Thessalonicher",
+        "2Th",
         ["2thes", "2th"]
     ),
-    ("1Tim", "1 Timothy", "1. Timotheus", ["1ti"]),
-    ("2Tim", "2 Timothy", "2. Timotheus", ["2ti"]),
-    ("Titus", "Titus", "Titus", ["tit"]),
-    ("Phlm", "Philemon", "Philemon", ["phm"]),
-    ("Heb", "Hebrews", "Hebräer", ["hebr"]),
-    ("Jas", "James", "Jakobus", ["jak", "jam"]),
-    ("1Pet", "1 Peter", "1. Petrus", ["1petr", "1pt", "1pe"]),
-    ("2Pet", "2 Peter", "2. Petrus", ["2petr", "2pt", "2pe"]),
-    ("1John", "1 John", "1. Johannes", ["1joh", "1jn"]),
-    ("2John", "2 John", "2. Johannes", ["2joh", "2jn"]),
-    ("3John", "3 John", "3. Johannes", ["3joh", "3jn"]),
-    ("Jude", "Jude", "Judas", ["jud"]),
-    ("Rev", "Revelation", "Offenbarung", ["offb", "apk", "rv"]),
+    ("1Tim", "1 Timothy", "1. Timotheus", "1Ti", ["1ti"]),
+    ("2Tim", "2 Timothy", "2. Timotheus", "2Ti", ["2ti"]),
+    ("Titus", "Titus", "Titus", "Tit", ["tit"]),
+    ("Phlm", "Philemon", "Philemon", "Phm", ["phm"]),
+    ("Heb", "Hebrews", "Hebräer", "Heb", ["hebr"]),
+    ("Jas", "James", "Jakobus", "Jak", ["jak", "jam"]),
+    (
+        "1Pet",
+        "1 Peter",
+        "1. Petrus",
+        "1Pe",
+        ["1petr", "1pt", "1pe"]
+    ),
+    (
+        "2Pet",
+        "2 Peter",
+        "2. Petrus",
+        "2Pe",
+        ["2petr", "2pt", "2pe"]
+    ),
+    ("1John", "1 John", "1. Johannes", "1Jo", ["1joh", "1jn"]),
+    ("2John", "2 John", "2. Johannes", "2Jo", ["2joh", "2jn"]),
+    ("3John", "3 John", "3. Johannes", "3Jo", ["3joh", "3jn"]),
+    ("Jude", "Jude", "Judas", "Jud", ["jud"]),
+    (
+        "Rev",
+        "Revelation",
+        "Offenbarung",
+        "Off",
+        ["offb", "apk", "rv"]
+    ),
 ];

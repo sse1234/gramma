@@ -586,13 +586,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ChapterRefView dco_decode_chapter_ref_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return ChapterRefView(
       bookOsis: dco_decode_String(arr[0]),
       chapter: dco_decode_u_16(arr[1]),
       heading: dco_decode_String(arr[2]),
       textLength: dco_decode_i_64(arr[3]),
+      maxVerse: dco_decode_u_16(arr[4]),
+      bookAbbrev: dco_decode_String(arr[5]),
+      bookCategory: dco_decode_u_8(arr[6]),
     );
   }
 
@@ -827,11 +830,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_chapter = sse_decode_u_16(deserializer);
     var var_heading = sse_decode_String(deserializer);
     var var_textLength = sse_decode_i_64(deserializer);
+    var var_maxVerse = sse_decode_u_16(deserializer);
+    var var_bookAbbrev = sse_decode_String(deserializer);
+    var var_bookCategory = sse_decode_u_8(deserializer);
     return ChapterRefView(
       bookOsis: var_bookOsis,
       chapter: var_chapter,
       heading: var_heading,
       textLength: var_textLength,
+      maxVerse: var_maxVerse,
+      bookAbbrev: var_bookAbbrev,
+      bookCategory: var_bookCategory,
     );
   }
 
@@ -1102,6 +1111,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_16(self.chapter, serializer);
     sse_encode_String(self.heading, serializer);
     sse_encode_i_64(self.textLength, serializer);
+    sse_encode_u_16(self.maxVerse, serializer);
+    sse_encode_String(self.bookAbbrev, serializer);
+    sse_encode_u_8(self.bookCategory, serializer);
   }
 
   @protected

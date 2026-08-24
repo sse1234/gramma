@@ -4,7 +4,9 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'column_plan.dart';
 import 'column_snap_physics.dart';
+import 'pane_badge.dart';
 import 'pane_model.dart';
+import 'reference_selector.dart';
 import 'settings.dart';
 import 'src/rust/api/library.dart';
 import 'src/rust/api/references.dart';
@@ -12,7 +14,7 @@ import 'src/rust/api/typeset.dart';
 import 'typeset_chapter.dart';
 import 'typeset_column.dart';
 
-typedef FollowOption = ({String id, String label});
+typedef FollowOption = ({String id, String label, String badge, int badgeIndex});
 
 /// One text view (ADR 0008): the endless-scrolling reader of ADR 0006 with
 /// a header for choosing its module and its position link. Emits its
@@ -26,6 +28,7 @@ class ReaderPane extends StatefulWidget {
     required this.followOptions,
     required this.readingMode,
     required this.onToggleMode,
+    required this.badge,
     required this.onAnchor,
     required this.onModule,
     required this.onFollow,
@@ -41,6 +44,9 @@ class ReaderPane extends StatefulWidget {
   /// Reading mode hides the pane's chrome; tapping the content toggles it.
   final bool readingMode;
   final VoidCallback onToggleMode;
+
+  /// The pane's identity badge, shown leftmost in the chrome.
+  final Widget badge;
   final ValueChanged<String> onAnchor;
   final ValueChanged<String> onModule;
   final ValueChanged<String?> onFollow;
@@ -429,6 +435,16 @@ class _ReaderPaneState extends State<ReaderPane> {
         verse: parts.length >= 3 ? int.tryParse(parts[2]) : null);
   }
 
+  Future<void> _openSelector() async {
+    if (_spine.isEmpty) return;
+    final result = await showReferenceSelector(context, _spine);
+    if (result == null || !mounted) return;
+    final index = _indexOfOsis('${result.book}.${result.chapter}');
+    if (index >= 0) {
+      _jumpToChapter(index, verse: result.verse);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -440,6 +456,7 @@ class _ReaderPaneState extends State<ReaderPane> {
         if (!widget.readingMode) ...[
         PaneHeader(
           title: null,
+          badge: widget.badge,
           dragHandle: widget.dragHandle,
           moduleSelector: DropdownButton<String>(
             key: const Key('module-select'),
@@ -472,11 +489,16 @@ class _ReaderPaneState extends State<ReaderPane> {
         Row(
           children: [
             if (position != null)
-              Text(
-                position,
-                key: const Key('current-position'),
-                style: theme.textTheme.labelLarge
-                    ?.copyWith(color: theme.colorScheme.primary),
+              InkWell(
+                key: const Key('open-selector'),
+                borderRadius: BorderRadius.circular(4),
+                onTap: _openSelector,
+                child: Text(
+                  position,
+                  key: const Key('current-position'),
+                  style: theme.textTheme.labelLarge
+                      ?.copyWith(color: theme.colorScheme.primary),
+                ),
               ),
             const SizedBox(width: 12),
             Expanded(
@@ -769,6 +791,7 @@ class PaneHeader extends StatelessWidget {
   const PaneHeader({
     super.key,
     required this.title,
+    this.badge,
     this.moduleSelector,
     required this.followValue,
     required this.followOptions,
@@ -778,6 +801,7 @@ class PaneHeader extends StatelessWidget {
   });
 
   final String? title;
+  final Widget? badge;
   final Widget? moduleSelector;
   final Widget? dragHandle;
   final String? followValue;
@@ -790,6 +814,7 @@ class PaneHeader extends StatelessWidget {
     final theme = Theme.of(context);
     return Row(
       children: [
+        if (badge != null) ...[badge!, const SizedBox(width: 8)],
         Expanded(
           child: moduleSelector ??
               Text(title ?? '', style: theme.textTheme.titleMedium),
@@ -803,7 +828,21 @@ class PaneHeader extends StatelessWidget {
           items: [
             const DropdownMenuItem<String>(child: Text('Unlinked')),
             for (final option in followOptions)
-              DropdownMenuItem(value: option.id, child: Text(option.label)),
+              DropdownMenuItem(
+                value: option.id,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    PaneBadge(
+                      badge: option.badge,
+                      badgeIndex: option.badgeIndex,
+                      small: true,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(option.label),
+                  ],
+                ),
+              ),
           ],
           onChanged: onFollow,
         ),

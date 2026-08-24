@@ -2,6 +2,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import 'footnotes_pane.dart';
+import 'pane_badge.dart';
 import 'pane_model.dart';
 import 'reader_pane.dart';
 import 'settings.dart';
@@ -50,6 +51,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             pane.module = null;
           }
         }
+        decoded.ensureBadges();
         return decoded;
       }
     }
@@ -57,7 +59,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
       PaneColumn(panes: [
         PaneSpec(kind: PaneKind.text, module: _modules.firstOrNull?.code),
       ]),
-    ]);
+    ])
+      ..ensureBadges();
   }
 
   void _save() {
@@ -91,6 +94,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _addPane(PaneKind kind) {
+    if (!_layout.hasFreeBadge) return;
     setState(() {
       switch (kind) {
         case PaneKind.text:
@@ -118,6 +122,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             _layout.columns.add(PaneColumn(panes: [pane]));
           }
       }
+      _layout.ensureBadges();
     });
     _save();
   }
@@ -142,11 +147,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   List<FollowOption> _followOptionsFor(PaneSpec spec) {
-    final all = _layout.allPanes.toList();
     return [
-      for (var i = 0; i < all.length; i++)
-        if (all[i].id != spec.id && all[i].kind == PaneKind.text)
-          (id: all[i].id, label: 'View ${i + 1}'),
+      for (final pane in _layout.allPanes)
+        if (pane.id != spec.id && pane.kind == PaneKind.text)
+          (
+            id: pane.id,
+            label: pane.module ?? 'Text',
+            badge: pane.badge ?? '?',
+            badgeIndex: pane.badgeIndex,
+          ),
     ];
   }
 
@@ -421,6 +430,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final followedAnchor = _layout.byId(spec.follow)?.anchor;
     final closable = _layout.allPanes.length > 1;
     void toggleMode() => settings.setReadingMode(!settings.readingMode);
+    final badge = PaneBadge(
+      key: Key('badge-${spec.badge}'),
+      badge: spec.badge ?? '?',
+      badgeIndex: spec.badgeIndex,
+    );
     switch (spec.kind) {
       case PaneKind.text:
         return ReaderPane(
@@ -431,6 +445,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           followOptions: _followOptionsFor(spec),
           readingMode: settings.readingMode,
           onToggleMode: toggleMode,
+          badge: badge,
           dragHandle: _dragHandle(spec),
           onAnchor: (osis) => _setAnchor(spec.id, osis),
           onModule: (code) => _setModule(spec.id, code),
@@ -446,6 +461,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
           followOptions: _followOptionsFor(spec),
           readingMode: settings.readingMode,
           onToggleMode: toggleMode,
+          badge: badge,
           dragHandle: _dragHandle(spec),
           onFollow: (follow) => _setFollow(spec.id, follow),
           onClose: closable ? () => _closePane(spec.id) : null,

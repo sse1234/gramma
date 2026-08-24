@@ -14,7 +14,11 @@ class PaneSpec {
     this.follow,
     this.anchor,
     this.weight = 1.0,
+    this.badge,
   }) : id = id ?? _newId();
+
+  /// The badge alphabet: 35 addressable panes (1-9, then a-z).
+  static const badgeChars = '123456789abcdefghijklmnopqrstuvwxyz';
 
   static int _counter = 0;
 
@@ -33,6 +37,16 @@ class PaneSpec {
   /// Height share within the pane's column.
   double weight;
 
+  /// Visible single-character identifier (from [badgeChars]); assigned by
+  /// [LayoutModel.ensureBadges] and stable for the pane's lifetime.
+  String? badge;
+
+  /// Position of [badge] in the alphabet, for its palette color.
+  int get badgeIndex {
+    final b = badge;
+    return b == null ? 0 : badgeChars.indexOf(b).clamp(0, badgeChars.length);
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'kind': kind.name,
@@ -40,6 +54,7 @@ class PaneSpec {
         'follow': follow,
         'anchor': anchor,
         'weight': weight,
+        'badge': badge,
       };
 
   static PaneSpec? fromJson(Map<String, dynamic> json) {
@@ -53,6 +68,7 @@ class PaneSpec {
       follow: json['follow'] as String?,
       anchor: json['anchor'] as String?,
       weight: (json['weight'] as num?)?.toDouble() ?? 1.0,
+      badge: json['badge'] as String?,
     );
   }
 }
@@ -79,6 +95,28 @@ class LayoutModel {
 
   PaneSpec? byId(String? id) =>
       id == null ? null : allPanes.where((p) => p.id == id).firstOrNull;
+
+  /// Assign every unbadged pane the lowest unused badge character, in
+  /// traversal order. Panes keep their badge for life; at most
+  /// `badgeChars.length` panes can exist.
+  void ensureBadges() {
+    final used = allPanes.map((p) => p.badge).whereType<String>().toSet();
+    for (final pane in allPanes) {
+      if (pane.badge != null) continue;
+      for (final ch in PaneSpec.badgeChars.split('')) {
+        if (!used.contains(ch)) {
+          pane.badge = ch;
+          used.add(ch);
+          break;
+        }
+      }
+    }
+  }
+
+  /// Whether another pane can still get a badge.
+  bool get hasFreeBadge =>
+      allPanes.map((p) => p.badge).whereType<String>().length <
+      PaneSpec.badgeChars.length;
 
   /// Column containing the pane with [id], or null.
   PaneColumn? columnOf(String id) =>

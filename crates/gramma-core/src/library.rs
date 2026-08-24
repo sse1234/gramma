@@ -50,6 +50,8 @@ pub struct ChapterRef {
     pub chapter: u16,
     /// Total text length in bytes, for layout-size estimation.
     pub text_length: i64,
+    /// Highest verse number in the chapter.
+    pub max_verse: u16,
 }
 
 const SCHEMA: &str = "
@@ -240,7 +242,7 @@ impl Library {
     pub fn contents(&self, module_code: &str) -> Result<Vec<ChapterRef>, LibraryError> {
         let module_id = self.module_id(module_code)?;
         let mut stmt = self.conn.prepare(
-            "SELECT book, chapter, SUM(LENGTH(text)) FROM verse
+            "SELECT book, chapter, SUM(LENGTH(text)), MAX(verse) FROM verse
              WHERE module_id = ?1 GROUP BY book, chapter ORDER BY book, chapter",
         )?;
         let contents = stmt
@@ -249,14 +251,16 @@ impl Library {
                     row.get::<_, i64>(0)?,
                     row.get::<_, u16>(1)?,
                     row.get::<_, i64>(2)?,
+                    row.get::<_, u16>(3)?,
                 ))
             })?
             .filter_map(|row| {
-                row.map(|(book, chapter, text_length)| {
+                row.map(|(book, chapter, text_length, max_verse)| {
                     BookId::from_index(book as usize).map(|book| ChapterRef {
                         book,
                         chapter,
                         text_length,
+                        max_verse,
                     })
                 })
                 .transpose()

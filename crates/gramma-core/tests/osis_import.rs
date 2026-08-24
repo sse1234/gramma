@@ -129,6 +129,8 @@ fn contents_lists_chapters_in_canonical_order() {
         .collect();
     assert_eq!(osis, ["Gen.1", "Gen.2"]);
     assert!(contents.iter().all(|c| c.text_length > 0));
+    assert_eq!(contents[0].max_verse, 2);
+    assert_eq!(contents[1].max_verse, 1);
 }
 
 #[test]

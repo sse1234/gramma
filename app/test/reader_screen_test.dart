@@ -282,7 +282,7 @@ void main() {
     await _settleLayouts(tester);
     await tester.tap(find.byKey(const Key('link-select')).last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('View 1').last);
+    await tester.tap(find.text('FixDe').last);
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, '1. Mose 3');
     await _settle(tester, () {
@@ -534,5 +534,31 @@ void main() {
     final notesAfter = tester.getRect(find.byType(FootnotesPane));
     expect(notesAfter.left, greaterThan(textAfter.right - 1),
         reason: 'footnotes moved into their own column');
+  });
+
+  testWidgets('panes show identity badges and the selector navigates',
+      (tester) async {
+    _freshUserStore();
+    _phoneViewport(tester);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    expect(find.byKey(const Key('badge-1')), findsOneWidget,
+        reason: 'first pane carries badge 1');
+
+    await tester.tap(find.byKey(const Key('open-selector')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('sel-book-Gen')), findsOneWidget);
+    expect(find.byKey(const Key('sel-book-Exod')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('sel-book-Exod')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('sel-ch-2')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('sel-v-3')));
+    await _settleLayouts(tester);
+    final position = tester.widget<Text>(
+      find.byKey(const Key('current-position')),
+    );
+    expect(position.data, '2. Mose 2');
   });
 }

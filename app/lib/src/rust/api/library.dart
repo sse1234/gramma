@@ -58,11 +58,23 @@ class ChapterRefView {
   /// Chapter text length in bytes, for scroll-height estimation.
   final PlatformInt64 textLength;
 
+  /// Highest verse number in the chapter.
+  final int maxVerse;
+
+  /// Concise display abbreviation of the book.
+  final String bookAbbrev;
+
+  /// Traditional canon grouping (0..8), for the book-grid palette.
+  final int bookCategory;
+
   const ChapterRefView({
     required this.bookOsis,
     required this.chapter,
     required this.heading,
     required this.textLength,
+    required this.maxVerse,
+    required this.bookAbbrev,
+    required this.bookCategory,
   });
 
   @override
@@ -70,7 +82,10 @@ class ChapterRefView {
       bookOsis.hashCode ^
       chapter.hashCode ^
       heading.hashCode ^
-      textLength.hashCode;
+      textLength.hashCode ^
+      maxVerse.hashCode ^
+      bookAbbrev.hashCode ^
+      bookCategory.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -80,7 +95,10 @@ class ChapterRefView {
           bookOsis == other.bookOsis &&
           chapter == other.chapter &&
           heading == other.heading &&
-          textLength == other.textLength;
+          textLength == other.textLength &&
+          maxVerse == other.maxVerse &&
+          bookAbbrev == other.bookAbbrev &&
+          bookCategory == other.bookCategory;
 }
 
 class ChapterView {

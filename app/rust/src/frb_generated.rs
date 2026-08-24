@@ -610,11 +610,17 @@ impl SseDecode for crate::api::library::ChapterRefView {
         let mut var_chapter = <u16>::sse_decode(deserializer);
         let mut var_heading = <String>::sse_decode(deserializer);
         let mut var_textLength = <i64>::sse_decode(deserializer);
+        let mut var_maxVerse = <u16>::sse_decode(deserializer);
+        let mut var_bookAbbrev = <String>::sse_decode(deserializer);
+        let mut var_bookCategory = <u8>::sse_decode(deserializer);
         return crate::api::library::ChapterRefView {
             book_osis: var_bookOsis,
             chapter: var_chapter,
             heading: var_heading,
             text_length: var_textLength,
+            max_verse: var_maxVerse,
+            book_abbrev: var_bookAbbrev,
+            book_category: var_bookCategory,
         };
     }
 }
@@ -945,6 +951,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::library::ChapterRefView {
             self.chapter.into_into_dart().into_dart(),
             self.heading.into_into_dart().into_dart(),
             self.text_length.into_into_dart().into_dart(),
+            self.max_verse.into_into_dart().into_dart(),
+            self.book_abbrev.into_into_dart().into_dart(),
+            self.book_category.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -1142,6 +1151,9 @@ impl SseEncode for crate::api::library::ChapterRefView {
         <u16>::sse_encode(self.chapter, serializer);
         <String>::sse_encode(self.heading, serializer);
         <i64>::sse_encode(self.text_length, serializer);
+        <u16>::sse_encode(self.max_verse, serializer);
+        <String>::sse_encode(self.book_abbrev, serializer);
+        <u8>::sse_encode(self.book_category, serializer);
     }
 }
 

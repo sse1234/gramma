@@ -1,3 +1,5 @@
+#[allow(unused_imports)]
+use gramma_core::reference::BookCategory;
 use gramma_core::reference::{ParseError, Reference, book_by_osis, canon};
 
 fn parse(s: &str) -> Result<Reference, ParseError> {
@@ -126,5 +128,47 @@ fn osis_output_roundtrips_through_parser() {
         let once = osis(input);
         let twice = osis(&once);
         assert_eq!(once, twice, "roundtrip failed for {input:?}");
+    }
+}
+
+#[test]
+fn every_book_has_a_unique_concise_abbreviation() {
+    let mut seen = std::collections::HashSet::new();
+    for info in canon() {
+        assert!(!info.abbrev.is_empty(), "missing abbrev for {}", info.osis);
+        assert!(
+            info.abbrev.chars().count() <= 4,
+            "abbrev too long: {}",
+            info.abbrev
+        );
+        assert!(seen.insert(info.abbrev), "duplicate abbrev {}", info.abbrev);
+    }
+}
+
+#[test]
+fn categories_follow_canonical_order() {
+    use gramma_core::reference::BookCategory::*;
+    for (osis, expected) in [
+        ("Gen", Law),
+        ("Deut", Law),
+        ("Josh", HistoryOt),
+        ("Esth", HistoryOt),
+        ("Job", Wisdom),
+        ("Song", Wisdom),
+        ("Isa", MajorProphets),
+        ("Dan", MajorProphets),
+        ("Hos", MinorProphets),
+        ("Mal", MinorProphets),
+        ("Matt", GospelsActs),
+        ("Acts", GospelsActs),
+        ("Rom", Epistles),
+        ("Jude", Epistles),
+        ("Rev", Apocalyptic),
+    ] {
+        assert_eq!(
+            book_by_osis(osis).unwrap().category(),
+            expected,
+            "for {osis}"
+        );
     }
 }

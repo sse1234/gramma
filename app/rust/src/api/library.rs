@@ -54,6 +54,12 @@ pub struct ChapterRefView {
     pub heading: String,
     /// Chapter text length in bytes, for scroll-height estimation.
     pub text_length: i64,
+    /// Highest verse number in the chapter.
+    pub max_verse: u16,
+    /// Concise display abbreviation of the book.
+    pub book_abbrev: String,
+    /// Traditional canon grouping (0..8), for the book-grid palette.
+    pub book_category: u8,
 }
 
 #[flutter_rust_bridge::frb(sync)]
@@ -120,6 +126,13 @@ pub fn contents(module_code: String) -> anyhow::Result<Vec<ChapterRefView>> {
                 chapter: c.chapter,
                 heading: format!("{name} {}", c.chapter),
                 text_length: c.text_length,
+                max_verse: c.max_verse,
+                book_abbrev: if german {
+                    info.abbrev.to_string()
+                } else {
+                    info.osis.to_string()
+                },
+                book_category: c.book.category().index(),
             }
         })
         .collect())

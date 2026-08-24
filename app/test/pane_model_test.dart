@@ -83,6 +83,27 @@ void main() {
         reason: 'never beyond the available space');
   });
   _moveTests();
+
+  test('badges assign lowest unused characters and persist', () {
+    final f = _Fixture();
+    f.model.ensureBadges();
+    expect(f.a.badge, '1');
+    expect(f.b.badge, '2');
+    expect(f.c.badge, '3');
+    f.model.removePane(f.b.id);
+    final d = PaneSpec(kind: PaneKind.text);
+    f.model.columns.last.panes.add(d);
+    f.model.ensureBadges();
+    expect(d.badge, '2', reason: 'freed badge reused');
+    expect(f.c.badge, '3', reason: 'existing badges never change');
+    final decoded = LayoutModel.decode(f.model.encode())!;
+    expect(decoded.allPanes.map((p) => p.badge).toList(), ['1', '3', '2']);
+  });
+
+  test('badge index maps into the badge alphabet', () {
+    final p = PaneSpec(kind: PaneKind.text, badge: 'a');
+    expect(p.badgeIndex, 9);
+  });
 }
 
 // Rearrangement operations (drag-to-rearrange).

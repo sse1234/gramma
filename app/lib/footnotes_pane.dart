@@ -14,6 +14,7 @@ class FootnotesPane extends StatelessWidget {
     required this.followOptions,
     required this.readingMode,
     required this.onToggleMode,
+    required this.badge,
     required this.onFollow,
     this.dragHandle,
     this.onClose,
@@ -22,6 +23,7 @@ class FootnotesPane extends StatelessWidget {
   /// Reading mode hides the pane's chrome; tapping the content toggles it.
   final bool readingMode;
   final VoidCallback onToggleMode;
+  final Widget badge;
   final Widget? dragHandle;
 
   /// Canonical "Book.Chapter" of the followed pane.
@@ -44,6 +46,7 @@ class FootnotesPane extends StatelessWidget {
         if (!readingMode)
           PaneHeader(
             title: 'Footnotes',
+            badge: badge,
             dragHandle: dragHandle,
             followValue: followValue,
             followOptions: followOptions,
