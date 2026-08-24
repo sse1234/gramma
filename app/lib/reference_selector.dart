@@ -26,8 +26,10 @@ Future<SelectorResult?> showReferenceSelector(
   return showDialog<SelectorResult>(
     context: context,
     builder: (context) => Dialog(
+      // Height follows the content (the book grid with one row group per
+      // category); the dialog's inset padding caps it at the window.
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460, maxHeight: 560),
+        constraints: const BoxConstraints(maxWidth: 500),
         child: _SelectorFlow(books: books),
       ),
     ),
@@ -69,6 +71,7 @@ class _SelectorFlowState extends State<_SelectorFlow> {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
@@ -95,7 +98,7 @@ class _SelectorFlowState extends State<_SelectorFlow> {
             ],
           ),
           const SizedBox(height: 8),
-          Expanded(child: _tier(theme)),
+          Flexible(child: _tier(theme)),
         ],
       ),
     );
@@ -105,15 +108,42 @@ class _SelectorFlowState extends State<_SelectorFlow> {
     final book = _book;
     if (book == null) {
       final brightness = theme.brightness;
-      return _grid([
-        for (final b in widget.books)
-          _tile(
-            key: Key('sel-book-${b.osis}'),
-            label: b.abbrev,
-            background: bookCategoryColor(b.category, brightness),
-            onTap: () => setState(() => _book = b),
-          ),
-      ]);
+      // One row group per canon category: the grid reads like a table of
+      // contents, with the category tint carrying the separation.
+      final groups = <List<_Book>>[];
+      for (final b in widget.books) {
+        if (groups.isEmpty || groups.last.last.category != b.category) {
+          groups.add([]);
+        }
+        groups.last.add(b);
+      }
+      return ListView(
+        shrinkWrap: true,
+        children: [
+          for (final group in groups)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final b in group)
+                    SizedBox(
+                      width: 56,
+                      height: 40,
+                      child: _tile(
+                        key: Key('sel-book-${b.osis}'),
+                        label: b.abbrev,
+                        background:
+                            bookCategoryColor(b.category, brightness),
+                        onTap: () => setState(() => _book = b),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      );
     }
     final chapter = _chapter;
     if (chapter == null) {
@@ -142,6 +172,7 @@ class _SelectorFlowState extends State<_SelectorFlow> {
 
   Widget _grid(List<Widget> tiles) {
     return GridView.extent(
+      shrinkWrap: true,
       maxCrossAxisExtent: 64,
       mainAxisSpacing: 6,
       crossAxisSpacing: 6,

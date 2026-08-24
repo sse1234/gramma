@@ -32,7 +32,7 @@ void main() {
   });
 
   test('category tiles are soft in light mode and dark in dark mode', () {
-    for (var k = 0; k < 8; k++) {
+    for (var k = 0; k < 9; k++) {
       final light = bookCategoryColor(k, Brightness.light);
       final dark = bookCategoryColor(k, Brightness.dark);
       expect(light.computeLuminance(), greaterThan(0.5));

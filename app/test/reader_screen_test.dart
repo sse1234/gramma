@@ -553,6 +553,20 @@ void main() {
     expect(find.byKey(const Key('sel-book-Gen')), findsOneWidget);
     expect(find.byKey(const Key('sel-book-Exod')), findsOneWidget);
 
+    // Categories separate: same row and tint within a category, a new row
+    // and a different tint when the category changes (Josh = OT history).
+    final gen = tester.getRect(find.byKey(const Key('sel-book-Gen')));
+    final exod = tester.getRect(find.byKey(const Key('sel-book-Exod')));
+    final josh = tester.getRect(find.byKey(const Key('sel-book-Josh')));
+    expect(exod.top, gen.top, reason: 'same category shares the row');
+    expect(josh.top, greaterThan(gen.top),
+        reason: 'next category starts a new row');
+    final genColor =
+        tester.widget<Material>(find.byKey(const Key('sel-book-Gen'))).color;
+    final joshColor =
+        tester.widget<Material>(find.byKey(const Key('sel-book-Josh'))).color;
+    expect(joshColor, isNot(genColor));
+
     await tester.tap(find.byKey(const Key('sel-book-Exod')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('sel-ch-2')));

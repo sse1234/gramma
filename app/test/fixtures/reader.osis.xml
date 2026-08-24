@@ -60,5 +60,12 @@
         <verse osisID="Exod.3.6">Und sprach weiter: Ich bin der Gott deines Vaters, der Gott Abrahams, der Gott Isaaks und der Gott Jakobs.</verse>
       </chapter>
     </div>
+    <div type="book" osisID="Josh">
+      <chapter osisID="Josh.1">
+        <verse osisID="Josh.1.1">Nach dem Tode Moses, des Knechts des HERRN, sprach der HERR zu Josua, dem Sohn Nuns, Moses Diener:</verse>
+        <verse osisID="Josh.1.2">Mein Knecht Mose ist gestorben; so mache dich nun auf und zieh über den Jordan.</verse>
+        <verse osisID="Josh.1.3">Alle Stätten, darauf eure Fußsohlen treten werden, habe ich euch gegeben.</verse>
+      </chapter>
+    </div>
   </osisText>
 </osis>

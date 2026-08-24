@@ -45,10 +45,10 @@ Color paneBadgeColor(int index, Brightness brightness) {
   return brightness == Brightness.light ? hcl(h, 80, 55) : hcl(h, 70, 62);
 }
 
-/// Background tint for a book tile by canon category (0..8): the eight
-/// ggplot hues, softened toward the paper for grid backgrounds.
+/// Background tint for a book tile by canon category (0..9): nine evenly
+/// spaced ggplot hues, softened toward the paper for grid backgrounds.
 Color bookCategoryColor(int category, Brightness brightness) {
-  final h = 15 + (category % 8) * 45.0;
+  final h = 15 + (category % 9) * 40.0;
   return brightness == Brightness.light
       ? hcl(h, 42, 85)
       : hcl(h, 34, 32);

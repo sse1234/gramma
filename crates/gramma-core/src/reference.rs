@@ -35,7 +35,8 @@ impl BookId {
             17..=21 => BookCategory::Wisdom,
             22..=26 => BookCategory::MajorProphets,
             27..=38 => BookCategory::MinorProphets,
-            39..=43 => BookCategory::GospelsActs,
+            39..=42 => BookCategory::Gospels,
+            43 => BookCategory::HistoryNt,
             44..=64 => BookCategory::Epistles,
             _ => BookCategory::Apocalyptic,
         }
@@ -51,7 +52,8 @@ pub enum BookCategory {
     Wisdom,
     MajorProphets,
     MinorProphets,
-    GospelsActs,
+    Gospels,
+    HistoryNt,
     Epistles,
     Apocalyptic,
 }
