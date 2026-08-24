@@ -4,12 +4,13 @@ import 'package:flutter/material.dart';
 import 'footnotes_pane.dart';
 import 'pane_model.dart';
 import 'reader_pane.dart';
+import 'settings.dart';
 import 'settings_screen.dart';
 import 'src/rust/api/library.dart';
 import 'src/rust/api/user.dart';
 
-/// Orchestrates the layout object (ADR 0008): an ordered set of views with
-/// their assets, position links, and reading positions — persisted in the
+/// Orchestrates the layout object (ADR 0008): a resizable grid of columns,
+/// each a stack of views, with position links by pane id — persisted in the
 /// user store and restored on start.
 class ReaderScreen extends StatefulWidget {
   const ReaderScreen({super.key});
@@ -19,24 +20,28 @@ class ReaderScreen extends StatefulWidget {
 }
 
 class _ReaderScreenState extends State<ReaderScreen> {
+  static const _gripThickness = 12.0;
+  static const _minPaneExtent = 140.0;
+  static const _gutter = 48.0;
+
   List<ModuleView> _modules = const [];
-  List<PaneSpec> _panes = [];
+  late LayoutModel _layout;
   bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
     _modules = modules();
-    _panes = _loadPanes();
+    _layout = _loadLayout();
     _initialized = true;
   }
 
-  List<PaneSpec> _loadPanes() {
+  LayoutModel _loadLayout() {
     final stored = loadLayout();
     if (stored != null) {
-      final decoded = PaneSpec.decodeList(stored);
+      final decoded = LayoutModel.decode(stored);
       if (decoded != null) {
-        for (final pane in decoded) {
+        for (final pane in decoded.allPanes) {
           if (pane.module != null &&
               !_modules.any((m) => m.code == pane.module)) {
             pane.module = null;
@@ -45,45 +50,40 @@ class _ReaderScreenState extends State<ReaderScreen> {
         return decoded;
       }
     }
-    return [
-      PaneSpec(kind: PaneKind.text, module: _modules.firstOrNull?.code),
-    ];
+    return LayoutModel([
+      PaneColumn(panes: [
+        PaneSpec(kind: PaneKind.text, module: _modules.firstOrNull?.code),
+      ]),
+    ]);
   }
 
   void _save() {
-    saveLayout(json: PaneSpec.encodeList(_panes));
+    saveLayout(json: _layout.encode());
   }
 
-  void _setAnchor(int index, String osis) {
-    if (_panes[index].anchor == osis) return;
-    setState(() => _panes[index].anchor = osis);
+  void _setAnchor(String id, String osis) {
+    final pane = _layout.byId(id);
+    if (pane == null || pane.anchor == osis) return;
+    setState(() => pane.anchor = osis);
     _save();
   }
 
-  void _setModule(int index, String code) {
-    if (_panes[index].module == code) return;
-    setState(() => _panes[index].module = code);
+  void _setModule(String id, String code) {
+    final pane = _layout.byId(id);
+    if (pane == null || pane.module == code) return;
+    setState(() => pane.module = code);
     _save();
   }
 
-  void _setFollow(int index, int? follow) {
-    setState(() => _panes[index].follow = follow);
+  void _setFollow(String id, String? follow) {
+    final pane = _layout.byId(id);
+    if (pane == null) return;
+    setState(() => pane.follow = follow);
     _save();
   }
 
-  void _closePane(int index) {
-    setState(() {
-      _panes.removeAt(index);
-      for (final pane in _panes) {
-        final follow = pane.follow;
-        if (follow == null) continue;
-        if (follow == index) {
-          pane.follow = null;
-        } else if (follow > index) {
-          pane.follow = follow - 1;
-        }
-      }
-    });
+  void _closePane(String id) {
+    setState(() => _layout.removePane(id));
     _save();
   }
 
@@ -91,17 +91,29 @@ class _ReaderScreenState extends State<ReaderScreen> {
     setState(() {
       switch (kind) {
         case PaneKind.text:
-          _panes.add(PaneSpec(
-            kind: PaneKind.text,
-            module: _modules.firstOrNull?.code,
-            anchor: _panes.firstOrNull?.anchor,
-          ));
+          _layout.columns.add(PaneColumn(panes: [
+            PaneSpec(
+              kind: PaneKind.text,
+              module: _modules.firstOrNull?.code,
+              anchor: _layout.allPanes.firstOrNull?.anchor,
+            ),
+          ]));
         case PaneKind.footnotes:
-          final source = _panes.indexWhere((p) => p.kind == PaneKind.text);
-          _panes.add(PaneSpec(
+          final source = _layout.allPanes
+              .where((p) => p.kind == PaneKind.text)
+              .firstOrNull;
+          final pane = PaneSpec(
             kind: PaneKind.footnotes,
-            follow: source >= 0 ? source : null,
-          ));
+            follow: source?.id,
+            weight: 0.5,
+          );
+          final column =
+              source == null ? null : _layout.columnOf(source.id);
+          if (column != null) {
+            column.panes.add(pane);
+          } else {
+            _layout.columns.add(PaneColumn(panes: [pane]));
+          }
       }
     });
     _save();
@@ -126,12 +138,64 @@ class _ReaderScreenState extends State<ReaderScreen> {
     }
   }
 
-  List<FollowOption> _followOptionsFor(int index) {
+  List<FollowOption> _followOptionsFor(PaneSpec spec) {
+    final all = _layout.allPanes.toList();
     return [
-      for (var j = 0; j < _panes.length; j++)
-        if (j != index && _panes[j].kind == PaneKind.text)
-          (index: j, label: 'View ${j + 1}'),
+      for (var i = 0; i < all.length; i++)
+        if (all[i].id != spec.id && all[i].kind == PaneKind.text)
+          (id: all[i].id, label: 'View ${i + 1}'),
     ];
+  }
+
+  void _dragColumns(int left, double dx, double contentWidth) {
+    final columns = _layout.columns;
+    final sum = columns.fold(0.0, (a, c) => a + c.weight);
+    final minWeight = _minPaneExtent / contentWidth * sum;
+    final dw = dx / contentWidth * sum;
+    setState(() {
+      final a = columns[left];
+      final b = columns[left + 1];
+      final applied = dw.clamp(
+        minWeight - a.weight,
+        b.weight - minWeight,
+      );
+      a.weight += applied;
+      b.weight -= applied;
+    });
+  }
+
+  /// Vertical tiling only makes sense at whole column-width multiples
+  /// (constant zoom): snap the divider there on release.
+  void _snapColumns(int left, double contentWidth) {
+    final columns = _layout.columns;
+    final sum = columns.fold(0.0, (a, c) => a + c.weight);
+    final leftWidth = columns[left].weight / sum * contentWidth;
+    final rightWidth = columns[left + 1].weight / sum * contentWidth;
+    final available = leftWidth + rightWidth - _minPaneExtent;
+    final columnWidth = SettingsScope.of(context).columnWidth;
+    final target = snapToColumns(leftWidth, columnWidth, _gutter, available);
+    final dw = (target - leftWidth) / contentWidth * sum;
+    setState(() {
+      _layout.columns[left].weight += dw;
+      _layout.columns[left + 1].weight -= dw;
+    });
+    _save();
+  }
+
+  void _dragRows(PaneColumn column, int top, double dy, double contentHeight) {
+    final sum = column.panes.fold(0.0, (a, p) => a + p.weight);
+    final minWeight = _minPaneExtent / contentHeight * sum;
+    final dw = dy / contentHeight * sum;
+    setState(() {
+      final a = column.panes[top];
+      final b = column.panes[top + 1];
+      final applied = dw.clamp(
+        minWeight - a.weight,
+        b.weight - minWeight,
+      );
+      a.weight += applied;
+      b.weight -= applied;
+    });
   }
 
   @override
@@ -175,24 +239,70 @@ class _ReaderScreenState extends State<ReaderScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var i = 0; i < _panes.length; i++) ...[
-              if (i > 0) const VerticalDivider(width: 25),
-              Expanded(child: _pane(i)),
-            ],
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = _layout.columns;
+            final contentWidth = constraints.maxWidth -
+                (columns.length - 1) * _gripThickness;
+            final sum = columns.fold(0.0, (a, c) => a + c.weight);
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < columns.length; i++) ...[
+                  if (i > 0)
+                    _Grip(
+                      key: Key('column-grip-${i - 1}'),
+                      axis: Axis.horizontal,
+                      onDrag: (delta) =>
+                          _dragColumns(i - 1, delta, contentWidth),
+                      onEnd: () => _snapColumns(i - 1, contentWidth),
+                    ),
+                  SizedBox(
+                    width: columns[i].weight / sum * contentWidth,
+                    child: _columnWidget(columns[i]),
+                  ),
+                ],
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _pane(int index) {
-    final spec = _panes[index];
-    final followedAnchor =
-        spec.follow != null ? _panes[spec.follow!].anchor : null;
-    final closable = _panes.length > 1;
+  Widget _columnWidget(PaneColumn column) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final panes = column.panes;
+        final contentHeight =
+            constraints.maxHeight - (panes.length - 1) * _gripThickness;
+        final sum = panes.fold(0.0, (a, p) => a + p.weight);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var j = 0; j < panes.length; j++) ...[
+              if (j > 0)
+                _Grip(
+                  key: Key('row-grip-${panes[j - 1].id}'),
+                  axis: Axis.vertical,
+                  onDrag: (delta) =>
+                      _dragRows(column, j - 1, delta, contentHeight),
+                  onEnd: _save,
+                ),
+              SizedBox(
+                height: panes[j].weight / sum * contentHeight,
+                child: _pane(panes[j]),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _pane(PaneSpec spec) {
+    final followedAnchor = _layout.byId(spec.follow)?.anchor;
+    final closable = _layout.allPanes.length > 1;
     switch (spec.kind) {
       case PaneKind.text:
         return ReaderPane(
@@ -200,23 +310,70 @@ class _ReaderScreenState extends State<ReaderScreen> {
           spec: spec,
           modules: _modules,
           followedAnchor: followedAnchor,
-          followOptions: _followOptionsFor(index),
-          onAnchor: (osis) => _setAnchor(index, osis),
-          onModule: (code) => _setModule(index, code),
-          onFollow: (follow) => _setFollow(index, follow),
-          onClose: closable ? () => _closePane(index) : null,
+          followOptions: _followOptionsFor(spec),
+          onAnchor: (osis) => _setAnchor(spec.id, osis),
+          onModule: (code) => _setModule(spec.id, code),
+          onFollow: (follow) => _setFollow(spec.id, follow),
+          onClose: closable ? () => _closePane(spec.id) : null,
         );
       case PaneKind.footnotes:
         return FootnotesPane(
           key: ValueKey('pane-${spec.id}'),
           followedAnchor: followedAnchor,
-          sourceModule:
-              spec.follow != null ? _panes[spec.follow!].module : null,
+          sourceModule: _layout.byId(spec.follow)?.module,
           followValue: spec.follow,
-          followOptions: _followOptionsFor(index),
-          onFollow: (follow) => _setFollow(index, follow),
-          onClose: closable ? () => _closePane(index) : null,
+          followOptions: _followOptionsFor(spec),
+          onFollow: (follow) => _setFollow(spec.id, follow),
+          onClose: closable ? () => _closePane(spec.id) : null,
         );
     }
+  }
+}
+
+/// A draggable divider between tiles; horizontal axis resizes columns,
+/// vertical axis resizes stacked panes.
+class _Grip extends StatelessWidget {
+  const _Grip({
+    super.key,
+    required this.axis,
+    required this.onDrag,
+    required this.onEnd,
+  });
+
+  final Axis axis;
+  final ValueChanged<double> onDrag;
+  final VoidCallback onEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final horizontal = axis == Axis.horizontal;
+    return MouseRegion(
+      cursor: horizontal
+          ? SystemMouseCursors.resizeColumn
+          : SystemMouseCursors.resizeRow,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onHorizontalDragUpdate:
+            horizontal ? (d) => onDrag(d.delta.dx) : null,
+        onHorizontalDragEnd: horizontal ? (_) => onEnd() : null,
+        onVerticalDragUpdate: horizontal ? null : (d) => onDrag(d.delta.dy),
+        onVerticalDragEnd: horizontal ? null : (_) => onEnd(),
+        child: SizedBox(
+          width: horizontal ? 12 : null,
+          height: horizontal ? null : 12,
+          child: Center(
+            child: Container(
+              width: horizontal ? 2.5 : 36,
+              height: horizontal ? 36 : 2.5,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

@@ -22,9 +22,9 @@ class FootnotesPane extends StatelessWidget {
   /// Module code of the followed pane, whose notes are shown.
   final String? sourceModule;
 
-  final int? followValue;
+  final String? followValue;
   final List<FollowOption> followOptions;
-  final ValueChanged<int?> onFollow;
+  final ValueChanged<String?> onFollow;
   final VoidCallback? onClose;
 
   @override

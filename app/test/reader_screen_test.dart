@@ -2,6 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SystemMouseCursors;
+import 'package:gramma/footnotes_pane.dart';
+import 'package:gramma/reader_pane.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gramma/main.dart';
@@ -369,5 +372,77 @@ void main() {
       list.controller!.offset,
       moreOrLessEquals(2 * stride, epsilon: 1),
     );
+  });
+
+  testWidgets('footnotes stack below their text view in the same column',
+      (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Footnotes view'));
+    await tester.pumpAndSettle();
+    final text = tester.getRect(find.byType(ReaderPane));
+    final notes = tester.getRect(find.byType(FootnotesPane));
+    expect(notes.top, greaterThan(text.bottom - 1),
+        reason: 'footnotes tile below the text view');
+    expect((notes.left - text.left).abs(), lessThan(1),
+        reason: 'both tiles share the column');
+  });
+
+  testWidgets('row divider resizes the stack and the size persists',
+      (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Footnotes view'));
+    await tester.pumpAndSettle();
+    final before = tester.getSize(find.byType(FootnotesPane)).height;
+    final grip = find.byWidgetPredicate(
+      (w) => w is MouseRegion && w.cursor == SystemMouseCursors.resizeRow,
+    );
+    await tester.drag(grip, const Offset(0, 120));
+    await tester.pumpAndSettle();
+    final after = tester.getSize(find.byType(FootnotesPane)).height;
+    expect(after, lessThan(before - 80));
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await tester.pump();
+    await tester.pump();
+    final restored = tester.getSize(find.byType(FootnotesPane)).height;
+    expect((restored - after).abs(), lessThan(2),
+        reason: 'weights persist in the layout object');
+  });
+
+  testWidgets('column divider snaps to whole column widths', (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1400, 700);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Text view'));
+    await _settleLayouts(tester);
+    final grip = find.byWidgetPredicate(
+      (w) => w is MouseRegion && w.cursor == SystemMouseCursors.resizeColumn,
+    );
+    await tester.drag(grip, const Offset(100, 0));
+    await tester.pumpAndSettle();
+    final width = tester.getSize(find.byType(ReaderPane).first).width;
+    expect(width, moreOrLessEquals(848, epsilon: 2),
+        reason: 'left column snaps to two typeset columns');
   });
 }

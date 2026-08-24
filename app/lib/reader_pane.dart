@@ -12,7 +12,7 @@ import 'src/rust/api/typeset.dart';
 import 'typeset_chapter.dart';
 import 'typeset_column.dart';
 
-typedef FollowOption = ({int index, String label});
+typedef FollowOption = ({String id, String label});
 
 /// One text view (ADR 0008): the endless-scrolling reader of ADR 0006 with
 /// a header for choosing its module and its position link. Emits its
@@ -36,7 +36,7 @@ class ReaderPane extends StatefulWidget {
   final List<FollowOption> followOptions;
   final ValueChanged<String> onAnchor;
   final ValueChanged<String> onModule;
-  final ValueChanged<int?> onFollow;
+  final ValueChanged<String?> onFollow;
   final VoidCallback? onClose;
 
   @override
@@ -763,9 +763,9 @@ class PaneHeader extends StatelessWidget {
 
   final String? title;
   final Widget? moduleSelector;
-  final int? followValue;
+  final String? followValue;
   final List<FollowOption> followOptions;
-  final ValueChanged<int?> onFollow;
+  final ValueChanged<String?> onFollow;
   final VoidCallback? onClose;
 
   @override
@@ -778,15 +778,15 @@ class PaneHeader extends StatelessWidget {
               Text(title ?? '', style: theme.textTheme.titleMedium),
         ),
         const SizedBox(width: 8),
-        DropdownButton<int>(
+        DropdownButton<String>(
           key: const Key('link-select'),
           underline: const SizedBox.shrink(),
           value: followValue,
           hint: const Text('Unlinked'),
           items: [
-            const DropdownMenuItem<int>(child: Text('Unlinked')),
+            const DropdownMenuItem<String>(child: Text('Unlinked')),
             for (final option in followOptions)
-              DropdownMenuItem(value: option.index, child: Text(option.label)),
+              DropdownMenuItem(value: option.id, child: Text(option.label)),
           ],
           onChanged: onFollow,
         ),
