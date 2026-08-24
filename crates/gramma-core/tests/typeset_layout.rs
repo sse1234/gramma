@@ -26,7 +26,17 @@ fn layout(verses: &[(u16, &str)], ems: i64) -> Vec<LineOut> {
 fn layout_with_notes(verses: &[(u16, &str)], notes: &[(u16, u32)], ems: i64) -> Vec<LineOut> {
     let m = measure();
     let width = ems * m.units_per_em() as i64;
-    layout_verses(verses, notes, &m, Some(&german()), width)
+    layout_verses(verses, notes, &[], &m, Some(&german()), width)
+}
+
+fn layout_with_headings(
+    verses: &[(u16, &str)],
+    headings: &[(u16, u8, &str)],
+    ems: i64,
+) -> Vec<LineOut> {
+    let m = measure();
+    let width = ems * m.units_per_em() as i64;
+    layout_verses(verses, &[], headings, &m, Some(&german()), width)
 }
 
 fn line_text(line: &LineOut) -> String {
@@ -203,4 +213,46 @@ fn markers_never_start_a_line() {
             }
         }
     }
+}
+
+#[test]
+fn headings_become_their_own_lines_with_spacing() {
+    let headings = [(2u16, 1u8, "Der siebte Tag")];
+    let lines = layout_with_headings(&[(1, GEN_1_1), (2, GEN_1_2)], &headings, 22);
+    let spacer = lines
+        .iter()
+        .position(|l| l.runs.is_empty())
+        .expect("a spacing line before the heading group");
+    let heading_line = &lines[spacer + 1];
+    assert!(heading_line.runs.iter().all(|r| r.heading_level == 1));
+    let text: Vec<_> = heading_line.runs.iter().map(|r| r.text.as_str()).collect();
+    assert_eq!(text.join(" "), "Der siebte Tag");
+    assert!(
+        heading_line.runs.iter().all(|r| r.verse == 2),
+        "heading lines anchor to the following verse"
+    );
+    // Verse 2's paragraph starts after the heading.
+    let after = &lines[spacer + 2];
+    assert!(after.runs.iter().any(|r| r.verse_number && r.text == "2"));
+}
+
+#[test]
+fn heading_at_the_top_gets_no_leading_spacer() {
+    let headings = [(1u16, 1u8, "Die Schöpfung"), (1, 2, "Der Anfang")];
+    let lines = layout_with_headings(&[(1, GEN_1_1)], &headings, 22);
+    assert!(!lines[0].runs.is_empty(), "no spacer at the very top");
+    assert_eq!(lines[0].runs[0].heading_level, 1);
+    assert_eq!(lines[1].runs[0].heading_level, 2);
+    assert!(lines[2].runs.iter().any(|r| r.verse_number));
+}
+
+#[test]
+fn body_runs_carry_no_heading_level() {
+    let lines = layout(&[(1, GEN_1_1)], 22);
+    assert!(
+        lines
+            .iter()
+            .flat_map(|l| &l.runs)
+            .all(|r| r.heading_level == 0)
+    );
 }

@@ -879,6 +879,7 @@ impl SseDecode for crate::api::typeset::RunView {
         let mut var_width = <f64>::sse_decode(deserializer);
         let mut var_verseNumber = <bool>::sse_decode(deserializer);
         let mut var_noteMarker = <bool>::sse_decode(deserializer);
+        let mut var_headingLevel = <u8>::sse_decode(deserializer);
         let mut var_verse = <u16>::sse_decode(deserializer);
         return crate::api::typeset::RunView {
             text: var_text,
@@ -886,6 +887,7 @@ impl SseDecode for crate::api::typeset::RunView {
             width: var_width,
             verse_number: var_verseNumber,
             note_marker: var_noteMarker,
+            heading_level: var_headingLevel,
             verse: var_verse,
         };
     }
@@ -1160,6 +1162,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::typeset::RunView {
             self.width.into_into_dart().into_dart(),
             self.verse_number.into_into_dart().into_dart(),
             self.note_marker.into_into_dart().into_dart(),
+            self.heading_level.into_into_dart().into_dart(),
             self.verse.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -1415,6 +1418,7 @@ impl SseEncode for crate::api::typeset::RunView {
         <f64>::sse_encode(self.width, serializer);
         <bool>::sse_encode(self.verse_number, serializer);
         <bool>::sse_encode(self.note_marker, serializer);
+        <u8>::sse_encode(self.heading_level, serializer);
         <u16>::sse_encode(self.verse, serializer);
     }
 }

@@ -73,6 +73,8 @@ class _ChapterPainter extends CustomPainter {
       color: numberColor,
     );
     final markerStyle = numberStyle.copyWith(fontStyle: FontStyle.italic);
+    final sectionStyle = textStyle.copyWith(fontWeight: FontWeight.w600);
+    final subSectionStyle = textStyle.copyWith(fontStyle: FontStyle.italic);
     for (var i = 0; i < layout.lines.length; i++) {
       final y = i * lineHeight;
       for (final run in layout.lines[i].runs) {
@@ -83,7 +85,11 @@ class _ChapterPainter extends CustomPainter {
                 ? numberStyle
                 : run.noteMarker
                     ? markerStyle
-                    : textStyle,
+                    : run.headingLevel == 1
+                        ? sectionStyle
+                        : run.headingLevel == 2
+                            ? subSectionStyle
+                            : textStyle,
           ),
           textDirection: TextDirection.ltr,
         )..layout();

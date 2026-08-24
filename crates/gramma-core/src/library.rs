@@ -43,6 +43,15 @@ pub struct Note {
     pub text: String,
 }
 
+/// A section heading standing before a verse.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Heading {
+    pub verse: u16,
+    pub seq: u16,
+    pub level: u8,
+    pub text: String,
+}
+
 /// One chapter in a module's table of contents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChapterRef {
@@ -68,6 +77,16 @@ CREATE TABLE IF NOT EXISTS verse(
   verse INTEGER NOT NULL,
   text TEXT NOT NULL,
   PRIMARY KEY(module_id, book, chapter, verse)
+) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS heading(
+  module_id INTEGER NOT NULL REFERENCES module(id) ON DELETE CASCADE,
+  book INTEGER NOT NULL,
+  chapter INTEGER NOT NULL,
+  verse INTEGER NOT NULL,
+  seq INTEGER NOT NULL,
+  level INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  PRIMARY KEY(module_id, book, chapter, verse, seq)
 ) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS note(
   module_id INTEGER NOT NULL REFERENCES module(id) ON DELETE CASCADE,
@@ -155,6 +174,23 @@ impl Library {
                 ))?;
             }
         }
+        {
+            let mut insert = tx.prepare(
+                "INSERT OR REPLACE INTO heading(module_id, book, chapter, verse, seq, level, text)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            )?;
+            for h in &doc.headings {
+                insert.execute((
+                    module_id,
+                    h.book.index() as i64,
+                    h.chapter,
+                    h.verse,
+                    h.seq,
+                    h.level,
+                    &h.text,
+                ))?;
+            }
+        }
         tx.commit()?;
         let verses = self.verse_count(module_id)?;
         Ok(ModuleInfo {
@@ -208,6 +244,32 @@ impl Library {
             })?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(verses)
+    }
+
+    /// Section headings of one chapter, ordered by verse and sequence.
+    pub fn headings(
+        &self,
+        module_code: &str,
+        book: BookId,
+        chapter: u16,
+    ) -> Result<Vec<Heading>, LibraryError> {
+        let module_id = self.module_id(module_code)?;
+        let mut stmt = self.conn.prepare(
+            "SELECT verse, seq, level, text FROM heading
+             WHERE module_id = ?1 AND book = ?2 AND chapter = ?3
+             ORDER BY verse, seq",
+        )?;
+        let headings = stmt
+            .query_map((module_id, book.index() as i64, chapter), |row| {
+                Ok(Heading {
+                    verse: row.get(0)?,
+                    seq: row.get(1)?,
+                    level: row.get(2)?,
+                    text: row.get(3)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(headings)
     }
 
     /// Footnotes of one chapter, ordered by verse and sequence.

@@ -188,3 +188,62 @@ fn chapters_without_notes_yield_empty_list() {
     let genesis = book_by_osis("Gen").unwrap();
     assert!(library.notes("FixDe", genesis, 2).unwrap().is_empty());
 }
+
+#[test]
+fn untyped_titles_become_section_headings_for_the_following_verse() {
+    let library = library_with(CONTAINER);
+    let genesis = book_by_osis("Gen").unwrap();
+    let headings = library.headings("FixDe", genesis, 1).unwrap();
+    assert_eq!(headings.len(), 1);
+    assert_eq!(headings[0].verse, 1);
+    assert_eq!(headings[0].level, 1);
+    assert_eq!(headings[0].text, "Die Schöpfung");
+}
+
+#[test]
+fn typed_titles_are_not_section_headings() {
+    // The book's type="main" title must not appear as a heading.
+    let library = library_with(CONTAINER);
+    let genesis = book_by_osis("Gen").unwrap();
+    let all: Vec<_> = library.headings("FixDe", genesis, 1).unwrap();
+    assert!(all.iter().all(|h| h.text != "Das erste Buch Mose"));
+}
+
+#[test]
+fn section_and_subsection_levels_are_captured_in_order() {
+    let source = r#"<?xml version="1.0" encoding="UTF-8"?>
+<osis xmlns="http://www.bibletechnologies.net/2003/OSIS/namespace">
+  <osisText osisIDWork="FixH" xml:lang="de">
+    <header><work osisWork="FixH"><title>Fixtur H</title></work></header>
+    <div type="book" osisID="Gen">
+      <chapter osisID="Gen.1">
+        <verse osisID="Gen.1.1"><div sID="s1" type="section"/> <title>Die Schöpfung</title> <div sID="s2" type="subSection"/> <title>Der Anfang</title> Am Anfang schuf Gott.</verse>
+        <verse osisID="Gen.1.2">Und die Erde war wüst.</verse>
+      </chapter>
+    </div>
+  </osisText>
+</osis>"#;
+    let mut library = Library::open_in_memory().unwrap();
+    library.import_osis(source.as_bytes()).unwrap();
+    let genesis = book_by_osis("Gen").unwrap();
+    let headings = library.headings("FixH", genesis, 1).unwrap();
+    assert_eq!(headings.len(), 2);
+    assert_eq!(
+        (
+            headings[0].verse,
+            headings[0].level,
+            headings[0].text.as_str()
+        ),
+        (1, 1, "Die Schöpfung")
+    );
+    assert_eq!(
+        (
+            headings[1].verse,
+            headings[1].level,
+            headings[1].text.as_str()
+        ),
+        (1, 2, "Der Anfang")
+    );
+    let verses = library.chapter("FixH", genesis, 1).unwrap();
+    assert_eq!(verses[0].text, "Am Anfang schuf Gott.");
+}

@@ -24,6 +24,7 @@ enum RunKind {
     Word,
     VerseNumber,
     NoteMarker,
+    Heading,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -36,6 +37,8 @@ pub struct RunOut {
     pub verse_number: bool,
     /// An inline footnote marker (lettered, matching the note's sequence).
     pub note_marker: bool,
+    /// Section heading level (0 = body text, 1 = section, 2 = subsection).
+    pub heading_level: u8,
     /// The verse this run belongs to.
     pub verse: u16,
 }
@@ -50,12 +53,110 @@ struct BoxMeta {
     text: String,
     kind: RunKind,
     verse: u16,
+    heading_level: u8,
 }
 
-/// Lay out verses as one flowing justified paragraph at `line_width` font
-/// units. `notes` are (verse, byte offset) pairs; each produces an inline
-/// lettered marker bound to the word containing its anchor.
+/// Lay out verses as justified paragraphs at `line_width` font units,
+/// segmented by section headings. `notes` are (verse, byte offset) pairs;
+/// each produces an inline lettered marker bound to the word containing its
+/// anchor. `headings` are (verse, level, text) rows standing before their
+/// verse; each heading group is preceded by one empty spacing line (except
+/// at the very top) and rendered as its own ragged line(s).
 pub fn layout_verses(
+    verses: &[(u16, &str)],
+    notes: &[(u16, u32)],
+    headings: &[(u16, u8, &str)],
+    measure: &impl TextMeasure,
+    hyphenator: Option<&Standard>,
+    line_width: Scaled,
+) -> Vec<LineOut> {
+    let mut lines: Vec<LineOut> = Vec::new();
+    let mut segment: Vec<(u16, &str)> = Vec::new();
+    for &(number, text) in verses {
+        let verse_headings: Vec<_> = headings.iter().filter(|(v, _, _)| *v == number).collect();
+        if !verse_headings.is_empty() {
+            flush_segment(&mut lines, &segment, notes, measure, hyphenator, line_width);
+            segment.clear();
+            if !lines.is_empty() {
+                lines.push(LineOut { runs: Vec::new() });
+            }
+            for &&(verse, level, text) in &verse_headings {
+                lines.extend(layout_heading(text, level, verse, measure, line_width));
+            }
+        }
+        segment.push((number, text));
+    }
+    flush_segment(&mut lines, &segment, notes, measure, hyphenator, line_width);
+    lines
+}
+
+fn flush_segment(
+    lines: &mut Vec<LineOut>,
+    segment: &[(u16, &str)],
+    notes: &[(u16, u32)],
+    measure: &impl TextMeasure,
+    hyphenator: Option<&Standard>,
+    line_width: Scaled,
+) {
+    if segment.is_empty() {
+        return;
+    }
+    lines.extend(layout_paragraph(
+        segment, notes, measure, hyphenator, line_width,
+    ));
+}
+
+/// A heading as its own small paragraph: justified breaking would look odd,
+/// and a single line comes out ragged naturally (the paragraph-final glue).
+fn layout_heading(
+    text: &str,
+    level: u8,
+    verse: u16,
+    measure: &impl TextMeasure,
+    line_width: Scaled,
+) -> Vec<LineOut> {
+    let mut items: Vec<Item> = Vec::new();
+    let mut meta: Vec<Option<BoxMeta>> = Vec::new();
+    let (space_width, stretch, shrink) = measure.space();
+    let mut first = true;
+    for word in text.split_whitespace() {
+        if !first {
+            items.push(Item::Glue {
+                width: space_width,
+                stretch,
+                shrink,
+            });
+            meta.push(None);
+        }
+        first = false;
+        items.push(Item::Box {
+            width: measure.text_width(word),
+        });
+        meta.push(Some(BoxMeta {
+            text: word.to_string(),
+            kind: RunKind::Heading,
+            verse,
+            heading_level: level,
+        }));
+    }
+    finish_paragraph(&mut items);
+    meta.resize(items.len(), None);
+    let params = Params::new(line_width);
+    let Ok(broken) = break_lines(&items, &params) else {
+        return Vec::new();
+    };
+    broken
+        .lines
+        .iter()
+        .map(|line| {
+            set_line(
+                &items, &meta, measure, line.start, line.end, line_width, true,
+            )
+        })
+        .collect()
+}
+
+fn layout_paragraph(
     verses: &[(u16, &str)],
     notes: &[(u16, u32)],
     measure: &impl TextMeasure,
@@ -105,6 +206,7 @@ pub fn layout_verses(
                 text: number_text,
                 kind: RunKind::VerseNumber,
                 verse: *number,
+                heading_level: 0,
             }),
         );
         // Never break between a verse number and its first word: an infinite
@@ -145,6 +247,7 @@ pub fn layout_verses(
                         text: fragment.to_string(),
                         kind: RunKind::Word,
                         verse: *number,
+                        heading_level: 0,
                     }),
                 );
                 if offset < word.len() {
@@ -224,6 +327,7 @@ fn push_marker(
         text: label,
         kind: RunKind::NoteMarker,
         verse,
+        heading_level: 0,
     }));
 }
 
@@ -248,6 +352,7 @@ fn set_line(
             text: String,
             kind: RunKind,
             verse: u16,
+            heading_level: u8,
         },
         Space {
             stretch: Scaled,
@@ -270,6 +375,7 @@ fn set_line(
                         text: m.text.clone(),
                         kind: m.kind,
                         verse: m.verse,
+                        heading_level: m.heading_level,
                     }),
                 }
             }
@@ -303,7 +409,7 @@ fn set_line(
         .map(|p| match p {
             Piece::Run { text, kind, .. } => {
                 let w = measure.text_width(text);
-                if *kind == RunKind::Word {
+                if *kind == RunKind::Word || *kind == RunKind::Heading {
                     w as f64
                 } else {
                     (w * VERSE_NUMBER_SCALE_PERCENT / 100) as f64
@@ -333,13 +439,19 @@ fn set_line(
     let mut x = 0.0f64;
     for (piece, width) in pieces.iter().zip(&widths) {
         match piece {
-            Piece::Run { text, kind, verse } => {
+            Piece::Run {
+                text,
+                kind,
+                verse,
+                heading_level,
+            } => {
                 runs.push(RunOut {
                     text: text.clone(),
                     x,
                     width: *width,
                     verse_number: *kind == RunKind::VerseNumber,
                     note_marker: *kind == RunKind::NoteMarker,
+                    heading_level: *heading_level,
                     verse: *verse,
                 });
                 x += width;

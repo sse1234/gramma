@@ -115,6 +115,10 @@ class _ColumnPainter extends CustomPainter {
           );
           final markerStyle =
               numberStyle.copyWith(fontStyle: FontStyle.italic);
+          final sectionStyle =
+              textStyle.copyWith(fontWeight: FontWeight.w600);
+          final subSectionStyle =
+              textStyle.copyWith(fontStyle: FontStyle.italic);
           for (final run in line.runs) {
             final painter = TextPainter(
               text: TextSpan(
@@ -123,7 +127,11 @@ class _ColumnPainter extends CustomPainter {
                     ? numberStyle
                     : run.noteMarker
                         ? markerStyle
-                        : textStyle,
+                        : run.headingLevel == 1
+                            ? sectionStyle
+                            : run.headingLevel == 2
+                                ? subSectionStyle
+                                : textStyle,
               ),
               textDirection: TextDirection.ltr,
             )..layout();

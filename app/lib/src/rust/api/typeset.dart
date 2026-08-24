@@ -106,6 +106,9 @@ class RunView {
   /// An inline lettered footnote marker.
   final bool noteMarker;
 
+  /// Section heading level (0 = body, 1 = section, 2 = subsection).
+  final int headingLevel;
+
   /// The verse this run belongs to.
   final int verse;
 
@@ -115,6 +118,7 @@ class RunView {
     required this.width,
     required this.verseNumber,
     required this.noteMarker,
+    required this.headingLevel,
     required this.verse,
   });
 
@@ -125,6 +129,7 @@ class RunView {
       width.hashCode ^
       verseNumber.hashCode ^
       noteMarker.hashCode ^
+      headingLevel.hashCode ^
       verse.hashCode;
 
   @override
@@ -137,5 +142,6 @@ class RunView {
           width == other.width &&
           verseNumber == other.verseNumber &&
           noteMarker == other.noteMarker &&
+          headingLevel == other.headingLevel &&
           verse == other.verse;
 }
