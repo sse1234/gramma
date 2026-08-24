@@ -187,7 +187,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Future<void> _importOsis() async {
     final file = await openFile(
       acceptedTypeGroups: const [
-        XTypeGroup(label: 'OSIS XML', extensions: ['xml', 'osis']),
+        // iOS/macOS match on UTIs, the other platforms on extensions.
+        XTypeGroup(
+          label: 'OSIS XML',
+          extensions: ['xml', 'osis'],
+          uniformTypeIdentifiers: ['public.xml', 'public.text'],
+        ),
       ],
     );
     if (file == null || !mounted) return;
