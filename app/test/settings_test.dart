@@ -43,12 +43,14 @@ void main() {
       ..setColumnWidth(460)
       ..setContrast(0.7)
       ..setLineSpacing(2.0)
+      ..setDefaultModule('GerNeUe')
       ..setThemeMode(ThemeMode.dark);
     first.setMeasureEms(30, confirmed: true);
     final second = SettingsController(prefs);
     expect(second.columnWidth, 460);
     expect(second.contrast, 0.7);
     expect(second.lineSpacing, 2.0);
+    expect(second.defaultModule, 'GerNeUe');
     expect(second.themeMode, ThemeMode.dark);
     expect(second.measureEms, 30);
   });

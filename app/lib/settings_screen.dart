@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'settings.dart';
+import 'src/rust/api/library.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -12,6 +13,17 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _measureUnlocked = false;
   double? _measurePreview;
+  List<ModuleView> _modules = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      _modules = modules();
+    } catch (_) {
+      _modules = const [];
+    }
+  }
 
   Future<void> _confirmMeasureChange() async {
     final confirmed = await showDialog<bool>(
@@ -83,6 +95,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: settings.setLineSpacing,
                 ),
               ),
+              if (_modules.isNotEmpty)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Default text'),
+                  subtitle: const Text(
+                    'Used to resolve references in previews.',
+                  ),
+                  trailing: DropdownButton<String>(
+                    key: const Key('default-module'),
+                    value: _modules.any(
+                            (m) => m.code == settings.defaultModule)
+                        ? settings.defaultModule
+                        : null,
+                    hint: const Text('First module'),
+                    items: [
+                      for (final m in _modules)
+                        DropdownMenuItem(
+                            value: m.code, child: Text(m.code)),
+                    ],
+                    onChanged: settings.setDefaultModule,
+                  ),
+                ),
               const SizedBox(height: 16),
               Text('Appearance', style: theme.textTheme.titleMedium),
               const SizedBox(height: 12),

@@ -697,6 +697,18 @@ impl SseDecode for Vec<crate::api::library::ModuleView> {
     }
 }
 
+impl SseDecode for Vec<crate::api::library::NoteRefView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::library::NoteRefView>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::library::NoteView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -775,16 +787,32 @@ impl SseDecode for crate::api::library::ModuleView {
     }
 }
 
+impl SseDecode for crate::api::library::NoteRefView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_start = <u32>::sse_decode(deserializer);
+        let mut var_end = <u32>::sse_decode(deserializer);
+        let mut var_osis = <String>::sse_decode(deserializer);
+        return crate::api::library::NoteRefView {
+            start: var_start,
+            end: var_end,
+            osis: var_osis,
+        };
+    }
+}
+
 impl SseDecode for crate::api::library::NoteView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_verse = <u16>::sse_decode(deserializer);
         let mut var_label = <String>::sse_decode(deserializer);
         let mut var_text = <String>::sse_decode(deserializer);
+        let mut var_refs = <Vec<crate::api::library::NoteRefView>>::sse_decode(deserializer);
         return crate::api::library::NoteView {
             verse: var_verse,
             label: var_label,
             text: var_text,
+            refs: var_refs,
         };
     }
 }
@@ -1029,12 +1057,35 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::library::ModuleView>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::library::NoteRefView {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.start.into_into_dart().into_dart(),
+            self.end.into_into_dart().into_dart(),
+            self.osis.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::library::NoteRefView
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::library::NoteRefView>
+    for crate::api::library::NoteRefView
+{
+    fn into_into_dart(self) -> crate::api::library::NoteRefView {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::library::NoteView {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.verse.into_into_dart().into_dart(),
             self.label.into_into_dart().into_dart(),
             self.text.into_into_dart().into_dart(),
+            self.refs.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -1216,6 +1267,16 @@ impl SseEncode for Vec<crate::api::library::ModuleView> {
     }
 }
 
+impl SseEncode for Vec<crate::api::library::NoteRefView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::library::NoteRefView>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::library::NoteView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -1277,12 +1338,22 @@ impl SseEncode for crate::api::library::ModuleView {
     }
 }
 
+impl SseEncode for crate::api::library::NoteRefView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.start, serializer);
+        <u32>::sse_encode(self.end, serializer);
+        <String>::sse_encode(self.osis, serializer);
+    }
+}
+
 impl SseEncode for crate::api::library::NoteView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <u16>::sse_encode(self.verse, serializer);
         <String>::sse_encode(self.label, serializer);
         <String>::sse_encode(self.text, serializer);
+        <Vec<crate::api::library::NoteRefView>>::sse_encode(self.refs, serializer);
     }
 }
 

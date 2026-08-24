@@ -154,6 +154,32 @@ class ModuleView {
           notes == other.notes;
 }
 
+class NoteRefView {
+  final int start;
+  final int end;
+
+  /// Canonical OSIS form of the found reference.
+  final String osis;
+
+  const NoteRefView({
+    required this.start,
+    required this.end,
+    required this.osis,
+  });
+
+  @override
+  int get hashCode => start.hashCode ^ end.hashCode ^ osis.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NoteRefView &&
+          runtimeType == other.runtimeType &&
+          start == other.start &&
+          end == other.end &&
+          osis == other.osis;
+}
+
 class NoteView {
   final int verse;
 
@@ -161,14 +187,19 @@ class NoteView {
   final String label;
   final String text;
 
+  /// Verse references found inside the note text, as byte ranges.
+  final List<NoteRefView> refs;
+
   const NoteView({
     required this.verse,
     required this.label,
     required this.text,
+    required this.refs,
   });
 
   @override
-  int get hashCode => verse.hashCode ^ label.hashCode ^ text.hashCode;
+  int get hashCode =>
+      verse.hashCode ^ label.hashCode ^ text.hashCode ^ refs.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -177,7 +208,8 @@ class NoteView {
           runtimeType == other.runtimeType &&
           verse == other.verse &&
           label == other.label &&
-          text == other.text;
+          text == other.text &&
+          refs == other.refs;
 }
 
 class VerseView {

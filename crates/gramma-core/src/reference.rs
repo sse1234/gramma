@@ -166,6 +166,194 @@ impl FromStr for Reference {
     }
 }
 
+/// A reference found inside prose text (byte range half-open).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScannedReference {
+    pub start: u32,
+    pub end: u32,
+    pub reference: Reference,
+}
+
+fn book_of(reference: Reference) -> BookId {
+    match reference {
+        Reference::Chapter { book, .. } => book,
+        Reference::Verse(v) => v.book,
+        Reference::VerseRange { start, .. } => start.book,
+    }
+}
+
+fn build_ref(book: BookId, chapter: u16, verse: Option<u16>, end: Option<u16>) -> Reference {
+    match (verse, end) {
+        (Some(verse), Some(end_verse)) => Reference::VerseRange {
+            start: VerseRef {
+                book,
+                chapter,
+                verse,
+            },
+            end_verse,
+        },
+        (Some(verse), None) => Reference::Verse(VerseRef {
+            book,
+            chapter,
+            verse,
+        }),
+        _ => Reference::Chapter { book, chapter },
+    }
+}
+
+/// Parse `chapter[,verse[-end]]` at the start of `s`; returns the parts and
+/// the exact byte length of the match, which must end at a word boundary.
+fn parse_chapter_verse(s: &str) -> Option<(u16, Option<u16>, Option<u16>, usize)> {
+    fn digits(s: &str) -> Option<(u16, usize)> {
+        let len = s.chars().take_while(|c| c.is_ascii_digit()).count();
+        if len == 0 {
+            return None;
+        }
+        let n: u16 = s[..len].parse().ok()?;
+        (n > 0).then_some((n, len))
+    }
+    let (chapter, mut len) = digits(s)?;
+    let mut verse = None;
+    let mut end = None;
+    if s[len..].starts_with(',')
+        && let Some((v, vlen)) = digits(&s[len + 1..])
+    {
+        verse = Some(v);
+        len += 1 + vlen;
+        let rest = &s[len..];
+        let dash = rest.starts_with('-') || rest.starts_with('–');
+        if dash {
+            let dash_len = rest.chars().next().unwrap().len_utf8();
+            if let Some((e, elen)) = digits(&rest[dash_len..])
+                && e >= v
+            {
+                end = Some(e);
+                len += dash_len + elen;
+            }
+        }
+    }
+    if s[len..].chars().next().is_some_and(|c| c.is_alphanumeric()) {
+        return None;
+    }
+    Some((chapter, verse, end, len))
+}
+
+/// Parse a reference at the start of `input`, allowing trailing content.
+/// Returns the reference and the bytes consumed; the match must end at a
+/// word boundary. In prose only `,` and `:` introduce a verse, so sentence
+/// periods are never swallowed.
+pub fn parse_reference_prefix(input: &str) -> Option<(Reference, usize)> {
+    let total = input.len();
+    let mut parser = Parser { rest: input };
+    let book = parser.parse_book().ok()?;
+    parser.skip_separator();
+    let chapter = match parser.parse_number() {
+        Ok(Some(n)) => n,
+        _ => return None,
+    };
+    let mut result = Reference::Chapter { book, chapter };
+    let mut consumed = total - parser.rest.len();
+    if matches!(parser.rest.chars().next(), Some(',' | ':')) {
+        parser.rest = parser.rest[1..].trim_start();
+        if let Ok(Some(verse)) = parser.parse_number() {
+            let start = VerseRef {
+                book,
+                chapter,
+                verse,
+            };
+            result = Reference::Verse(start);
+            let save_range = parser.rest;
+            let dash = parser.rest.chars().next();
+            if matches!(dash, Some('-' | '–')) {
+                parser.rest = parser.rest[dash.unwrap().len_utf8()..].trim_start();
+                match parser.parse_number() {
+                    Ok(Some(end)) if end >= verse => {
+                        result = Reference::VerseRange {
+                            start,
+                            end_verse: end,
+                        };
+                    }
+                    _ => parser.rest = save_range,
+                }
+            }
+            consumed = total - parser.rest.len();
+        }
+    }
+    while consumed > 0 && input.as_bytes()[consumed - 1].is_ascii_whitespace() {
+        consumed -= 1;
+    }
+    if consumed == 0 {
+        return None;
+    }
+    if input[consumed..]
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_alphanumeric())
+    {
+        return None;
+    }
+    Some((result, consumed))
+}
+
+/// Find verse references inside prose (footnotes, commentary text):
+/// full references ("1. Mose 49,25", "Joh 3,16-18"), context references
+/// ("Kap. 7,11" against the context book), and bare chapter,verse pairs
+/// chained from the most recently mentioned book.
+pub fn scan_references(text: &str, context: Option<BookId>) -> Vec<ScannedReference> {
+    let mut out = Vec::new();
+    let mut last_book = context;
+    let mut prev_alnum = false;
+    let mut iter = text.char_indices().peekable();
+    while let Some((i, ch)) = iter.next() {
+        let boundary = !prev_alnum;
+        prev_alnum = ch.is_alphanumeric();
+        if !boundary {
+            continue;
+        }
+        let slice = &text[i..];
+        let mut matched_end: Option<(usize, Reference)> = None;
+        if let Some(book) = last_book
+            && (slice.starts_with("Kap.") || slice.starts_with("Kap "))
+        {
+            let after = &slice[4..];
+            let pad = 4 + (after.len() - after.trim_start().len());
+            if let Some((c, v, e, len)) = parse_chapter_verse(&slice[pad..]) {
+                matched_end = Some((i + pad + len, build_ref(book, c, v, e)));
+            }
+        }
+        if matched_end.is_none()
+            && ch.is_alphanumeric()
+            && let Some((reference, consumed)) = parse_reference_prefix(slice)
+        {
+            matched_end = Some((i + consumed, reference));
+        }
+        if matched_end.is_none()
+            && ch.is_ascii_digit()
+            && let Some(book) = last_book
+            && let Some((c, Some(v), e, len)) = parse_chapter_verse(slice)
+        {
+            matched_end = Some((i + len, build_ref(book, c, Some(v), e)));
+        }
+        if let Some((end, reference)) = matched_end {
+            last_book = Some(book_of(reference));
+            out.push(ScannedReference {
+                start: i as u32,
+                end: end as u32,
+                reference,
+            });
+            while let Some(&(j, _)) = iter.peek() {
+                if j < end {
+                    iter.next();
+                } else {
+                    break;
+                }
+            }
+            prev_alnum = true;
+        }
+    }
+    out
+}
+
 struct Parser<'a> {
     rest: &'a str,
 }
@@ -346,7 +534,7 @@ fn alias_map() -> &'static HashMap<String, BookId> {
         let mut map = HashMap::new();
         for (i, info) in CANON.iter().enumerate() {
             let id = BookId(i as u8);
-            for name in [info.osis, info.english, info.german] {
+            for name in [info.osis, info.english, info.german, info.abbrev] {
                 map.insert(normalize(name), id);
             }
             for alias in info.aliases {

@@ -5,7 +5,7 @@ use std::sync::Mutex;
 
 use anyhow::{anyhow, Context};
 use gramma_core::library::Library;
-use gramma_core::reference::{book_by_osis, Reference};
+use gramma_core::reference::{book_by_osis, scan_references, Reference};
 
 static LIBRARY: Mutex<Option<Library>> = Mutex::new(None);
 
@@ -39,6 +39,15 @@ pub struct NoteView {
     /// Marker letter matching the inline marker in the text ("a", "b", …).
     pub label: String,
     pub text: String,
+    /// Verse references found inside the note text, as byte ranges.
+    pub refs: Vec<NoteRefView>,
+}
+
+pub struct NoteRefView {
+    pub start: u32,
+    pub end: u32,
+    /// Canonical OSIS form of the found reference.
+    pub osis: String,
 }
 
 pub struct ChapterView {
@@ -149,10 +158,21 @@ pub fn chapter_notes(
     with_library(|library| library.notes(&module_code, book, chapter)).map(|notes| {
         notes
             .into_iter()
-            .map(|n| NoteView {
-                verse: n.verse,
-                label: ((b'a' + ((n.seq - 1) as u8).min(25)) as char).to_string(),
-                text: n.text,
+            .map(|n| {
+                let refs = scan_references(&n.text, Some(book))
+                    .into_iter()
+                    .map(|r| NoteRefView {
+                        start: r.start,
+                        end: r.end,
+                        osis: r.reference.to_string(),
+                    })
+                    .collect();
+                NoteView {
+                    verse: n.verse,
+                    label: ((b'a' + ((n.seq - 1) as u8).min(25)) as char).to_string(),
+                    text: n.text,
+                    refs,
+                }
             })
             .collect()
     })

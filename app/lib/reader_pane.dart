@@ -9,12 +9,14 @@ import 'pane_model.dart';
 import 'reference_selector.dart';
 import 'settings.dart';
 import 'src/rust/api/library.dart';
-import 'src/rust/api/references.dart';
 import 'src/rust/api/typeset.dart';
 import 'typeset_chapter.dart';
 import 'typeset_column.dart';
 
 typedef FollowOption = ({String id, String label, String badge, int badgeIndex});
+
+/// A one-shot navigation command; a new epoch triggers the jump.
+typedef NavCommand = ({int epoch, String osis});
 
 /// One text view (ADR 0008): the endless-scrolling reader of ADR 0006 with
 /// a header for choosing its module and its position link. Emits its
@@ -30,8 +32,10 @@ class ReaderPane extends StatefulWidget {
     required this.onToggleMode,
     required this.badge,
     required this.onAnchor,
+    required this.onAnchorEnd,
     required this.onModule,
     required this.onFollow,
+    this.command,
     this.dragHandle,
     this.onClose,
   });
@@ -48,8 +52,14 @@ class ReaderPane extends StatefulWidget {
   /// The pane's identity badge, shown leftmost in the chrome.
   final Widget? badge;
   final ValueChanged<String> onAnchor;
+
+  /// Last visible position, completing the pane's visible range.
+  final ValueChanged<String?> onAnchorEnd;
   final ValueChanged<String> onModule;
   final ValueChanged<String?> onFollow;
+
+  /// External navigation (e.g. from a passage preview's Open action).
+  final NavCommand? command;
   final Widget? dragHandle;
   final VoidCallback? onClose;
 
@@ -90,6 +100,7 @@ class _ReaderPaneState extends State<ReaderPane> {
   final List<ScrollController> _staleControllers = [];
   ColumnPlan? _hPlan;
   double _hStride = 0;
+  int _hColumns = 1;
 
   /// Mouse-wheel paging: accumulated delta, the in-flight aligned target,
   /// and the time of the last wheel event.
@@ -99,9 +110,6 @@ class _ReaderPaneState extends State<ReaderPane> {
 
   /// Wheel travel that advances one column.
   static const _wheelTick = 50.0;
-
-  ParseOutcome? _outcome;
-  String? _jumpMiss;
 
   @override
   void initState() {
@@ -146,6 +154,21 @@ class _ReaderPaneState extends State<ReaderPane> {
         widget.spec.follow != null) {
       _applyRemoteAnchor(widget.followedAnchor!);
     }
+    final command = widget.command;
+    if (command != null && command.epoch != old.command?.epoch) {
+      // Deferred: didUpdateWidget runs during build, and the jump emits a
+      // position which must not reach the orchestrator mid-build.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final parts = command.osis.split('-').first.split('.');
+        if (parts.length < 2) return;
+        final index = _indexOfOsis('${parts[0]}.${parts[1]}');
+        if (index >= 0) {
+          _jumpToChapter(index,
+              verse: parts.length >= 3 ? int.tryParse(parts[2]) : null);
+        }
+      });
+    }
   }
 
   String _osisOf(int chapter) =>
@@ -161,6 +184,61 @@ class _ReaderPaneState extends State<ReaderPane> {
   void _emitPosition() {
     if (_suppressEmit || _topChapter >= _spine.length) return;
     widget.onAnchor(_anchorString());
+    widget.onAnchorEnd(_anchorEndString());
+  }
+
+  /// Last visible position: exact in column mode (last line of the last
+  /// visible column), estimated in vertical mode.
+  String? _anchorEndString() {
+    final plan = _hPlan;
+    if (plan != null && plan.totalLines > 0) {
+      final lastLine = (_anchorLine + _hColumns * plan.linesPerColumn - 1)
+          .clamp(0, plan.totalLines - 1);
+      final chapter = plan.chapterOfLine(lastLine);
+      final local = lastLine - plan.blockStart(chapter) - _headingLines;
+      final verse =
+          local >= 0 ? _verseAtLineEnd(chapter, local) : null;
+      final entry = _spine[chapter];
+      final base = '${entry.bookOsis}.${entry.chapter}';
+      return verse == null ? base : '$base.$verse';
+    }
+    final positions = _vPositions.itemPositions.value;
+    if (positions.isEmpty) return null;
+    ItemPosition? bottom;
+    for (final p in positions) {
+      if (p.itemLeadingEdge < 1 &&
+          (bottom == null || p.index > bottom.index)) {
+        bottom = p;
+      }
+    }
+    if (bottom == null || bottom.index >= _spine.length) return null;
+    final counts = _lineCounts;
+    int? verse;
+    if (counts != null && bottom.index < counts.length) {
+      final span = bottom.itemTrailingEdge - bottom.itemLeadingEdge;
+      if (span > 0) {
+        final fraction =
+            ((1 - bottom.itemLeadingEdge) / span).clamp(0.0, 1.0);
+        final line = (fraction * (counts[bottom.index] + _headingLines))
+                .floor() -
+            _headingLines;
+        verse = line > 0
+            ? _verseAtLineEnd(bottom.index, line)
+            : _verseAtLineEnd(bottom.index, 0);
+      }
+    }
+    final entry = _spine[bottom.index];
+    final base = '${entry.bookOsis}.${entry.chapter}';
+    return verse == null ? base : '$base.$verse';
+  }
+
+  /// Verse of the last run at a chapter-local text line.
+  int? _verseAtLineEnd(int chapterIndex, int line) {
+    final layout = _layouts[chapterIndex];
+    if (layout == null || layout.lines.isEmpty) return null;
+    final index = line.clamp(0, layout.lines.length - 1);
+    final runs = layout.lines[index].runs;
+    return runs.isEmpty ? null : runs.last.verse;
   }
 
   int _indexOfOsis(String osis) {
@@ -417,24 +495,6 @@ class _ReaderPaneState extends State<ReaderPane> {
     }
   }
 
-  void _onInput(String input) {
-    setState(() {
-      _jumpMiss = null;
-      _outcome = input.trim().isEmpty ? null : parseReference(input: input);
-    });
-    final osis = _outcome?.osis;
-    if (osis == null) return;
-    final parts = osis.split('-').first.split('.');
-    final index = _indexOfOsis('${parts[0]}.${parts[1]}');
-    if (index < 0) {
-      setState(
-          () => _jumpMiss = 'Not in this module: ${parts[0]} ${parts[1]}');
-      return;
-    }
-    _jumpToChapter(index,
-        verse: parts.length >= 3 ? int.tryParse(parts[2]) : null);
-  }
-
   Future<void> _openSelector() async {
     if (_spine.isEmpty) return;
     final result = await showReferenceSelector(context, _spine);
@@ -458,6 +518,46 @@ class _ReaderPaneState extends State<ReaderPane> {
           title: null,
           badge: widget.badge,
           dragHandle: widget.dragHandle,
+          position: position == null
+              ? null
+              : Tooltip(
+                  message: 'Select book, chapter, verse',
+                  child: InkWell(
+                    key: const Key('open-selector'),
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: _openSelector,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 3),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                            color: theme.colorScheme.outlineVariant),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.grid_view_rounded,
+                            size: 13,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              position,
+                              key: const Key('current-position'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                  color: theme.colorScheme.primary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
           moduleSelector: DropdownButton<String>(
             key: const Key('module-select'),
             isExpanded: true,
@@ -475,62 +575,6 @@ class _ReaderPaneState extends State<ReaderPane> {
           followOptions: widget.followOptions,
           onFollow: widget.onFollow,
           onClose: widget.onClose,
-        ),
-        TextField(
-          decoration: InputDecoration(
-            border: const OutlineInputBorder(),
-            isDense: true,
-            labelText: 'Go to reference',
-            hintText: 'Joh 3,16 · Ps 23',
-          ),
-          onChanged: _onInput,
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            if (position != null)
-              Tooltip(
-                message: 'Select book, chapter, verse',
-                child: InkWell(
-                  key: const Key('open-selector'),
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: _openSelector,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 3),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                          color: theme.colorScheme.outlineVariant),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.grid_view_rounded,
-                          size: 13,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          position,
-                          key: const Key('current-position'),
-                          style: theme.textTheme.labelLarge
-                              ?.copyWith(color: theme.colorScheme.primary),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: _statusText(theme),
-              ),
-            ),
-          ],
         ),
         const SizedBox(height: 8),
         ],
@@ -619,6 +663,7 @@ class _ReaderPaneState extends State<ReaderPane> {
     }
     _hPlan = plan;
     _hStride = stride;
+    _hColumns = columns;
     final scale = columnWidth / (_measure! * _unitsPerEm());
     return Listener(
       key: const ValueKey('columns-active'),
@@ -730,41 +775,6 @@ class _ReaderPaneState extends State<ReaderPane> {
     );
   }
 
-  Widget _statusText(ThemeData theme) {
-    final outcome = _outcome;
-    if (outcome?.error != null) {
-      return Text(
-        outcome!.error!,
-        key: const Key('parse-error'),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: theme.textTheme.labelMedium
-            ?.copyWith(color: theme.colorScheme.error),
-      );
-    }
-    if (_jumpMiss != null) {
-      return Text(
-        _jumpMiss!,
-        key: const Key('jump-miss'),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: theme.textTheme.labelMedium
-            ?.copyWith(color: theme.colorScheme.error),
-      );
-    }
-    if (outcome?.osis != null) {
-      return Text(
-        outcome!.osis!,
-        key: const Key('osis-result'),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: theme.textTheme.labelMedium
-            ?.copyWith(color: theme.colorScheme.outline),
-      );
-    }
-    return const SizedBox.shrink();
-  }
-
   double _estimatedHeight(int index, double columnWidth) {
     final fontSize = columnWidth / _measure!;
     final lineHeight = fontSize * _lineSpacing;
@@ -816,6 +826,7 @@ class PaneHeader extends StatelessWidget {
     required this.title,
     this.badge,
     this.moduleSelector,
+    this.position,
     required this.followValue,
     required this.followOptions,
     required this.onFollow,
@@ -826,6 +837,9 @@ class PaneHeader extends StatelessWidget {
   final String? title;
   final Widget? badge;
   final Widget? moduleSelector;
+
+  /// Position chip (the reference-selector trigger) for text panes.
+  final Widget? position;
   final Widget? dragHandle;
   final String? followValue;
   final List<FollowOption> followOptions;
@@ -842,6 +856,10 @@ class PaneHeader extends StatelessWidget {
           child: moduleSelector ??
               Text(title ?? '', style: theme.textTheme.titleMedium),
         ),
+        if (position != null) ...[
+          const SizedBox(width: 8),
+          Flexible(child: position!),
+        ],
         const SizedBox(width: 8),
         DropdownButton<String>(
           key: const Key('link-select'),

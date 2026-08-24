@@ -15,6 +15,7 @@ class SettingsController extends ChangeNotifier {
     _measureEms = _prefs.getInt('measureEms') ?? defaultMeasureEms;
     _trueBlackDark = _prefs.getBool('trueBlackDark') ?? false;
     _readingMode = _prefs.getBool('readingMode') ?? false;
+    _defaultModule = _prefs.getString('defaultModule');
     _themeMode = switch (_prefs.getString('themeMode')) {
       'light' => ThemeMode.light,
       'dark' => ThemeMode.dark,
@@ -37,6 +38,7 @@ class SettingsController extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
   bool _trueBlackDark = false;
   bool _readingMode = false;
+  String? _defaultModule;
 
   /// Column width in logical pixels — the zoom level.
   double get columnWidth => _columnWidth;
@@ -59,6 +61,10 @@ class SettingsController extends ChangeNotifier {
   /// shows it. Toggled by tapping any pane's content.
   bool get readingMode => _readingMode;
 
+  /// Module used to resolve references outside any pane context
+  /// (passage previews, later cross-references in secondary literature).
+  String? get defaultModule => _defaultModule;
+
   void setColumnWidth(double value) {
     _columnWidth = value.clamp(320.0, 520.0);
     _prefs.setDouble('columnWidth', _columnWidth);
@@ -74,6 +80,16 @@ class SettingsController extends ChangeNotifier {
   void setLineSpacing(double value) {
     _lineSpacing = value.clamp(1.2, 2.6);
     _prefs.setDouble('lineSpacing', _lineSpacing);
+    notifyListeners();
+  }
+
+  void setDefaultModule(String? code) {
+    _defaultModule = code;
+    if (code == null) {
+      _prefs.remove('defaultModule');
+    } else {
+      _prefs.setString('defaultModule', code);
+    }
     notifyListeners();
   }
 

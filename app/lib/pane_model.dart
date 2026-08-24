@@ -13,6 +13,7 @@ class PaneSpec {
     this.module,
     this.follow,
     this.anchor,
+    this.anchorEnd,
     this.weight = 1.0,
     this.badge,
   }) : id = id ?? _newId();
@@ -34,6 +35,10 @@ class PaneSpec {
   String? follow;
   String? anchor;
 
+  /// Last visible position ("Book.Ch.V"), completing the visible range
+  /// [anchor, anchorEnd] for receiver views.
+  String? anchorEnd;
+
   /// Height share within the pane's column.
   double weight;
 
@@ -53,6 +58,7 @@ class PaneSpec {
         'module': module,
         'follow': follow,
         'anchor': anchor,
+        'anchorEnd': anchorEnd,
         'weight': weight,
         'badge': badge,
       };
@@ -67,6 +73,7 @@ class PaneSpec {
       module: json['module'] as String?,
       follow: json['follow'] as String?,
       anchor: json['anchor'] as String?,
+      anchorEnd: json['anchorEnd'] as String?,
       weight: (json['weight'] as num?)?.toDouble() ?? 1.0,
       badge: json['badge'] as String?,
     );

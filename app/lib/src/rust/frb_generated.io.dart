@@ -61,6 +61,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ModuleView> dco_decode_list_module_view(dynamic raw);
 
   @protected
+  List<NoteRefView> dco_decode_list_note_ref_view(dynamic raw);
+
+  @protected
   List<NoteView> dco_decode_list_note_view(dynamic raw);
 
   @protected
@@ -80,6 +83,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ModuleView dco_decode_module_view(dynamic raw);
+
+  @protected
+  NoteRefView dco_decode_note_ref_view(dynamic raw);
 
   @protected
   NoteView dco_decode_note_view(dynamic raw);
@@ -149,6 +155,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ModuleView> sse_decode_list_module_view(SseDeserializer deserializer);
 
   @protected
+  List<NoteRefView> sse_decode_list_note_ref_view(SseDeserializer deserializer);
+
+  @protected
   List<NoteView> sse_decode_list_note_view(SseDeserializer deserializer);
 
   @protected
@@ -168,6 +177,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ModuleView sse_decode_module_view(SseDeserializer deserializer);
+
+  @protected
+  NoteRefView sse_decode_note_ref_view(SseDeserializer deserializer);
 
   @protected
   NoteView sse_decode_note_view(SseDeserializer deserializer);
@@ -251,6 +263,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_note_ref_view(
+    List<NoteRefView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_note_view(List<NoteView> self, SseSerializer serializer);
 
   @protected
@@ -279,6 +297,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_module_view(ModuleView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_note_ref_view(NoteRefView self, SseSerializer serializer);
 
   @protected
   void sse_encode_note_view(NoteView self, SseSerializer serializer);

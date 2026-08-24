@@ -651,6 +651,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<NoteRefView> dco_decode_list_note_ref_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_note_ref_view).toList();
+  }
+
+  @protected
   List<NoteView> dco_decode_list_note_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_note_view).toList();
@@ -702,15 +708,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  NoteView dco_decode_note_view(dynamic raw) {
+  NoteRefView dco_decode_note_ref_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
     if (arr.length != 3)
       throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return NoteRefView(
+      start: dco_decode_u_32(arr[0]),
+      end: dco_decode_u_32(arr[1]),
+      osis: dco_decode_String(arr[2]),
+    );
+  }
+
+  @protected
+  NoteView dco_decode_note_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return NoteView(
       verse: dco_decode_u_16(arr[0]),
       label: dco_decode_String(arr[1]),
       text: dco_decode_String(arr[2]),
+      refs: dco_decode_list_note_ref_view(arr[3]),
     );
   }
 
@@ -910,6 +930,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<NoteRefView> sse_decode_list_note_ref_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <NoteRefView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_note_ref_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<NoteView> sse_decode_list_note_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -984,12 +1018,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  NoteRefView sse_decode_note_ref_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_start = sse_decode_u_32(deserializer);
+    var var_end = sse_decode_u_32(deserializer);
+    var var_osis = sse_decode_String(deserializer);
+    return NoteRefView(start: var_start, end: var_end, osis: var_osis);
+  }
+
+  @protected
   NoteView sse_decode_note_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_verse = sse_decode_u_16(deserializer);
     var var_label = sse_decode_String(deserializer);
     var var_text = sse_decode_String(deserializer);
-    return NoteView(verse: var_verse, label: var_label, text: var_text);
+    var var_refs = sse_decode_list_note_ref_view(deserializer);
+    return NoteView(
+      verse: var_verse,
+      label: var_label,
+      text: var_text,
+      refs: var_refs,
+    );
   }
 
   @protected
@@ -1178,6 +1227,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_note_ref_view(
+    List<NoteRefView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_note_ref_view(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_note_view(
     List<NoteView> self,
     SseSerializer serializer,
@@ -1253,11 +1314,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_note_ref_view(NoteRefView self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.start, serializer);
+    sse_encode_u_32(self.end, serializer);
+    sse_encode_String(self.osis, serializer);
+  }
+
+  @protected
   void sse_encode_note_view(NoteView self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_16(self.verse, serializer);
     sse_encode_String(self.label, serializer);
     sse_encode_String(self.text, serializer);
+    sse_encode_list_note_ref_view(self.refs, serializer);
   }
 
   @protected

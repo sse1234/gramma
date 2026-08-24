@@ -1,6 +1,7 @@
 import 'dart:io';
 
-import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/gestures.dart'
+    show PointerDeviceKind, TapGestureRecognizer;
 import 'package:flutter/material.dart';
 import 'package:gramma/footnotes_pane.dart';
 import 'package:gramma/reader_pane.dart';
@@ -26,9 +27,22 @@ String _bridgeLibraryPath() {
 
 const _fixture = 'test/fixtures/reader.osis.xml';
 
-Future<void> _enter(WidgetTester tester, String input) async {
-  await tester.enterText(find.byType(TextField), input);
-  await tester.pump();
+/// Navigate a pane through the book/chapter/verse selector popup.
+Future<void> _selectRef(
+  WidgetTester tester, {
+  required String book,
+  required int chapter,
+  int verse = 1,
+  Finder? trigger,
+}) async {
+  await tester.tap(trigger ?? find.byKey(const Key('open-selector')).first);
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(Key('sel-book-$book')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(Key('sel-ch-$chapter')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(Key('sel-v-$verse')));
+  await tester.pumpAndSettle();
 }
 
 /// Async results (line counts, chapter layouts) arrive from the Rust worker
@@ -124,66 +138,6 @@ void main() {
     expect(position.data, '1. Mose 1');
   });
 
-  testWidgets('jumps to a resolved reference', (tester) async {
-    _freshUserStore();
-    _phoneViewport(tester);
-    final semantics = tester.ensureSemantics();
-    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
-    await _settleLayouts(tester);
-    await _enter(tester, '1. Mose 2');
-    await _settleLayouts(tester);
-    expect(
-      find.bySemanticsLabel(RegExp('Also ward vollendet Himmel und Erde')),
-      findsOneWidget,
-    );
-    final position = tester.widget<Text>(
-      find.byKey(const Key('current-position')),
-    );
-    expect(position.data, '1. Mose 2');
-    semantics.dispose();
-  });
-
-  testWidgets('echoes the OSIS form of the entered reference', (tester) async {
-    _freshUserStore();
-    _phoneViewport(tester);
-    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
-    await tester.pump();
-    await _enter(tester, '1. Mose 2,1');
-    expect(find.text('Gen.2.1'), findsOneWidget);
-  });
-
-  testWidgets('reports a reference outside the module', (tester) async {
-    _freshUserStore();
-    _phoneViewport(tester);
-    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
-    await tester.pump();
-    await _enter(tester, 'Joh 3,16');
-    expect(find.byKey(const Key('jump-miss')), findsOneWidget);
-  });
-
-  testWidgets('shows an error for an unknown book', (tester) async {
-    _freshUserStore();
-    _phoneViewport(tester);
-    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
-    await tester.pump();
-    await _enter(tester, 'Foo 3,16');
-    expect(find.byKey(const Key('parse-error')), findsOneWidget);
-    expect(find.byKey(const Key('osis-result')), findsNothing);
-  });
-
-  testWidgets('clearing the input clears status but keeps the reader', (tester) async {
-    _freshUserStore();
-    _phoneViewport(tester);
-    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
-    await tester.pump();
-    await _enter(tester, '1. Mose 2');
-    await _enter(tester, '');
-    expect(find.byKey(const Key('osis-result')), findsNothing);
-    expect(find.byKey(const Key('parse-error')), findsNothing);
-    expect(find.byKey(const Key('jump-miss')), findsNothing);
-    expect(find.byKey(const Key('vertical-reader')), findsOneWidget);
-  });
-
   testWidgets('wide viewports switch to horizontal columns', (tester) async {
     _freshUserStore();
     _desktopViewport(tester);
@@ -221,13 +175,13 @@ void main() {
         .widget<Text>(find.byKey(const Key('current-position')))
         .data!;
     expect(label(), '1. Mose 1');
-    await _enter(tester, '2. Mose 1');
+    await _selectRef(tester, book: 'Exod', chapter: 1);
     // The label follows the leftmost visible column; the jump must move it
     // off the start even if the target lands mid-column.
     await _settle(tester, () => label() != '1. Mose 1');
-    expect(
-      find.bySemanticsLabel(RegExp('Dies sind die Namen')),
-      findsWidgets,
+    await _settle(
+      tester,
+      () => _found(find.bySemanticsLabel(RegExp('Dies sind die Namen'))),
     );
     semantics.dispose();
   });
@@ -263,7 +217,7 @@ void main() {
       findsWidgets,
       reason: 'notes carry marker letters matching the inline markers',
     );
-    await _enter(tester, '1. Mose 3');
+    await _selectRef(tester, book: 'Gen', chapter: 3);
     await _settle(tester, () => _found(find.textContaining('Anmerkung Beta')));
     expect(find.textContaining('Anmerkung Alpha'), findsNothing);
   });
@@ -284,7 +238,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('FixDe').last);
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).first, '1. Mose 3');
+    await _selectRef(tester, book: 'Gen', chapter: 3);
     await _settle(tester, () {
       final labels = find.byKey(const Key('current-position'));
       if (labels.evaluate().length < 2) return false;
@@ -461,7 +415,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(AppBar), findsNothing, reason: 'reading mode');
     expect(find.byKey(const Key('module-select')), findsNothing);
-    expect(find.byType(TextField), findsNothing);
 
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await tester.pump();
@@ -579,5 +532,52 @@ void main() {
       find.byKey(const Key('current-position')),
     );
     expect(position.data, '2. Mose 2');
+  });
+
+  testWidgets('footnote references preview and open the passage',
+      (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Footnotes view'));
+    await tester.pumpAndSettle();
+    await _selectRef(tester, book: 'Gen', chapter: 3);
+    await _settle(tester, () => _found(find.textContaining('Anmerkung Beta')));
+
+    TapGestureRecognizer? recognizer;
+    for (final rich in tester.widgetList<RichText>(find.byType(RichText))) {
+      rich.text.visitChildren((span) {
+        if (span is TextSpan &&
+            span.text == 'Kap. 1,1' &&
+            span.recognizer is TapGestureRecognizer) {
+          recognizer = span.recognizer as TapGestureRecognizer;
+          return false;
+        }
+        return true;
+      });
+      if (recognizer != null) break;
+    }
+    expect(recognizer, isNotNull,
+        reason: 'the scanned reference must be tappable');
+    recognizer!.onTap!();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Am Anfang schuf Gott'), findsWidgets,
+        reason: 'preview shows the referenced passage');
+
+    await tester.tap(find.byKey(const Key('preview-open')));
+    await tester.pumpAndSettle();
+    await _settleLayouts(tester);
+    await tester.pumpAndSettle();
+    final position = tester.widget<Text>(
+      find.byKey(const Key('current-position')).first,
+    );
+    expect(position.data, '1. Mose 1',
+        reason: 'Open navigates the linked text view');
   });
 }

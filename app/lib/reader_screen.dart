@@ -32,6 +32,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
   /// Pane id currently being dragged for rearrangement, if any.
   String? _draggingPane;
 
+  /// One-shot navigation commands per pane id.
+  final Map<String, NavCommand> _commands = {};
+  int _commandEpoch = 0;
+
   @override
   void initState() {
     super.initState();
@@ -72,6 +76,26 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (pane == null || pane.anchor == osis) return;
     setState(() => pane.anchor = osis);
     _save();
+  }
+
+  void _setAnchorEnd(String id, String? osis) {
+    final pane = _layout.byId(id);
+    if (pane == null || pane.anchorEnd == osis) return;
+    setState(() => pane.anchorEnd = osis);
+    _save();
+  }
+
+  /// Navigate the pane a footnotes view follows (from a passage preview).
+  void _openReference(PaneSpec source, String osis) {
+    final targetId = source.follow ??
+        _layout.allPanes
+            .where((p) => p.kind == PaneKind.text)
+            .firstOrNull
+            ?.id;
+    if (targetId == null) return;
+    setState(() {
+      _commands[targetId] = (epoch: ++_commandEpoch, osis: osis);
+    });
   }
 
   void _setModule(String id, String code) {
@@ -450,6 +474,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
           badge: badge,
           dragHandle: _dragHandle(spec),
           onAnchor: (osis) => _setAnchor(spec.id, osis),
+          onAnchorEnd: (osis) => _setAnchorEnd(spec.id, osis),
+          command: _commands[spec.id],
           onModule: (code) => _setModule(spec.id, code),
           onFollow: (follow) => _setFollow(spec.id, follow),
           onClose: closable ? () => _closePane(spec.id) : null,
@@ -458,6 +484,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
         return FootnotesPane(
           key: ValueKey('pane-${spec.id}'),
           followedAnchor: followedAnchor,
+          followedAnchorEnd: _layout.byId(spec.follow)?.anchorEnd,
+          onOpenReference: (osis) => _openReference(spec, osis),
           sourceModule: _layout.byId(spec.follow)?.module,
           followValue: spec.follow,
           followOptions: _followOptionsFor(spec),
