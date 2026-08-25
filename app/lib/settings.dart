@@ -55,6 +55,7 @@ class SettingsController extends ChangeNotifier {
         ToneTheme.paper;
     _footnoteScale = _prefs.getDouble('footnoteScale') ?? 1.0;
     _previewScale = _prefs.getDouble('previewScale') ?? 1.0;
+    _columnAdvance = _prefs.getDouble('columnAdvance') ?? defaultColumnAdvance;
     _themeMode = switch (_prefs.getString('themeMode')) {
       'light' => ThemeMode.light,
       'dark' => ThemeMode.dark,
@@ -67,6 +68,9 @@ class SettingsController extends ChangeNotifier {
   static const minContrast = 0.3;
   static const defaultMeasureEms = 26;
   static const defaultLineSpacing = 1.5;
+  static const defaultColumnAdvance = 0.5;
+  static const minColumnAdvance = 0.15;
+  static const maxColumnAdvance = 0.6;
 
   final SharedPreferences _prefs;
 
@@ -81,6 +85,7 @@ class SettingsController extends ChangeNotifier {
   ToneTheme _tone = ToneTheme.paper;
   double _footnoteScale = 1.0;
   double _previewScale = 1.0;
+  double _columnAdvance = defaultColumnAdvance;
 
   /// Column width in logical pixels — the zoom level.
   double get columnWidth => _columnWidth;
@@ -111,6 +116,10 @@ class SettingsController extends ChangeNotifier {
 
   /// Text scale of passage preview popups.
   double get previewScale => _previewScale;
+
+  /// Fraction of a column a swipe must naturally travel to turn to the
+  /// next column ([minColumnAdvance] light … [maxColumnAdvance] firm).
+  double get columnAdvance => _columnAdvance;
 
   /// Module used to resolve references outside any pane context
   /// (passage previews, later cross-references in secondary literature).
@@ -149,6 +158,12 @@ class SettingsController extends ChangeNotifier {
   void setPreviewScale(double value) {
     _previewScale = value.clamp(0.8, 1.6);
     _prefs.setDouble('previewScale', _previewScale);
+    notifyListeners();
+  }
+
+  void setColumnAdvance(double value) {
+    _columnAdvance = value.clamp(minColumnAdvance, maxColumnAdvance);
+    _prefs.setDouble('columnAdvance', _columnAdvance);
     notifyListeners();
   }
 

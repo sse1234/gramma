@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'column_plan.dart';
@@ -122,7 +123,11 @@ class _ReaderPaneState extends State<ReaderPane> {
 
   double _columnWidth = SettingsController.defaultColumnWidth;
   double _lineSpacing = SettingsController.defaultLineSpacing;
+  double _columnAdvance = SettingsController.defaultColumnAdvance;
   int? _measure;
+
+  /// Keyboard focus for arrow-key column paging.
+  final FocusNode _focus = FocusNode(debugLabel: 'reader-pane');
 
   ModuleView? _active;
   List<ChapterRefView> _spine = const [];
@@ -172,6 +177,7 @@ class _ReaderPaneState extends State<ReaderPane> {
 
   @override
   void dispose() {
+    _focus.dispose();
     _vPositions.itemPositions.removeListener(_onVerticalPositions);
     _hController?.dispose();
     for (final c in _staleControllers) {
@@ -186,6 +192,7 @@ class _ReaderPaneState extends State<ReaderPane> {
     final settings = SettingsScope.of(context);
     _columnWidth = settings.columnWidth;
     _lineSpacing = settings.lineSpacing;
+    _columnAdvance = settings.columnAdvance;
     final measure = settings.measureEms;
     if (_measure == null) {
       _measure = measure;
@@ -715,29 +722,46 @@ class _ReaderPaneState extends State<ReaderPane> {
     _hStride = stride;
     _hColumns = columns;
     final scale = columnWidth / (_measure! * _unitsPerEm());
-    return Listener(
-      key: const ValueKey('columns-active'),
-      onPointerSignal: (event) {
-        // Discrete mouse wheels page by whole columns (trackpads scroll
-        // through the pan-zoom gesture path and the snap physics instead).
-        if (event is PointerScrollEvent &&
-            event.scrollDelta.dy != 0 &&
-            _hController!.hasClients) {
-          _onWheel(event.scrollDelta.dy);
+    return Focus(
+      focusNode: _focus,
+      autofocus: true,
+      onKeyEvent: (node, event) {
+        if (event is KeyUpEvent) return KeyEventResult.ignored;
+        if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+          _step(1);
+          return KeyEventResult.handled;
         }
+        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+          _step(-1);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
       },
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: sidePadding),
-        child: ListView.builder(
-          key: Key('horizontal-reader-$params'),
-          controller: _hController,
-          scrollDirection: Axis.horizontal,
-          physics: ColumnSnapPhysics(stride: stride),
-          itemExtent: stride,
-          itemCount: plan.columnCount,
-          itemBuilder: (context, column) => Padding(
-            padding: const EdgeInsets.only(right: _gutter),
-            child: _columnItem(plan, column, scale, fontSize, lineHeight),
+      child: Listener(
+        key: const ValueKey('columns-active'),
+        onPointerSignal: (event) {
+          // Discrete mouse wheels page by whole columns (trackpads scroll
+          // through the pan-zoom gesture path and the snap physics instead).
+          if (event is PointerScrollEvent &&
+              event.scrollDelta.dy != 0 &&
+              _hController!.hasClients) {
+            _onWheel(event.scrollDelta.dy);
+          }
+        },
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: sidePadding),
+          child: ListView.builder(
+            key: Key('horizontal-reader-$params'),
+            controller: _hController,
+            scrollDirection: Axis.horizontal,
+            physics:
+                ColumnSnapPhysics(stride: stride, advance: _columnAdvance),
+            itemExtent: stride,
+            itemCount: plan.columnCount,
+            itemBuilder: (context, column) => Padding(
+              padding: const EdgeInsets.only(right: _gutter),
+              child: _columnItem(plan, column, scale, fontSize, lineHeight),
+            ),
           ),
         ),
       ),
@@ -745,8 +769,6 @@ class _ReaderPaneState extends State<ReaderPane> {
   }
 
   void _onWheel(double delta) {
-    final controller = _hController!;
-    final position = controller.position;
     final now = DateTime.now();
     if (now.difference(_lastWheel) > const Duration(milliseconds: 600)) {
       _wheelAccum = 0;
@@ -759,6 +781,19 @@ class _ReaderPaneState extends State<ReaderPane> {
     // a notch is a discrete step, not a distance.
     final steps = _wheelAccum.sign.toInt();
     _wheelAccum = 0;
+    _step(steps);
+  }
+
+  /// Page by [steps] whole columns; wheel ticks and arrow keys share the
+  /// chained target so rapid input queues cleanly.
+  void _step(int steps) {
+    final controller = _hController;
+    if (controller == null || !controller.hasClients) return;
+    if (DateTime.now().difference(_lastWheel) >
+        const Duration(milliseconds: 600)) {
+      _wheelTarget = null;
+    }
+    final position = controller.position;
     final base = _wheelTarget ??
         ColumnSnapPhysics.snapTarget(
           position.pixels,
@@ -773,6 +808,7 @@ class _ReaderPaneState extends State<ReaderPane> {
       position.maxScrollExtent,
     );
     _wheelTarget = target;
+    _lastWheel = DateTime.now();
     if ((target - position.pixels).abs() > 0.5) {
       controller.animateTo(
         target,

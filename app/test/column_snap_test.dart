@@ -24,4 +24,19 @@ void main() {
   test('clamps to the start', () {
     expect(ColumnSnapPhysics.snapTarget(-300, stride, 0, 4000), 0);
   });
+
+  test('the advance threshold decides when a swipe turns the column', () {
+    // At the default (0.5, plain rounding) a gentle swipe snaps back …
+    expect(ColumnSnapPhysics.columnsCrossed(100, stride, 0.5), 0);
+    expect(ColumnSnapPhysics.columnsCrossed(230, stride, 0.5), 1);
+    // … while a light setting turns on the same gentle swipe, both ways.
+    expect(ColumnSnapPhysics.columnsCrossed(100, stride, 0.15), 1);
+    expect(ColumnSnapPhysics.columnsCrossed(-100, stride, 0.15), -1);
+    // Long flings still cross several columns.
+    expect(ColumnSnapPhysics.columnsCrossed(3.4 * stride, stride, 0.5), 3);
+    expect(ColumnSnapPhysics.columnsCrossed(3.6 * stride, stride, 0.5), 4);
+    // Below the threshold nothing turns.
+    expect(ColumnSnapPhysics.columnsCrossed(0.14 * stride, stride, 0.15), 0);
+    expect(ColumnSnapPhysics.columnsCrossed(0, stride, 0.15), 0);
+  });
 }

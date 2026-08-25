@@ -144,6 +144,11 @@ void main() {
   });
 
   testWidgets('theme mode selection applies', (tester) async {
+    // Tall viewport: the settings page has grown past the default 600px.
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final controller = await _controller();
     await tester.pumpWidget(_harness(controller));
     await tester.tap(find.text('Dark'));
@@ -187,5 +192,32 @@ void main() {
     await tester.drag(slider, const Offset(-200, 0));
     await tester.pumpAndSettle();
     expect(controller.contrast, lessThan(SettingsController.defaultContrast));
+  });
+
+  test('column turn effort clamps and persists', () async {
+    final controller = await _controller();
+    expect(controller.columnAdvance, SettingsController.defaultColumnAdvance);
+    controller.setColumnAdvance(0.01);
+    expect(controller.columnAdvance, SettingsController.minColumnAdvance);
+    controller.setColumnAdvance(0.3);
+    final reloaded =
+        SettingsController(await SharedPreferences.getInstance());
+    expect(reloaded.columnAdvance, 0.3);
+  });
+
+  testWidgets('column turn effort slider runs light to firm', (tester) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = await _controller();
+    await tester.pumpWidget(_harness(controller));
+    final slider = find.byKey(const Key('advance-slider'));
+    await tester.scrollUntilVisible(slider, 200);
+    // Dragging left (toward "light") must lower the required advance.
+    await tester.drag(slider, const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    expect(controller.columnAdvance,
+        lessThan(SettingsController.defaultColumnAdvance));
   });
 }

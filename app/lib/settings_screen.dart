@@ -121,6 +121,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: settings.setLineSpacing,
                 ),
               ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Column turn effort'),
+                subtitle: Slider(
+                  key: const Key('advance-slider'),
+                  // Left = a light swipe already turns the column,
+                  // right = a firm one is needed.
+                  min: SettingsController.minColumnAdvance,
+                  max: SettingsController.maxColumnAdvance,
+                  divisions: 9,
+                  value: settings.columnAdvance,
+                  label:
+                      '${(settings.columnAdvance * 100).round()}% of a column',
+                  onChanged: settings.setColumnAdvance,
+                ),
+              ),
               if (_modules.isNotEmpty)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
