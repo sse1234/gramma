@@ -858,6 +858,31 @@ void main() {
     );
   });
 
+  testWidgets('the tools menu opens the reading plan and records the jump',
+      (tester) async {
+    _freshUserStore();
+    _phoneViewport(tester);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('tools-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tool-plan')));
+    // The bundled plan loads asynchronously before the dialog appears.
+    await _settle(
+        tester, () => _found(find.byKey(const Key('plan-title'))));
+    expect(
+      tester.widget<Text>(find.byKey(const Key('plan-title'))).data,
+      startsWith('Bibelliga — Tag'),
+    );
+    await tester.tap(find.byKey(const Key('plan-ref-0')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('plan-title')), findsNothing);
+    final back = tester
+        .widget<IconButton>(find.byKey(const Key('nav-back')).first);
+    expect(back.onPressed, isNotNull,
+        reason: 'the plan jump entered the desk history');
+  });
+
   testWidgets('corrupted pane weights restore to a usable desk',
       (tester) async {
     _freshUserStore();

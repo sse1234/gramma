@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'desks.dart';
 import 'footnotes_pane.dart';
+import 'reading_plan.dart';
 import 'sync_transport.dart';
 import 'pane_badge.dart';
 import 'pane_model.dart';
@@ -257,17 +258,38 @@ class _ReaderScreenState extends State<ReaderScreen>
   /// Navigate the pane a footnotes view follows (from a passage preview);
   /// recorded in the desk history like any deliberate jump.
   void _openReference(PaneSpec source, String osis) {
-    final targetId = source.follow ??
+    _navigatePane(
+        source.follow ??
+            _layout.allPanes
+                .where((p) => p.kind == PaneKind.text)
+                .firstOrNull
+                ?.id,
+        osis);
+  }
+
+  /// Navigate the first text view (reading plans, later search results).
+  void _openOsis(String osis) {
+    _navigatePane(
         _layout.allPanes
             .where((p) => p.kind == PaneKind.text)
             .firstOrNull
-            ?.id;
+            ?.id,
+        osis);
+  }
+
+  void _navigatePane(String? targetId, String osis) {
     if (targetId == null) return;
     setState(() {
       _layout.recordNavigation(targetId, osis);
       _commands[targetId] = (epoch: ++_commandEpoch, osis: osis);
     });
     _save();
+  }
+
+  Future<void> _openReadingPlan() async {
+    final plan = await ReadingPlan.loadBundled();
+    if (plan == null || !mounted) return;
+    await showReadingPlan(context, plan: plan, onOpen: _openOsis);
   }
 
   void _recordJump(String paneId, String osis) {
@@ -572,6 +594,20 @@ class _ReaderScreenState extends State<ReaderScreen>
       appBar: reading ? null : AppBar(
         title: const Text('gramma'),
         actions: [
+          PopupMenuButton<VoidCallback>(
+            key: const Key('tools-menu'),
+            tooltip: 'Tools',
+            icon: const Icon(Icons.auto_stories_outlined),
+            onSelected: (action) => action(),
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                key: const Key('tool-plan'),
+                value: _openReadingPlan,
+                child: const Text('Reading plan · Bibelliga'),
+              ),
+              // Search joins this menu once it lands.
+            ],
+          ),
           PopupMenuButton<VoidCallback>(
             key: const Key('desk-menu'),
             tooltip:

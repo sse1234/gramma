@@ -15,25 +15,25 @@ final bool _strokeDarken = !kIsWeb &&
 /// A chapter entering the viewport paints ~1500 runs in one frame; most
 /// are words already shaped before, so the cache turns that frame from
 /// thousands of text layouts into map lookups.
-typedef _RunKey = (String, double?, int?, FontWeight?, FontStyle?, bool);
+typedef _RunKey = (String, double?, int?, FontWeight?, FontStyle?, double);
 final Map<_RunKey, TextPainter> _painters = {};
 const _painterCacheLimit = 8000;
 
-TextPainter _layoutPainter(String text, TextStyle style, {required bool stroke}) {
+TextPainter _layoutPainter(String text, TextStyle style, double strokeEm) {
   final key = (
     text,
     style.fontSize,
     style.color?.toARGB32(),
     style.fontWeight,
     style.fontStyle,
-    stroke,
+    strokeEm,
   );
   final cached = _painters.remove(key);
   if (cached != null) {
     _painters[key] = cached; // refresh LRU order
     return cached;
   }
-  final effective = stroke
+  final effective = strokeEm > 0
       ? TextStyle(
           fontFamily: style.fontFamily,
           fontSize: style.fontSize,
@@ -41,7 +41,7 @@ TextPainter _layoutPainter(String text, TextStyle style, {required bool stroke})
           fontStyle: style.fontStyle,
           foreground: Paint()
             ..style = PaintingStyle.stroke
-            ..strokeWidth = (style.fontSize ?? 14) * strokeDarkenEm
+            ..strokeWidth = (style.fontSize ?? 14) * strokeEm
             ..color = style.color!,
         )
       : style;
@@ -56,10 +56,20 @@ TextPainter _layoutPainter(String text, TextStyle style, {required bool stroke})
   return painter;
 }
 
-/// Paints one text run at [offset], with the platform darkening pass.
-void paintRun(Canvas canvas, String text, TextStyle style, Offset offset) {
-  _layoutPainter(text, style, stroke: false).paint(canvas, offset);
-  if (_strokeDarken && style.color != null) {
-    _layoutPainter(text, style, stroke: true).paint(canvas, offset);
+/// Paints one text run at [offset]. [extraWeightEm] adds stroke weight in
+/// ems of the font size (the user's per-brightness font weight setting),
+/// on top of the platform darkening baseline.
+void paintRun(
+  Canvas canvas,
+  String text,
+  TextStyle style,
+  Offset offset, {
+  double extraWeightEm = 0,
+}) {
+  _layoutPainter(text, style, 0).paint(canvas, offset);
+  final strokeEm =
+      (_strokeDarken ? strokeDarkenEm : 0.0) + extraWeightEm;
+  if (strokeEm > 0 && style.color != null) {
+    _layoutPainter(text, style, strokeEm).paint(canvas, offset);
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'run_paint.dart';
+import 'settings.dart';
 import 'src/rust/api/typeset.dart';
 
 /// Paints a chapter laid out by gramma-core's Knuth–Plass engine.
@@ -19,7 +20,10 @@ class TypesetChapter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final weightEm =
+        SettingsScope.of(context).fontWeightFor(theme.brightness);
     return LayoutBuilder(
       builder: (context, constraints) {
         final scale = constraints.maxWidth / layout.measureUnits;
@@ -36,6 +40,7 @@ class TypesetChapter extends StatelessWidget {
               lineHeight: lineHeight,
               textColor: scheme.onSurface,
               numberColor: scheme.primary,
+              weightEm: weightEm,
             ),
           ),
         );
@@ -52,6 +57,7 @@ class _ChapterPainter extends CustomPainter {
     required this.lineHeight,
     required this.textColor,
     required this.numberColor,
+    required this.weightEm,
   });
 
   final ChapterLayoutView layout;
@@ -60,6 +66,9 @@ class _ChapterPainter extends CustomPainter {
   final double lineHeight;
   final Color textColor;
   final Color numberColor;
+
+  /// Extra stroke weight (user setting) in ems of the font size.
+  final double weightEm;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -89,7 +98,8 @@ class _ChapterPainter extends CustomPainter {
                         ? subSectionStyle
                         : textStyle;
         // Tops align, so the smaller verse numbers sit raised.
-        paintRun(canvas, run.text, style, Offset(run.x * scale, y));
+        paintRun(canvas, run.text, style, Offset(run.x * scale, y),
+            extraWeightEm: weightEm);
       }
     }
   }
@@ -99,6 +109,7 @@ class _ChapterPainter extends CustomPainter {
     return old.layout != layout ||
         old.scale != scale ||
         old.textColor != textColor ||
-        old.numberColor != numberColor;
+        old.numberColor != numberColor ||
+        old.weightEm != weightEm;
   }
 }

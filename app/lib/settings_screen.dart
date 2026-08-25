@@ -378,6 +378,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Font weight · light mode'),
+                subtitle: Slider(
+                  key: const Key('weight-light'),
+                  min: 0,
+                  max: SettingsController.maxFontWeight,
+                  divisions: 6,
+                  value: settings.fontWeightLight,
+                  label: settings.fontWeightLight == 0
+                      ? 'natural'
+                      : '+${(settings.fontWeightLight * 100).round()}',
+                  onChanged: settings.setFontWeightLight,
+                ),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Font weight · dark mode'),
+                subtitle: Slider(
+                  key: const Key('weight-dark'),
+                  min: 0,
+                  max: SettingsController.maxFontWeight,
+                  divisions: 6,
+                  value: settings.fontWeightDark,
+                  label: settings.fontWeightDark == 0
+                      ? 'natural'
+                      : '+${(settings.fontWeightDark * 100).round()}',
+                  onChanged: settings.setFontWeightDark,
+                ),
+              ),
               SwitchListTile(
                 key: const Key('true-black'),
                 contentPadding: EdgeInsets.zero,

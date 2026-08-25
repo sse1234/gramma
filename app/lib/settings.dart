@@ -57,6 +57,8 @@ class SettingsController extends ChangeNotifier {
     _previewScale = _prefs.getDouble('previewScale') ?? 1.0;
     _columnAdvance = _prefs.getDouble('columnAdvance') ?? defaultColumnAdvance;
     _currentDeskId = _prefs.getString('currentDesk');
+    _fontWeightLight = _prefs.getDouble('fontWeightLight') ?? 0;
+    _fontWeightDark = _prefs.getDouble('fontWeightDark') ?? 0;
     _themeMode = switch (_prefs.getString('themeMode')) {
       'light' => ThemeMode.light,
       'dark' => ThemeMode.dark,
@@ -88,6 +90,32 @@ class SettingsController extends ChangeNotifier {
   double _previewScale = 1.0;
   double _columnAdvance = defaultColumnAdvance;
   String? _currentDeskId;
+  double _fontWeightLight = 0;
+  double _fontWeightDark = 0;
+
+  /// Extra stroke weight over the font's natural stems, in ems of the
+  /// font size, separately per brightness: dim rooms with dim screens
+  /// want heavier dark-mode strokes. 0 = the font as designed.
+  static const maxFontWeight = 0.06;
+
+  double get fontWeightLight => _fontWeightLight;
+  double get fontWeightDark => _fontWeightDark;
+
+  /// The extra stroke weight for the given brightness.
+  double fontWeightFor(Brightness brightness) =>
+      brightness == Brightness.dark ? _fontWeightDark : _fontWeightLight;
+
+  void setFontWeightLight(double value) {
+    _fontWeightLight = value.clamp(0.0, maxFontWeight);
+    _prefs.setDouble('fontWeightLight', _fontWeightLight);
+    notifyListeners();
+  }
+
+  void setFontWeightDark(double value) {
+    _fontWeightDark = value.clamp(0.0, maxFontWeight);
+    _prefs.setDouble('fontWeightDark', _fontWeightDark);
+    notifyListeners();
+  }
 
   /// Column width in logical pixels — the zoom level.
   double get columnWidth => _columnWidth;

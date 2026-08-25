@@ -205,6 +205,22 @@ void main() {
     expect(reloaded.columnAdvance, 0.3);
   });
 
+  test('font weight is separate per brightness and persists', () async {
+    final controller = await _controller();
+    expect(controller.fontWeightLight, 0);
+    expect(controller.fontWeightDark, 0);
+    controller.setFontWeightDark(0.04);
+    controller.setFontWeightLight(0.9);
+    expect(controller.fontWeightLight, SettingsController.maxFontWeight,
+        reason: 'clamped');
+    expect(controller.fontWeightFor(Brightness.dark), 0.04);
+    expect(controller.fontWeightFor(Brightness.light),
+        SettingsController.maxFontWeight);
+    final reloaded =
+        SettingsController(await SharedPreferences.getInstance());
+    expect(reloaded.fontWeightDark, 0.04);
+  });
+
   testWidgets('column turn effort slider runs light to firm', (tester) async {
     tester.view.physicalSize = const Size(800, 1800);
     tester.view.devicePixelRatio = 1.0;
