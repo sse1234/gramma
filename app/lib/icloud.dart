@@ -6,13 +6,10 @@ import 'package:flutter/services.dart';
 /// a plain folder to the sync engine. On iOS the path comes from the
 /// platform; on the Mac the container appears under Mobile Documents.
 ///
-/// Dormant: the iCloud capability requires a paid Apple Developer
-/// Program membership, which the current personal team lacks. To enable,
-/// flip this flag and re-add `CODE_SIGN_ENTITLEMENTS =
-/// Runner/Runner.entitlements;` to the three Runner build
-/// configurations — everything else (entitlements file, container
-/// declaration, platform channel) is already in place.
-const icloudTransportEnabled = false;
+/// Requires the paid Apple Developer Program (the iCloud capability is
+/// closed to personal teams) plus `CODE_SIGN_ENTITLEMENTS =
+/// Runner/Runner.entitlements;` in the Runner build configurations.
+const icloudTransportEnabled = true;
 
 const _channel = MethodChannel('gramma/icloud');
 
