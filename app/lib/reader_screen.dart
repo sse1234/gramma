@@ -317,9 +317,21 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   /// Drop zones shown while a pane is being dragged: vertical strips at
   /// every column boundary (drop = new column there) and horizontal strips
-  /// at every stack boundary (drop = insert into that stack).
+  /// at every stack boundary (drop = insert into that stack). Boundaries
+  /// where the drop would recreate the current layout (the dragged pane's
+  /// own position) are not offered.
   List<Widget> _dropTargets(BoxConstraints constraints) {
     final columns = _layout.columns;
+    final dragColumn = _layout.columnOf(_draggingPane ?? '');
+    final dragColumnIndex =
+        dragColumn == null ? -1 : columns.indexOf(dragColumn);
+    final dragAlone = dragColumn != null && dragColumn.panes.length == 1;
+    final dragPaneIndex =
+        dragColumn?.panes.indexWhere((p) => p.id == _draggingPane) ?? -1;
+    bool columnNoop(int k) =>
+        dragAlone && (k == dragColumnIndex || k == dragColumnIndex + 1);
+    bool stackNoop(int k, int j) =>
+        k == dragColumnIndex && (j == dragPaneIndex || j == dragPaneIndex + 1);
     final contentWidth =
         constraints.maxWidth - (columns.length - 1) * _gripThickness;
     final sumW = columns.fold(0.0, (a, c) => a + c.weight);
@@ -334,17 +346,19 @@ class _ReaderScreenState extends State<ReaderScreen> {
           : k == columns.length
               ? constraints.maxWidth
               : x - _gripThickness / 2;
-      targets.add(Positioned(
-        left: (centerX - 28).clamp(0.0, constraints.maxWidth - 56),
-        width: 56,
-        top: 0,
-        height: constraints.maxHeight,
-        child: _DropZone(
-          key: Key('drop-column-$k'),
-          onAccept: (id) =>
-              _dropAsNewColumn(k == 0 ? null : columns[k - 1], id),
-        ),
-      ));
+      if (!columnNoop(k)) {
+        targets.add(Positioned(
+          left: (centerX - 28).clamp(0.0, constraints.maxWidth - 56),
+          width: 56,
+          top: 0,
+          height: constraints.maxHeight,
+          child: _DropZone(
+            key: Key('drop-column-$k'),
+            onAccept: (id) =>
+                _dropAsNewColumn(k == 0 ? null : columns[k - 1], id),
+          ),
+        ));
+      }
       if (k < columns.length) {
         final columnLeft = x;
         final width = widths[k];
@@ -359,16 +373,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
               : j == panes.length
                   ? constraints.maxHeight
                   : y - _gripThickness / 2;
-          targets.add(Positioned(
-            left: columnLeft + 64,
-            width: (width - 128).clamp(48.0, double.infinity),
-            top: (centerY - 30).clamp(0.0, constraints.maxHeight - 60),
-            height: 60,
-            child: _DropZone(
-              key: Key('drop-stack-$k-$j'),
-              onAccept: (id) => _dropIntoStack(columns[k], j, id),
-            ),
-          ));
+          if (!stackNoop(k, j)) {
+            targets.add(Positioned(
+              left: columnLeft + 64,
+              width: (width - 128).clamp(48.0, double.infinity),
+              top: (centerY - 30).clamp(0.0, constraints.maxHeight - 60),
+              height: 60,
+              child: _DropZone(
+                key: Key('drop-stack-$k-$j'),
+                onAccept: (id) => _dropIntoStack(columns[k], j, id),
+              ),
+            ));
+          }
           if (j < panes.length) {
             y += panes[j].weight / sumH * contentHeight + _gripThickness;
           }

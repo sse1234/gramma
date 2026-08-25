@@ -681,6 +681,39 @@ void main() {
         reason: 'without chrome the text must not slide under the notch');
   });
 
+  testWidgets('drop targets omit the dragged pane\'s own position',
+      (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1400, 700);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Text view'));
+    await _settleLayouts(tester);
+
+    // Drag the second (rightmost) pane: dropping it at the boundary on
+    // either side of itself would recreate the current layout.
+    final handle = tester.getCenter(find.byIcon(Icons.drag_indicator).last);
+    final gesture = await tester.startGesture(handle);
+    await gesture.moveBy(const Offset(0, 30));
+    await tester.pump();
+    expect(find.byKey(const Key('drop-column-1')), findsNothing,
+        reason: 'the middle boundary is a no-op for the dragged pane');
+    expect(find.byKey(const Key('drop-column-2')), findsNothing,
+        reason: 'so is the boundary right of it');
+    expect(find.byKey(const Key('drop-column-0')), findsOneWidget,
+        reason: 'moving to the far left changes the order');
+    expect(find.byKey(const Key('drop-stack-1-0')), findsNothing,
+        reason: 'its own stack position is a no-op');
+    expect(find.byKey(const Key('drop-stack-0-0')), findsOneWidget);
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('corrupted pane weights restore to a usable desk',
       (tester) async {
     _freshUserStore();

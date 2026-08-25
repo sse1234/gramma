@@ -15,6 +15,27 @@ import 'typeset_column.dart';
 
 typedef FollowOption = ({String id, String label, String badge, int badgeIndex});
 
+/// Verse shown at [line], walking forward past spacer lines (the empty
+/// rows before section headings carry no runs) to the next carrying line.
+int? verseAtLineStart(List<LineView> lines, int line) {
+  if (lines.isEmpty) return null;
+  for (var i = line.clamp(0, lines.length - 1); i < lines.length; i++) {
+    final runs = lines[i].runs;
+    if (runs.isNotEmpty) return runs.first.verse;
+  }
+  return null;
+}
+
+/// Verse of the last run at [line], walking backward past spacer lines.
+int? verseAtLineEnd(List<LineView> lines, int line) {
+  if (lines.isEmpty) return null;
+  for (var i = line.clamp(0, lines.length - 1); i >= 0; i--) {
+    final runs = lines[i].runs;
+    if (runs.isNotEmpty) return runs.last.verse;
+  }
+  return null;
+}
+
 /// A one-shot navigation command; a new epoch triggers the jump.
 typedef NavCommand = ({int epoch, String osis});
 
@@ -268,10 +289,8 @@ class _ReaderPaneState extends State<ReaderPane> {
   /// Verse of the last run at a chapter-local text line.
   int? _verseAtLineEnd(int chapterIndex, int line) {
     final layout = _layouts[chapterIndex];
-    if (layout == null || layout.lines.isEmpty) return null;
-    final index = line.clamp(0, layout.lines.length - 1);
-    final runs = layout.lines[index].runs;
-    return runs.isEmpty ? null : runs.last.verse;
+    if (layout == null) return null;
+    return verseAtLineEnd(layout.lines, line);
   }
 
   int _indexOfOsis(String osis) {
@@ -304,12 +323,8 @@ class _ReaderPaneState extends State<ReaderPane> {
   /// Verse shown at a chapter-local text line, from the loaded layout.
   int? _verseAtLine(int chapterIndex, int line) {
     final layout = _layouts[chapterIndex];
-    if (layout == null || layout.lines.isEmpty) return null;
-    final index = line.clamp(0, layout.lines.length - 1);
-    for (final run in layout.lines[index].runs) {
-      return run.verse;
-    }
-    return null;
+    if (layout == null) return null;
+    return verseAtLineStart(layout.lines, line);
   }
 
   ColumnPlan? _linePlan({int linesPerColumn = 1}) {
