@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1144 1410" width="1144" height="1410">
+  <!--
+    Greek small letter gamma (U+03B3) with drop-shaped lower loop.
+    Glyph outline extracted from the OpenSymbol font (Version 102.12),
+    part of LibreOffice, (c) Sun Microsystems / LibreOffice contributors.
+    License: Mozilla Public License 2.0 (MPL-2.0), https://www.mozilla.org/MPL/2.0/
+    Free to use, copy, modify, and redistribute (incl. commercially); keep this notice.
+  -->
+  <title>Greek lowercase gamma (looped form)</title>
+  <g transform="translate(37,979) scale(1,-1)">
+    <path d="M521 101Q466 297 397 468Q289 733 206 787Q123 841 -17 838L93 959Q341 959 489 701Q567 564 661 234Q951 653 911 857Q900 913 863 959H1072Q1080 934 1084 916Q1109 786 934 527L688 161Q703 100 715 42Q746 -132 689 -254Q617 -411 443 -411Q375 -411 312 -369Q248 -326 237 -262Q207 -90 521 101ZM547 38Q292 -140 311 -235Q328 -321 414 -321Q517 -321 552 -211Q580 -120 563 -34Q554 8 547 38Z" fill="currentColor"/>
+  </g>
+</svg>

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'run_paint.dart';
+import 'settings.dart';
 import 'src/rust/api/typeset.dart';
 
 /// One resolved row of a column: a chapter heading or a typeset text line.
@@ -44,7 +45,10 @@ class TypesetColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final weightEm =
+        SettingsScope.of(context).fontWeightFor(theme.brightness);
     final label = rows
         .map((r) => switch (r) {
               HeadingRow(:final text) => text,
@@ -63,6 +67,7 @@ class TypesetColumn extends StatelessWidget {
           lineHeight: lineHeight,
           textColor: scheme.onSurface,
           numberColor: scheme.primary,
+          weightEm: weightEm,
         ),
       ),
     );
@@ -77,6 +82,7 @@ class _ColumnPainter extends CustomPainter {
     required this.lineHeight,
     required this.textColor,
     required this.numberColor,
+    required this.weightEm,
   });
 
   final List<ColumnRow> rows;
@@ -85,6 +91,9 @@ class _ColumnPainter extends CustomPainter {
   final double lineHeight;
   final Color textColor;
   final Color numberColor;
+
+  /// Extra stroke weight (user setting) in ems of the font size.
+  final double weightEm;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -103,7 +112,8 @@ class _ColumnPainter extends CustomPainter {
       final y = row.row * lineHeight;
       switch (row) {
         case HeadingRow(:final text):
-          paintRun(canvas, text, headingStyle, Offset(0, y + lineHeight * 0.3));
+          paintRun(canvas, text, headingStyle, Offset(0, y + lineHeight * 0.3),
+              extraWeightEm: weightEm);
         case TextRow(:final line, :final numberScale):
           final numberStyle = TextStyle(
             fontFamily: 'GentiumBookPlus',
@@ -126,7 +136,8 @@ class _ColumnPainter extends CustomPainter {
                         : run.headingLevel == 2
                             ? subSectionStyle
                             : textStyle;
-            paintRun(canvas, run.text, style, Offset(run.x * scale, y));
+            paintRun(canvas, run.text, style, Offset(run.x * scale, y),
+                extraWeightEm: weightEm);
           }
       }
     }
@@ -138,6 +149,7 @@ class _ColumnPainter extends CustomPainter {
         old.scale != scale ||
         old.lineHeight != lineHeight ||
         old.textColor != textColor ||
-        old.numberColor != numberColor;
+        old.numberColor != numberColor ||
+        old.weightEm != weightEm;
   }
 }
