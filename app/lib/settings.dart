@@ -169,6 +169,29 @@ class SettingsController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Raw preferences for subsystems keeping their own keys (the Dropbox
+  /// transport's rev cache and tokens).
+  SharedPreferences get prefs => _prefs;
+
+  /// The user-brought Dropbox app key and refresh token (ADR 0014's
+  /// direct transport); null while not connected.
+  String? get dropboxAppKey => _prefs.getString('dropboxAppKey');
+  String? get dropboxRefreshToken => _prefs.getString('dropboxRefreshToken');
+
+  void setDropbox({String? appKey, String? refreshToken}) {
+    if (appKey == null) {
+      _prefs.remove('dropboxAppKey');
+    } else {
+      _prefs.setString('dropboxAppKey', appKey);
+    }
+    if (refreshToken == null) {
+      _prefs.remove('dropboxRefreshToken');
+    } else {
+      _prefs.setString('dropboxRefreshToken', refreshToken);
+    }
+    notifyListeners();
+  }
+
   /// The desk this device currently shows — local state by design
   /// (ADR 0014): other devices may sit on other desks.
   String? get currentDeskId => _currentDeskId;

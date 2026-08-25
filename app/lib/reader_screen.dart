@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'desks.dart';
 import 'footnotes_pane.dart';
+import 'sync_transport.dart';
 import 'pane_badge.dart';
 import 'pane_model.dart';
 import 'reader_pane.dart';
@@ -65,6 +66,9 @@ class _ReaderScreenState extends State<ReaderScreen>
     }
     _loadDesks();
     _initialized = true;
+    // A second, asynchronous pull covers transports with download latency
+    // (iCloud placeholders); it reloads the desk if anything arrived.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncPull());
   }
 
   /// Pull remote changes whenever the app comes back to the foreground —
@@ -132,13 +136,8 @@ class _ReaderScreenState extends State<ReaderScreen>
     userSet(key: 'desk/$_deskId', value: _layout.encode());
   }
 
-  void _syncPull() {
-    List<String> changed;
-    try {
-      changed = syncNow();
-    } catch (_) {
-      return;
-    }
+  Future<void> _syncPull() async {
+    final changed = await pullSync();
     if (changed.isEmpty || !mounted) return;
     setState(() {
       if (changed.contains('desks')) {

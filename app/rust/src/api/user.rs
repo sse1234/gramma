@@ -45,6 +45,12 @@ pub fn sync_dir() -> anyhow::Result<Option<String>> {
     with_store(|store| Ok(store.sync_dir()?))
 }
 
+/// This installation's stable device id — the name of its own op-log.
+#[flutter_rust_bridge::frb(sync)]
+pub fn device_id() -> anyhow::Result<String> {
+    with_store(|store| Ok(store.device_id()?))
+}
+
 /// Pull changes other installations wrote into the sync folder; returns
 /// the changed keys so the UI can react.
 #[flutter_rust_bridge::frb(sync)]

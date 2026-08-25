@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'dropbox_sync.dart';
 import 'src/rust/api/library.dart';
 import 'src/rust/api/typeset.dart';
 import 'src/rust/api/user.dart';
@@ -52,6 +53,19 @@ Future<void> main() async {
   initTypesetting(fontData: font.buffer.asUint8List());
   final prefs = await SharedPreferences.getInstance();
   final settings = SettingsController(prefs);
+  // Reconnect the direct Dropbox transport when configured (ADR 0014).
+  final dropboxKey = settings.dropboxAppKey;
+  final dropboxToken = settings.dropboxRefreshToken;
+  final dir = syncDir();
+  if (dropboxKey != null && dropboxToken != null && dir != null) {
+    activeDropbox = DropboxSync(
+      appKey: dropboxKey,
+      refreshToken: dropboxToken,
+      localRoot: dir,
+      ownLog: '${deviceId()}.jsonl',
+      prefs: prefs,
+    );
+  }
   if (WindowStatePersistence.supported) {
     await WindowStatePersistence(prefs).restoreAndTrack();
   }

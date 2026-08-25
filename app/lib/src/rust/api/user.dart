@@ -27,6 +27,9 @@ void configureSync({String? dir}) =>
 
 String? syncDir() => RustLib.instance.api.crateApiUserSyncDir();
 
+/// This installation's stable device id — the name of its own op-log.
+String deviceId() => RustLib.instance.api.crateApiUserDeviceId();
+
 /// Pull changes other installations wrote into the sync folder; returns
 /// the changed keys so the UI can react.
 List<String> syncNow() => RustLib.instance.api.crateApiUserSyncNow();

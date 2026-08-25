@@ -4,7 +4,10 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'dropbox_sync.dart';
+import 'icloud.dart';
 import 'settings.dart';
+import 'sync_transport.dart';
 import 'src/rust/api/library.dart';
 import 'src/rust/api/user.dart';
 
@@ -36,11 +39,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  void _applySyncFolder(String? path) {
+  Future<void> _applySyncFolder(String? path) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       configureSync(dir: path);
-      final changed = path == null ? const <String>[] : syncNow();
+      final changed = path == null ? const <String>[] : await pullSync();
+      if (!mounted) return;
       setState(() => _syncDir = path);
       messenger.showSnackBar(SnackBar(
         content: Text(path == null
@@ -53,9 +57,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _useICloud() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final path = Platform.isIOS
+        ? await icloudContainerPath()
+        : macIcloudContainerPath();
+    if (!mounted) return;
+    if (path == null) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(Platform.isIOS
+            ? 'iCloud is not available — check that iCloud Drive is '
+                'enabled for this device'
+            : 'No gramma iCloud container yet — open gramma on your '
+                'iPhone or iPad once, then try again'),
+      ));
+      return;
+    }
+    await _applySyncFolder(path);
+  }
+
   Future<void> _chooseSyncFolder() async {
     final path = await getDirectoryPath();
     if (path == null || !mounted) return;
+    _clearDropbox(SettingsScope.of(context));
     _applySyncFolder(path);
   }
 
@@ -92,20 +116,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
     if (path == null || path.trim().isEmpty || !mounted) return;
+    _clearDropbox(SettingsScope.of(context));
     _applySyncFolder(path.trim());
   }
 
-  void _syncNowPressed() {
+  Future<void> _syncNowPressed() async {
     final messenger = ScaffoldMessenger.of(context);
+    final changed = await pullSync();
+    messenger.showSnackBar(SnackBar(
+      content: Text(changed.isEmpty
+          ? 'Already up to date'
+          : '${changed.length} change(s) pulled'),
+    ));
+  }
+
+  /// Folder transports replace Dropbox and vice versa: connecting one
+  /// disconnects the other.
+  void _clearDropbox(SettingsController settings) {
+    activeDropbox = null;
+    settings.setDropbox(appKey: settings.dropboxAppKey, refreshToken: null);
+    settings.prefs.remove('dropboxRevs');
+    settings.prefs.remove('dropboxOwnHash');
+  }
+
+  Future<void> _connectDropbox() async {
+    final settings = SettingsScope.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await showDialog<(String, String)>(
+      context: context,
+      builder: (context) =>
+          DropboxConnectDialog(initialAppKey: settings.dropboxAppKey),
+    );
+    if (result == null || !mounted) return;
+    final (appKey, refreshToken) = result;
+    settings.setDropbox(appKey: appKey, refreshToken: refreshToken);
+    final support = await getApplicationSupportDirectory();
+    final mirror = '${support.path}/dropbox-sync';
+    if (!mounted) return;
     try {
-      final changed = syncNow();
-      messenger.showSnackBar(SnackBar(
-        content: Text(changed.isEmpty
-            ? 'Already up to date'
-            : '${changed.length} change(s) pulled'),
-      ));
+      activeDropbox = DropboxSync(
+        appKey: appKey,
+        refreshToken: refreshToken,
+        localRoot: mirror,
+        ownLog: '${deviceId()}.jsonl',
+        prefs: settings.prefs,
+      );
+      await _applySyncFolder(mirror);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Sync failed: $e')));
+      activeDropbox = null;
+      messenger.showSnackBar(
+          SnackBar(content: Text('Dropbox connection failed: $e')));
     }
   }
 
@@ -385,16 +445,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Synced folder'),
                 subtitle: Text(
-                  _syncDir ??
-                      'Off — point gramma at a folder your cloud provider '
-                          'or sync agent keeps in sync (ADR 0014). Desks and '
-                          'reading positions flow between your devices; '
-                          'texts never leave this device.',
+                  settings.dropboxRefreshToken != null
+                      ? 'Dropbox — direct connection, no local client. '
+                          'Op-logs live under Apps in your Dropbox.'
+                      : _syncDir ??
+                          'Off — point gramma at a folder your cloud '
+                              'provider or sync agent keeps in sync, or '
+                              'connect Dropbox directly (ADR 0014). Desks '
+                              'and reading positions flow between your '
+                              'devices; texts never leave this device.',
                 ),
               ),
               Wrap(
                 spacing: 8,
                 children: [
+                  if (settings.dropboxRefreshToken == null)
+                    FilledButton.tonal(
+                      key: const Key('sync-dropbox'),
+                      onPressed: _connectDropbox,
+                      child: const Text('Connect Dropbox…'),
+                    ),
+                  if (icloudTransportEnabled &&
+                      (Platform.isIOS || Platform.isMacOS))
+                    FilledButton.tonal(
+                      key: const Key('sync-icloud'),
+                      onPressed: _useICloud,
+                      child: const Text('Use iCloud Drive'),
+                    ),
                   if (Platform.isMacOS ||
                       Platform.isLinux ||
                       Platform.isWindows)
@@ -416,7 +493,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     TextButton(
                       key: const Key('sync-disable'),
-                      onPressed: () => _applySyncFolder(null),
+                      onPressed: () {
+                        _clearDropbox(settings);
+                        _applySyncFolder(null);
+                      },
                       child: const Text('Disable'),
                     ),
                   ],
@@ -427,6 +507,122 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The Dropbox PKCE flow, all out-of-band: the user brings their own app
+/// key, opens the shown link, and pastes the code Dropbox displays. No
+/// client secret, no redirect server, nothing gramma-operated.
+class DropboxConnectDialog extends StatefulWidget {
+  const DropboxConnectDialog({super.key, this.initialAppKey});
+
+  final String? initialAppKey;
+
+  @override
+  State<DropboxConnectDialog> createState() => _DropboxConnectDialogState();
+}
+
+class _DropboxConnectDialogState extends State<DropboxConnectDialog> {
+  final _auth = DropboxAuth();
+  late final TextEditingController _appKey =
+      TextEditingController(text: widget.initialAppKey ?? '');
+  final _code = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _appKey.dispose();
+    _code.dispose();
+    super.dispose();
+  }
+
+  Future<void> _connect() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final refresh =
+          await _auth.exchangeCode(_appKey.text.trim(), _code.text);
+      if (!mounted) return;
+      Navigator.of(context).pop((_appKey.text.trim(), refresh));
+    } catch (e) {
+      setState(() {
+        _busy = false;
+        _error = '$e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final key = _appKey.text.trim();
+    return AlertDialog(
+      title: const Text('Connect Dropbox'),
+      content: SizedBox(
+        width: 440,
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Text(
+              'Create a free "Scoped access" app with "App folder" access '
+              'at dropbox.com/developers/apps and paste its app key. '
+              'gramma will only ever see its own app folder.',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              key: const Key('dropbox-key'),
+              controller: _appKey,
+              decoration: const InputDecoration(labelText: 'App key'),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 12),
+            if (key.isNotEmpty) ...[
+              Text('1. Open this link in a browser and allow access:',
+                  style: theme.textTheme.bodySmall),
+              SelectableText(
+                _auth.authorizeUrl(key).toString(),
+                key: const Key('dropbox-url'),
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.primary),
+              ),
+              const SizedBox(height: 8),
+              Text('2. Paste the code Dropbox shows:',
+                  style: theme.textTheme.bodySmall),
+              TextField(
+                key: const Key('dropbox-code'),
+                controller: _code,
+                decoration: const InputDecoration(labelText: 'Access code'),
+                onSubmitted: (_) => _connect(),
+              ),
+            ],
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(_error!,
+                    style: TextStyle(color: theme.colorScheme.error)),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed:
+              _busy ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const Key('dropbox-connect'),
+          onPressed: _busy || key.isEmpty || _code.text.isEmpty
+              ? null
+              : _connect,
+          child: Text(_busy ? 'Connecting…' : 'Connect'),
+        ),
+      ],
     );
   }
 }
