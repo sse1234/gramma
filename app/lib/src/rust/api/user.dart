@@ -7,12 +7,26 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+// These functions are ignored because they are not marked as `pub`: `with_store`
+
 void openUserStore({required String path}) =>
     RustLib.instance.api.crateApiUserOpenUserStore(path: path);
 
-/// Persist the layout object (ADR 0008): the serialized description of the
-/// current view arrangement.
-void saveLayout({required String json}) =>
-    RustLib.instance.api.crateApiUserSaveLayout(json: json);
+/// Persist one synced user value (desks, layout objects, later notes);
+/// the write is stamped and appended to the sync op-log (ADR 0014).
+void userSet({required String key, required String value}) =>
+    RustLib.instance.api.crateApiUserUserSet(key: key, value: value);
 
-String? loadLayout() => RustLib.instance.api.crateApiUserLoadLayout();
+String? userGet({required String key}) =>
+    RustLib.instance.api.crateApiUserUserGet(key: key);
+
+/// Point the store at a synced folder (None disables sync). Fails when
+/// the folder cannot be written.
+void configureSync({String? dir}) =>
+    RustLib.instance.api.crateApiUserConfigureSync(dir: dir);
+
+String? syncDir() => RustLib.instance.api.crateApiUserSyncDir();
+
+/// Pull changes other installations wrote into the sync folder; returns
+/// the changed keys so the UI can react.
+List<String> syncNow() => RustLib.instance.api.crateApiUserSyncNow();

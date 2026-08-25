@@ -1,6 +1,7 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
+import 'desks.dart';
 import 'footnotes_pane.dart';
 import 'pane_badge.dart';
 import 'pane_model.dart';
@@ -21,13 +22,16 @@ class ReaderScreen extends StatefulWidget {
   State<ReaderScreen> createState() => _ReaderScreenState();
 }
 
-class _ReaderScreenState extends State<ReaderScreen> {
+class _ReaderScreenState extends State<ReaderScreen>
+    with WidgetsBindingObserver {
   static const _gripThickness = 12.0;
   static const _minPaneExtent = 140.0;
   static const _gutter = 48.0;
 
   List<ModuleView> _modules = const [];
   late LayoutModel _layout;
+  DeskRegistry _registry = DeskRegistry([DeskInfo(id: '', name: 'Desk 1')]);
+  String _deskId = '';
   bool _initialized = false;
 
   /// Pane id currently being dragged for rearrangement, if any.
@@ -40,13 +44,65 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialized) return;
     _modules = modules();
-    _layout = _loadLayout();
+    try {
+      syncNow();
+    } catch (_) {
+      // An unreachable sync folder never blocks startup.
+    }
+    _loadDesks();
     _initialized = true;
   }
 
-  LayoutModel _loadLayout() {
-    final stored = loadLayout();
+  /// Pull remote changes whenever the app comes back to the foreground —
+  /// the "continue on another device" moment (ADR 0014).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _syncPull();
+  }
+
+  void _loadDesks() {
+    final settings = SettingsScope.of(context);
+    var registry = DeskRegistry.decode(userGet(key: 'desks') ?? '');
+    if (registry == null) {
+      // First run, or migration from the single-layout era: the legacy
+      // 'layout' value becomes Desk 1.
+      final id = newDeskId();
+      registry = DeskRegistry([DeskInfo(id: id, name: 'Desk 1')]);
+      final legacy = userGet(key: 'layout');
+      if (legacy != null) {
+        userSet(key: 'desk/$id', value: legacy);
+      }
+      userSet(key: 'desks', value: registry.encode());
+    }
+    _registry = registry;
+    final chosen =
+        registry.byId(settings.currentDeskId) ?? registry.desks.first;
+    _deskId = chosen.id;
+    if (settings.currentDeskId != chosen.id) {
+      // Deferred: notifying settings listeners mid-build is not allowed.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) settings.setCurrentDeskId(chosen.id);
+      });
+    }
+    _layout = _loadDeskLayout(chosen.id);
+  }
+
+  LayoutModel _loadDeskLayout(String id) {
+    final stored = userGet(key: 'desk/$id');
     if (stored != null) {
       final decoded = LayoutModel.decode(stored);
       if (decoded != null) {
@@ -60,6 +116,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
         return decoded;
       }
     }
+    return _freshLayout();
+  }
+
+  LayoutModel _freshLayout() {
     return LayoutModel([
       PaneColumn(panes: [
         PaneSpec(kind: PaneKind.text, module: _modules.firstOrNull?.code),
@@ -69,7 +129,116 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _save() {
-    saveLayout(json: _layout.encode());
+    userSet(key: 'desk/$_deskId', value: _layout.encode());
+  }
+
+  void _syncPull() {
+    List<String> changed;
+    try {
+      changed = syncNow();
+    } catch (_) {
+      return;
+    }
+    if (changed.isEmpty || !mounted) return;
+    setState(() {
+      if (changed.contains('desks')) {
+        final registry = DeskRegistry.decode(userGet(key: 'desks') ?? '');
+        if (registry != null) {
+          _registry = registry;
+          if (registry.byId(_deskId) == null) {
+            // The shown desk was deleted on another device.
+            _deskId = registry.desks.first.id;
+            _layout = _loadDeskLayout(_deskId);
+            _commands.clear();
+            return;
+          }
+        }
+      }
+      if (changed.contains('desk/$_deskId')) {
+        _layout = _loadDeskLayout(_deskId);
+        _commands.clear();
+      }
+    });
+  }
+
+  void _switchDesk(String id) {
+    if (id == _deskId) return;
+    setState(() {
+      _deskId = id;
+      _layout = _loadDeskLayout(id);
+      _commands.clear();
+    });
+    SettingsScope.of(context).setCurrentDeskId(id);
+  }
+
+  void _newDesk() {
+    final id = newDeskId();
+    _registry.desks.add(DeskInfo(id: id, name: _registry.nextName()));
+    userSet(key: 'desks', value: _registry.encode());
+    userSet(key: 'desk/$id', value: _freshLayout().encode());
+    _switchDesk(id);
+  }
+
+  Future<void> _renameDesk() async {
+    final desk = _registry.byId(_deskId);
+    if (desk == null) return;
+    final controller = TextEditingController(text: desk.name);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename desk'),
+        content: TextField(
+          key: const Key('desk-name-field'),
+          controller: controller,
+          autofocus: true,
+          onSubmitted: (value) => Navigator.of(context).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            key: const Key('desk-rename-confirm'),
+            onPressed: () => Navigator.of(context).pop(controller.text),
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.trim().isEmpty) return;
+    setState(() => desk.name = name.trim());
+    userSet(key: 'desks', value: _registry.encode());
+  }
+
+  Future<void> _deleteDesk() async {
+    if (_registry.desks.length < 2) return;
+    final desk = _registry.byId(_deskId);
+    if (desk == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete "${desk.name}"?'),
+        content: const Text(
+            'The desk and its view arrangement are removed on every '
+            'synced device. Your texts and reading history stay.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep'),
+          ),
+          TextButton(
+            key: const Key('desk-delete-confirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    _registry.desks.removeWhere((d) => d.id == _deskId);
+    userSet(key: 'desks', value: _registry.encode());
+    _switchDesk(_registry.desks.first.id);
   }
 
   void _setAnchor(String id, String osis) {
@@ -404,6 +573,39 @@ class _ReaderScreenState extends State<ReaderScreen> {
       appBar: reading ? null : AppBar(
         title: const Text('gramma'),
         actions: [
+          PopupMenuButton<VoidCallback>(
+            key: const Key('desk-menu'),
+            tooltip:
+                'Desks — ${_registry.byId(_deskId)?.name ?? 'Desk 1'}',
+            icon: const Icon(Icons.desk_outlined),
+            onSelected: (action) => action(),
+            itemBuilder: (context) => [
+              for (final desk in _registry.desks)
+                CheckedPopupMenuItem(
+                  key: Key('desk-item-${desk.name}'),
+                  checked: desk.id == _deskId,
+                  value: () => _switchDesk(desk.id),
+                  child: Text(desk.name),
+                ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                key: const Key('desk-new'),
+                value: _newDesk,
+                child: const Text('New desk'),
+              ),
+              PopupMenuItem(
+                key: const Key('desk-rename'),
+                value: _renameDesk,
+                child: const Text('Rename desk…'),
+              ),
+              if (_registry.desks.length > 1)
+                PopupMenuItem(
+                  key: const Key('desk-delete'),
+                  value: _deleteDesk,
+                  child: const Text('Delete desk…'),
+                ),
+            ],
+          ),
           PopupMenuButton<PaneKind>(
             key: const Key('add-view'),
             tooltip: 'Add view',
@@ -424,9 +626,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
             key: const Key('open-settings'),
             tooltip: 'Settings',
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+              // Sync may have been (re)configured there.
+              _syncPull();
+            },
           ),
           IconButton(
             key: const Key('import-osis'),

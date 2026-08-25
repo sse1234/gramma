@@ -56,6 +56,7 @@ class SettingsController extends ChangeNotifier {
     _footnoteScale = _prefs.getDouble('footnoteScale') ?? 1.0;
     _previewScale = _prefs.getDouble('previewScale') ?? 1.0;
     _columnAdvance = _prefs.getDouble('columnAdvance') ?? defaultColumnAdvance;
+    _currentDeskId = _prefs.getString('currentDesk');
     _themeMode = switch (_prefs.getString('themeMode')) {
       'light' => ThemeMode.light,
       'dark' => ThemeMode.dark,
@@ -86,6 +87,7 @@ class SettingsController extends ChangeNotifier {
   double _footnoteScale = 1.0;
   double _previewScale = 1.0;
   double _columnAdvance = defaultColumnAdvance;
+  String? _currentDeskId;
 
   /// Column width in logical pixels — the zoom level.
   double get columnWidth => _columnWidth;
@@ -164,6 +166,16 @@ class SettingsController extends ChangeNotifier {
   void setColumnAdvance(double value) {
     _columnAdvance = value.clamp(minColumnAdvance, maxColumnAdvance);
     _prefs.setDouble('columnAdvance', _columnAdvance);
+    notifyListeners();
+  }
+
+  /// The desk this device currently shows — local state by design
+  /// (ADR 0014): other devices may sit on other desks.
+  String? get currentDeskId => _currentDeskId;
+
+  void setCurrentDeskId(String id) {
+    _currentDeskId = id;
+    _prefs.setString('currentDesk', id);
     notifyListeners();
   }
 

@@ -8,6 +8,7 @@ import 'package:gramma/footnotes_pane.dart';
 import 'package:gramma/reader_pane.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gramma/desks.dart';
 import 'package:gramma/main.dart';
 import 'package:gramma/pane_model.dart';
 import 'package:gramma/settings.dart';
@@ -739,6 +740,124 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('desks: create, switch, rename, and delete', (tester) async {
+    _freshUserStore();
+    _phoneViewport(tester);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    String label() => tester
+        .widget<Text>(find.byKey(const Key('current-position')))
+        .data!;
+
+    // A second desk starts fresh; give it its own position.
+    await tester.tap(find.byKey(const Key('desk-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('desk-new')));
+    await tester.pumpAndSettle();
+    await _settleLayouts(tester);
+    await _selectRef(tester, book: 'Exod', chapter: 2);
+    await _settle(tester, () => label() == '2. Mose 2');
+
+    // Switching desks restores each desk's own position.
+    await tester.tap(find.byKey(const Key('desk-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('desk-item-Desk 1')));
+    await tester.pumpAndSettle();
+    await _settle(tester, () => label() == '1. Mose 1');
+    await tester.tap(find.byKey(const Key('desk-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('desk-item-Desk 2')));
+    await tester.pumpAndSettle();
+    await _settle(tester, () => label() == '2. Mose 2');
+
+    // Rename the current desk.
+    await tester.tap(find.byKey(const Key('desk-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('desk-rename')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('desk-name-field')), 'Study');
+    await tester.tap(find.byKey(const Key('desk-rename-confirm')));
+    await tester.pumpAndSettle();
+
+    // Delete it: back on Desk 1, Study is gone.
+    await tester.tap(find.byKey(const Key('desk-menu')));
+    await tester.pumpAndSettle();
+    expect(find.text('Study'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('desk-delete')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('desk-delete-confirm')));
+    await tester.pumpAndSettle();
+    await _settle(tester, () => label() == '1. Mose 1');
+    await tester.tap(find.byKey(const Key('desk-menu')));
+    await tester.pumpAndSettle();
+    expect(find.text('Study'), findsNothing);
+  });
+
+  testWidgets('the legacy single layout migrates into Desk 1',
+      (tester) async {
+    _freshUserStore();
+    _phoneViewport(tester);
+    final legacy = LayoutModel([
+      PaneColumn(panes: [
+        PaneSpec(kind: PaneKind.text, module: 'FixDe', anchor: 'Exod.2.1'),
+      ]),
+    ])
+      ..ensureBadges();
+    userSet(key: 'layout', value: legacy.encode());
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await _settle(
+      tester,
+      () =>
+          tester
+              .widget<Text>(find.byKey(const Key('current-position')))
+              .data ==
+          '2. Mose 2',
+    );
+    expect(DeskRegistry.decode(userGet(key: 'desks')!), isNotNull,
+        reason: 'the registry now exists with the migrated desk');
+  });
+
+  testWidgets('a desk arranged on one device appears on the second',
+      (tester) async {
+    _phoneViewport(tester);
+    final folder = Directory.systemTemp.createTempSync('gramma-syncdir');
+
+    // Device A: sync into the folder, read at 2. Mose 1. (Not the last
+    // fixture chapter: that cannot sit at the viewport top, so its label
+    // would never stabilize.)
+    _freshUserStore();
+    configureSync(dir: folder.path);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await _selectRef(tester, book: 'Exod', chapter: 1);
+    await _settle(
+      tester,
+      () =>
+          tester
+              .widget<Text>(find.byKey(const Key('current-position')))
+              .data ==
+          '2. Mose 1',
+    );
+
+    // Device B: a fresh store pointed at the same folder.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+    _freshUserStore();
+    configureSync(dir: folder.path);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await _settle(
+      tester,
+      () =>
+          tester
+              .widget<Text>(find.byKey(const Key('current-position')))
+              .data ==
+          '2. Mose 1',
+    );
+  });
+
   testWidgets('corrupted pane weights restore to a usable desk',
       (tester) async {
     _freshUserStore();
@@ -749,7 +868,9 @@ void main() {
       PaneColumn(
           panes: [PaneSpec(kind: PaneKind.text, module: 'FixDe')]),
     ]);
-    saveLayout(json: broken.encode());
+    final desk = DeskInfo(id: 'dtest', name: 'Desk 1');
+    userSet(key: 'desks', value: DeskRegistry([desk]).encode());
+    userSet(key: 'desk/dtest', value: broken.encode());
     _desktopViewport(tester);
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await _settleLayouts(tester);

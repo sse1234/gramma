@@ -377,6 +377,13 @@ class _ReaderPaneState extends State<ReaderPane> {
         _lineCounts = counts.map((c) => c.toInt()).toList();
         _restoreAnchor();
       });
+      // The vertical list was built before the counts arrived, sitting at
+      // its initial index — move it to the restored chapter for real.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _topChapter > 0 && _vScroll.isAttached) {
+          _vScroll.jumpTo(index: _topChapter);
+        }
+      });
       if (_spine.isNotEmpty) {
         _emitPosition();
       }
@@ -444,6 +451,9 @@ class _ReaderPaneState extends State<ReaderPane> {
   }
 
   void _onVerticalPositions() {
+    // Before the line counts arrive the list still sits at its build-time
+    // index; emitting now would overwrite the stored anchor with it.
+    if (_lineCounts == null) return;
     final positions = _vPositions.itemPositions.value;
     if (positions.isEmpty) return;
     ItemPosition? topPosition;

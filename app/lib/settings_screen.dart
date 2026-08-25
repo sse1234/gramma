@@ -1,7 +1,12 @@
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'settings.dart';
 import 'src/rust/api/library.dart';
+import 'src/rust/api/user.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -14,6 +19,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _measureUnlocked = false;
   double? _measurePreview;
   List<ModuleView> _modules = const [];
+  String? _syncDir;
 
   @override
   void initState() {
@@ -22,6 +28,84 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _modules = modules();
     } catch (_) {
       _modules = const [];
+    }
+    try {
+      _syncDir = syncDir();
+    } catch (_) {
+      _syncDir = null;
+    }
+  }
+
+  void _applySyncFolder(String? path) {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      configureSync(dir: path);
+      final changed = path == null ? const <String>[] : syncNow();
+      setState(() => _syncDir = path);
+      messenger.showSnackBar(SnackBar(
+        content: Text(path == null
+            ? 'Sync disabled'
+            : 'Sync enabled — ${changed.length} change(s) pulled'),
+      ));
+    } catch (e) {
+      messenger.showSnackBar(
+          SnackBar(content: Text('Folder not usable: $e')));
+    }
+  }
+
+  Future<void> _chooseSyncFolder() async {
+    final path = await getDirectoryPath();
+    if (path == null || !mounted) return;
+    _applySyncFolder(path);
+  }
+
+  Future<void> _enterSyncFolder() async {
+    var suggestion = _syncDir ?? '';
+    if (suggestion.isEmpty && Platform.isAndroid) {
+      // Reachable by sync agents like Syncthing without extra permissions.
+      final external = await getExternalStorageDirectory();
+      if (external != null) suggestion = '${external.path}/sync';
+    }
+    if (!mounted) return;
+    final controller = TextEditingController(text: suggestion);
+    final path = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Synced folder path'),
+        content: TextField(
+          key: const Key('sync-path-field'),
+          controller: controller,
+          autofocus: true,
+          onSubmitted: (value) => Navigator.of(context).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            key: const Key('sync-path-confirm'),
+            onPressed: () => Navigator.of(context).pop(controller.text),
+            child: const Text('Use folder'),
+          ),
+        ],
+      ),
+    );
+    if (path == null || path.trim().isEmpty || !mounted) return;
+    _applySyncFolder(path.trim());
+  }
+
+  void _syncNowPressed() {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final changed = syncNow();
+      messenger.showSnackBar(SnackBar(
+        content: Text(changed.isEmpty
+            ? 'Already up to date'
+            : '${changed.length} change(s) pulled'),
+      ));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Sync failed: $e')));
     }
   }
 
@@ -294,6 +378,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     setState(() => _measurePreview = null);
                   },
                 ),
+              const SizedBox(height: 16),
+              Text('Sync', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 4),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Synced folder'),
+                subtitle: Text(
+                  _syncDir ??
+                      'Off — point gramma at a folder your cloud provider '
+                          'or sync agent keeps in sync (ADR 0014). Desks and '
+                          'reading positions flow between your devices; '
+                          'texts never leave this device.',
+                ),
+              ),
+              Wrap(
+                spacing: 8,
+                children: [
+                  if (Platform.isMacOS ||
+                      Platform.isLinux ||
+                      Platform.isWindows)
+                    FilledButton.tonal(
+                      key: const Key('sync-choose'),
+                      onPressed: _chooseSyncFolder,
+                      child: const Text('Choose folder…'),
+                    ),
+                  OutlinedButton(
+                    key: const Key('sync-enter'),
+                    onPressed: _enterSyncFolder,
+                    child: const Text('Enter path…'),
+                  ),
+                  if (_syncDir != null) ...[
+                    OutlinedButton(
+                      key: const Key('sync-now'),
+                      onPressed: _syncNowPressed,
+                      child: const Text('Sync now'),
+                    ),
+                    TextButton(
+                      key: const Key('sync-disable'),
+                      onPressed: () => _applySyncFolder(null),
+                      child: const Text('Disable'),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 24),
             ],
           ),
         ),
