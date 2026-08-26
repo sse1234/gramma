@@ -48,6 +48,30 @@ fn line_text(line: &LineOut) -> String {
 }
 
 #[test]
+fn every_bundled_face_parses_and_literata_really_differs() {
+    let book: &[u8] = FONT;
+    let plus: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../app/fonts/GentiumPlus-Regular.ttf"
+    ));
+    let literata: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../app/fonts/Literata-Regular.ttf"
+    ));
+    let faces = [book, plus, literata].map(|data| {
+        let m = FontMeasure::new(data).expect("bundled face parses");
+        assert!(m.text_width("Wort") > 0);
+        m
+    });
+    let width = |m: &FontMeasure, s: &str| m.text_width(s) as f64 / m.units_per_em() as f64;
+    let sample = "Am Anfang schuf Gott Himmel und Erde";
+    assert!(
+        (width(&faces[0], sample) - width(&faces[2], sample)).abs() > 0.3,
+        "Literata's metrics must differ visibly from Gentium's"
+    );
+}
+
+#[test]
 fn font_measures_real_advances() {
     let m = measure();
     assert!(m.units_per_em() >= 1000);

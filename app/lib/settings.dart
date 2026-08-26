@@ -73,17 +73,19 @@ class SettingsController extends ChangeNotifier {
     };
   }
 
-  /// The bundled typefaces: Flutter family name → font asset. Gentium
-  /// Book Plus is the heavier default, Gentium Plus its lighter
-  /// companion cut (both SIL OFL).
+  /// The bundled typefaces (all SIL OFL): Gentium Book Plus is the
+  /// default, Gentium Plus its slightly lighter companion cut, and
+  /// Literata a visibly different voice designed for e-reading.
   static const fontAssets = {
     'GentiumBookPlus': 'fonts/GentiumBookPlus-Regular.ttf',
     'GentiumPlus': 'fonts/GentiumPlus-Regular.ttf',
+    'Literata': 'fonts/Literata-Regular.ttf',
   };
 
   static const fontDisplayNames = {
     'GentiumBookPlus': 'Gentium Book Plus',
     'GentiumPlus': 'Gentium Plus',
+    'Literata': 'Literata',
   };
 
   static const defaultColumnWidth = 400.0;
