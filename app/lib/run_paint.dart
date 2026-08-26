@@ -4,13 +4,22 @@ import 'package:flutter/painting.dart';
 /// A chapter entering the viewport paints ~1500 runs in one frame; most
 /// are words already shaped before, so the cache turns that frame from
 /// thousands of text layouts into map lookups.
-typedef _RunKey = (String, double?, int?, FontWeight?, FontStyle?, double);
+typedef _RunKey = (
+  String,
+  String?, // font family — a typeface switch must never hit stale glyphs
+  double?,
+  int?,
+  FontWeight?,
+  FontStyle?,
+  double,
+);
 final Map<_RunKey, TextPainter> _painters = {};
 const _painterCacheLimit = 8000;
 
 TextPainter _layoutPainter(String text, TextStyle style, double strokeEm) {
   final key = (
     text,
+    style.fontFamily,
     style.fontSize,
     style.color?.toARGB32(),
     style.fontWeight,
