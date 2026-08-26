@@ -81,10 +81,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get footnotesView => 'Fußnotenansicht';
 
   @override
+  String get commentaryView => 'Kommentaransicht';
+
+  @override
   String get settingsTooltip => 'Einstellungen';
 
   @override
-  String get importOsisTooltip => 'OSIS importieren…';
+  String get importOsisTooltip => 'Modul importieren…';
 
   @override
   String importedModule(String title, int verses) {
@@ -118,6 +121,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get footnotesTitle => 'Fußnoten';
 
   @override
+  String get commentaryTitle => 'Kommentar';
+
+  @override
   String get selectorTooltip => 'Buch, Kapitel, Vers wählen';
 
   @override
@@ -126,6 +132,22 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get noFootnotes => 'Keine Fußnoten im sichtbaren Bereich';
+
+  @override
+  String get linkCommentaryHint =>
+      'Verknüpfe diese Ansicht mit einer Textansicht, um den Kommentar zur Passage zu sehen';
+
+  @override
+  String get noCommentary => 'Kein Kommentar im sichtbaren Bereich';
+
+  @override
+  String get noCommentaryModules =>
+      'Importiere einen Kommentar (SWORD-Zip-Paket), um diese Ansicht zu nutzen';
+
+  @override
+  String importedCommentary(String title, int entries) {
+    return '$title importiert ($entries Abschnitte)';
+  }
 
   @override
   String get importToBegin =>

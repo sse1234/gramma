@@ -1,0 +1,427 @@
+//! SWORD zCom commentary reading (ADR 0017): a clean-room implementation
+//! of the publicly documented CrossWire container format.
+//!
+//! A zCom module keeps, per testament, three files: `*.bzs` (block index:
+//! offset, compressed size, uncompressed size — 12 bytes little-endian),
+//! `*.bzv` (verse index: block number, offset in the uncompressed block,
+//! entry size — 10 bytes little-endian), and `*.bzz` (the zlib-compressed
+//! blocks). Verse slots follow the module's versification; a pericope
+//! entry is *linked* by pointing several consecutive slots at the same
+//! bytes. We walk the verse index in order and de-duplicate, so no canon
+//! table is needed — each fragment names its own verse range in its
+//! `annotateRef`. Fragments without one (book/chapter milestones, importer
+//! notes) are structural and skipped, as are non-canonical books (ADR
+//! 0010).
+
+use std::collections::HashMap;
+use std::io::Read;
+use std::path::Path;
+
+use flate2::read::ZlibDecoder;
+use quick_xml::events::{BytesStart, Event};
+use quick_xml::Reader;
+
+use crate::reference::{book_by_osis, BookId};
+
+#[derive(Debug, thiserror::Error)]
+pub enum SwordError {
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("zip error: {0}")]
+    Zip(#[from] zip::result::ZipError),
+    #[error("XML error: {0}")]
+    Xml(#[from] quick_xml::Error),
+    #[error("no module configuration (mods.d/*.conf) in package")]
+    NoConf,
+    #[error("unsupported module: {0}")]
+    Unsupported(String),
+    #[error("module data is not valid UTF-8")]
+    Encoding,
+    #[error("corrupt module data: {0}")]
+    Corrupt(String),
+    #[error("module contains no commentary entries")]
+    Empty,
+}
+
+/// One testament's raw data files.
+pub struct Testament {
+    pub bzs: Vec<u8>,
+    pub bzv: Vec<u8>,
+    pub bzz: Vec<u8>,
+}
+
+pub struct SwordCommentary {
+    pub code: String,
+    pub title: String,
+    pub language: String,
+    pub entries: Vec<CommentaryEntry>,
+}
+
+/// One commentary section, covering a verse range within one chapter.
+pub struct CommentaryEntry {
+    pub book: BookId,
+    pub chapter: u16,
+    pub verse_start: u16,
+    pub verse_end: u16,
+    /// The section's leading title, when it has one.
+    pub heading: Option<String>,
+    /// Normalized text; paragraphs are separated by "\n\n".
+    pub text: String,
+    pub refs: Vec<CommentRef>,
+}
+
+/// A verse reference inside entry text, as a byte range plus its OSIS id.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommentRef {
+    pub start: u32,
+    pub end: u32,
+    pub osis: String,
+}
+
+struct Conf {
+    code: String,
+    title: String,
+    language: String,
+    data_path: String,
+}
+
+fn parse_conf(conf: &str) -> Result<Conf, SwordError> {
+    let mut code = None;
+    let mut values: HashMap<&str, &str> = HashMap::new();
+    for line in conf.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some(name) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
+            code.get_or_insert(name.to_string());
+        } else if let Some((key, value)) = line.split_once('=') {
+            values.entry(key.trim()).or_insert(value.trim());
+        }
+    }
+    let code = code.ok_or(SwordError::NoConf)?;
+    let expect = |key: &str, wanted: &str| -> Result<(), SwordError> {
+        let got = values.get(key).copied().unwrap_or("");
+        if got.eq_ignore_ascii_case(wanted) {
+            Ok(())
+        } else {
+            Err(SwordError::Unsupported(format!("{key}={got}")))
+        }
+    };
+    expect("ModDrv", "zCom")?;
+    expect("CompressType", "ZIP")?;
+    expect("SourceType", "OSIS")?;
+    expect("Encoding", "UTF-8")?;
+    Ok(Conf {
+        title: values
+            .get("Description")
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| code.clone()),
+        language: values.get("Lang").unwrap_or(&"en").to_string(),
+        data_path: values
+            .get("DataPath")
+            .map(|s| s.trim_start_matches("./").trim_end_matches('/'))
+            .unwrap_or("")
+            .to_string(),
+        code,
+    })
+}
+
+/// Read a SWORD distribution package (the CrossWire raw zip form).
+pub fn read_zcom_zip(path: &Path) -> Result<SwordCommentary, SwordError> {
+    let file = std::fs::File::open(path)?;
+    let mut zip = zip::ZipArchive::new(file)?;
+    let conf_name = (0..zip.len())
+        .filter_map(|i| zip.by_index(i).ok().map(|f| f.name().to_string()))
+        .find(|n| n.starts_with("mods.d/") && n.ends_with(".conf"))
+        .ok_or(SwordError::NoConf)?;
+    let mut conf_text = String::new();
+    zip.by_name(&conf_name)?.read_to_string(&mut conf_text)?;
+    let conf = parse_conf(&conf_text)?;
+
+    let mut read = |name: String| -> Result<Option<Vec<u8>>, SwordError> {
+        match zip.by_name(&name) {
+            Ok(mut f) => {
+                let mut data = Vec::new();
+                f.read_to_end(&mut data)?;
+                Ok(Some(data))
+            }
+            Err(zip::result::ZipError::FileNotFound) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    };
+    let mut testaments = Vec::new();
+    for t in ["ot", "nt"] {
+        let base = format!("{}/{t}", conf.data_path);
+        let (Some(bzs), Some(bzv), Some(bzz)) = (
+            read(format!("{base}.bzs"))?,
+            read(format!("{base}.bzv"))?,
+            read(format!("{base}.bzz"))?,
+        ) else {
+            continue;
+        };
+        testaments.push(Testament { bzs, bzv, bzz });
+    }
+    parse_zcom_parsed(conf, &testaments)
+}
+
+/// Parse a zCom commentary from its configuration and data files.
+pub fn parse_zcom(conf: &str, testaments: &[Testament]) -> Result<SwordCommentary, SwordError> {
+    parse_zcom_parsed(parse_conf(conf)?, testaments)
+}
+
+fn parse_zcom_parsed(
+    conf: Conf,
+    testaments: &[Testament],
+) -> Result<SwordCommentary, SwordError> {
+    let mut entries = Vec::new();
+    for t in testaments {
+        walk_testament(t, &mut entries)?;
+    }
+    if entries.is_empty() {
+        return Err(SwordError::Empty);
+    }
+    Ok(SwordCommentary {
+        code: conf.code,
+        title: conf.title,
+        language: conf.language,
+        entries,
+    })
+}
+
+fn walk_testament(t: &Testament, entries: &mut Vec<CommentaryEntry>) -> Result<(), SwordError> {
+    let blocks: Vec<(u32, u32)> = t
+        .bzs
+        .chunks_exact(12)
+        .map(|c| {
+            (
+                u32::from_le_bytes(c[0..4].try_into().unwrap()),
+                u32::from_le_bytes(c[4..8].try_into().unwrap()),
+            )
+        })
+        .collect();
+    let mut cache: HashMap<u32, Vec<u8>> = HashMap::new();
+    let mut seen: std::collections::HashSet<(u32, u32, u16)> = Default::default();
+    for slot in t.bzv.chunks_exact(10) {
+        let block = u32::from_le_bytes(slot[0..4].try_into().unwrap());
+        let offset = u32::from_le_bytes(slot[4..8].try_into().unwrap());
+        let size = u16::from_le_bytes(slot[8..10].try_into().unwrap());
+        if size == 0 || !seen.insert((block, offset, size)) {
+            continue;
+        }
+        let data = match cache.entry(block) {
+            std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+            std::collections::hash_map::Entry::Vacant(e) => {
+                let (start, compressed) = *blocks
+                    .get(block as usize)
+                    .ok_or_else(|| SwordError::Corrupt(format!("block {block}")))?;
+                let raw = t
+                    .bzz
+                    .get(start as usize..(start + compressed) as usize)
+                    .ok_or_else(|| SwordError::Corrupt(format!("block {block} bounds")))?;
+                let mut out = Vec::new();
+                ZlibDecoder::new(raw).read_to_end(&mut out)?;
+                e.insert(out)
+            }
+        };
+        let bytes = data
+            .get(offset as usize..(offset as usize + size as usize))
+            .ok_or_else(|| SwordError::Corrupt(format!("entry bounds in block {block}")))?;
+        let fragment = std::str::from_utf8(bytes).map_err(|_| SwordError::Encoding)?;
+        if let Some(entry) = parse_fragment(fragment)? {
+            entries.push(entry);
+        }
+    }
+    Ok(())
+}
+
+/// The verse range of an `annotateRef` like `Gen.1.3-Gen.1.5` or `Gen.1.3`.
+/// Ranges never cross a chapter; a malformed end falls back to the start.
+fn parse_annotate_ref(value: &str) -> Option<(BookId, u16, u16, u16)> {
+    fn part(s: &str) -> Option<(BookId, u16, u16)> {
+        let mut p = s.split('.');
+        let book = book_by_osis(p.next()?)?;
+        Some((book, p.next()?.parse().ok()?, p.next()?.parse().ok()?))
+    }
+    let (first, second) = match value.split_once('-') {
+        Some((a, b)) => (a, Some(b)),
+        None => (value, None),
+    };
+    let (book, chapter, verse) = part(first.trim())?;
+    let end = second
+        .and_then(part)
+        .filter(|&(b, c, _)| b == book && c == chapter)
+        .map(|(_, _, v)| v)
+        .unwrap_or(verse)
+        .max(verse);
+    Some((book, chapter, verse, end))
+}
+
+fn attr(e: &BytesStart, name: &[u8]) -> Option<String> {
+    e.attributes()
+        .flatten()
+        .find(|a| a.key.as_ref() == name)
+        .and_then(|a| a.normalized_value(quick_xml::XmlVersion::Implicit1_0).ok())
+        .map(|v| v.into_owned())
+}
+
+/// Accumulates whitespace-normalized text, deferring separators until the
+/// next word so reference byte ranges never cover surrounding whitespace.
+struct TextBuilder {
+    out: String,
+    space: bool,
+    r#break: bool,
+}
+
+impl TextBuilder {
+    fn new() -> Self {
+        TextBuilder {
+            out: String::new(),
+            space: false,
+            r#break: false,
+        }
+    }
+
+    fn flush_separator(&mut self) {
+        if self.out.is_empty() {
+            // Leading separators would only indent the entry.
+        } else if self.r#break {
+            self.out.push_str("\n\n");
+        } else if self.space {
+            self.out.push(' ');
+        }
+        self.space = false;
+        self.r#break = false;
+    }
+
+    fn push_text(&mut self, s: &str) {
+        let mut rest = s;
+        while !rest.is_empty() {
+            let trimmed = rest.trim_start();
+            if trimmed.len() < rest.len() {
+                self.space = true;
+            }
+            let Some(end) = trimmed.find(char::is_whitespace).or_else(|| {
+                (!trimmed.is_empty()).then_some(trimmed.len())
+            }) else {
+                break;
+            };
+            self.flush_separator();
+            self.out.push_str(&trimmed[..end]);
+            rest = &trimmed[end..];
+        }
+    }
+
+    fn paragraph_break(&mut self) {
+        self.r#break = true;
+    }
+}
+
+/// Parse one OSIS fragment into an entry; structural fragments (no
+/// `annotateRef`, or a non-canonical book) yield `None`.
+fn parse_fragment(fragment: &str) -> Result<Option<CommentaryEntry>, SwordError> {
+    let mut reader = Reader::from_str(fragment);
+    reader.config_mut().check_end_names = false;
+    let mut range: Option<(BookId, u16, u16, u16)> = None;
+    let mut annotated = false;
+    let mut heading: Option<String> = None;
+    let mut heading_capture = false;
+    let mut heading_text = String::new();
+    let mut text = TextBuilder::new();
+    let mut refs: Vec<CommentRef> = Vec::new();
+    let mut ref_start: Option<(usize, String)> = None;
+
+    loop {
+        let event = reader.read_event()?;
+        match &event {
+            Event::Start(e) | Event::Empty(e) => match e.local_name().as_ref() {
+                b"div" => {
+                    if let Some(value) = attr(e, b"annotateRef") {
+                        annotated = true;
+                        if range.is_none() {
+                            range = parse_annotate_ref(&value);
+                        }
+                    }
+                    if attr(e, b"type").as_deref() == Some("x-p") {
+                        text.paragraph_break();
+                    }
+                }
+                b"title" => {
+                    if heading.is_none() && text.out.is_empty() {
+                        heading_capture = true;
+                        heading_text.clear();
+                    } else {
+                        // Later titles become their own paragraph.
+                        text.paragraph_break();
+                    }
+                }
+                b"reference" => {
+                    if let Some(osis) = attr(e, b"osisRef") {
+                        text.flush_separator();
+                        // A work prefix ("KJV:Gen.1.1") is not part of the id.
+                        let osis = osis.rsplit(':').next().unwrap_or(&osis).to_string();
+                        ref_start = Some((text.out.len(), osis));
+                    }
+                }
+                b"lb" => text.push_text(" "),
+                _ => {}
+            },
+            Event::End(e) => match e.local_name().as_ref() {
+                b"title" => {
+                    if heading_capture {
+                        heading_capture = false;
+                        let t = heading_text.split_whitespace().collect::<Vec<_>>().join(" ");
+                        if !t.is_empty() {
+                            heading = Some(t);
+                        }
+                    } else {
+                        text.paragraph_break();
+                    }
+                }
+                b"reference" => {
+                    if let Some((start, osis)) = ref_start.take() {
+                        if text.out.len() > start {
+                            refs.push(CommentRef {
+                                start: start as u32,
+                                end: text.out.len() as u32,
+                                osis,
+                            });
+                        }
+                    }
+                }
+                _ => {}
+            },
+            Event::Text(t) => {
+                let content = t
+                    .xml_content(quick_xml::XmlVersion::Implicit1_0)
+                    .map_err(quick_xml::Error::from)?;
+                if heading_capture {
+                    heading_text.push_str(&content);
+                } else {
+                    text.push_text(&content);
+                }
+            }
+            Event::Eof => break,
+            _ => {}
+        }
+    }
+
+    if !annotated {
+        return Ok(None); // structural: book/chapter milestone, importer note
+    }
+    let Some((book, chapter, verse_start, verse_end)) = range else {
+        return Ok(None); // non-canonical book (ADR 0010) or unparsable range
+    };
+    if text.out.is_empty() && heading.is_none() {
+        return Ok(None);
+    }
+    Ok(Some(CommentaryEntry {
+        book,
+        chapter,
+        verse_start,
+        verse_end,
+        heading,
+        text: text.out,
+        refs,
+    }))
+}

@@ -123,7 +123,8 @@ class _NotePopupState extends State<_NotePopup> {
                         child: Text.rich(
                           TextSpan(
                             children: noteSpans(
-                              widget.note,
+                              widget.note.text,
+                              widget.note.refs,
                               textStyle,
                               refStyleFor(theme, textStyle),
                               (ref) => setState(() => _osis = ref),

@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import 'footnotes_pane.dart' show visibleChapterIndexes;
 import 'l10n.dart';
 import 'note_text.dart';
 import 'passage_preview.dart';
@@ -8,35 +9,17 @@ import 'reader_pane.dart';
 import 'settings.dart';
 import 'src/rust/api/library.dart';
 
-/// Spine indexes of the chapters in the visible range [anchor, anchorEnd]
-/// of the followed view (both "Book.Ch(.V)"); anchorEnd may be null or
-/// malformed, in which case only the anchor chapter is visible.
-List<int> visibleChapterIndexes(
-  List<ChapterRefView> spine,
-  String anchor,
-  String? anchorEnd,
-) {
-  int indexOf(String osis) {
-    final parts = osis.split('.');
-    if (parts.length < 2) return -1;
-    final chapter = int.tryParse(parts[1]);
-    return spine
-        .indexWhere((c) => c.bookOsis == parts[0] && c.chapter == chapter);
-  }
-
-  final start = indexOf(anchor);
-  if (start < 0) return const [];
-  var end = anchorEnd == null ? start : indexOf(anchorEnd);
-  if (end < start) end = start;
-  return [for (var i = start; i <= end; i++) i];
-}
-
-/// Receiver-only view (ADR 0008): shows the footnotes visible in the
-/// followed text view's range. Note text is scanned for verse references,
-/// which preview their passage in a floating popup.
-class FootnotesPane extends StatefulWidget {
-  const FootnotesPane({
+/// Receiver view for a commentary module (ADR 0017): follows a text view's
+/// reading position and shows the commentary sections covering the visible
+/// verses. Unlike the footnotes pane it carries its own module — the
+/// commentary — while the followed pane provides position and chapter
+/// spine. References inside entries preview their passage in a popup.
+class CommentaryPane extends StatefulWidget {
+  const CommentaryPane({
     super.key,
+    required this.module,
+    required this.modules,
+    required this.onModule,
     required this.followedAnchor,
     required this.followedAnchorEnd,
     required this.sourceModule,
@@ -51,11 +34,16 @@ class FootnotesPane extends StatefulWidget {
     this.onClose,
   });
 
+  /// The commentary module shown, and the installed commentaries.
+  final String? module;
+  final List<ModuleView> modules;
+  final ValueChanged<String> onModule;
+
   /// Canonical "Book.Ch.V" bounds of the followed pane's visible range.
   final String? followedAnchor;
   final String? followedAnchorEnd;
 
-  /// Module code of the followed pane, whose notes are shown.
+  /// Module code of the followed pane, providing the chapter spine.
   final String? sourceModule;
 
   final String? followValue;
@@ -71,10 +59,10 @@ class FootnotesPane extends StatefulWidget {
   final VoidCallback? onClose;
 
   @override
-  State<FootnotesPane> createState() => _FootnotesPaneState();
+  State<CommentaryPane> createState() => _CommentaryPaneState();
 }
 
-class _FootnotesPaneState extends State<FootnotesPane> {
+class _CommentaryPaneState extends State<CommentaryPane> {
   List<ChapterRefView>? _spine;
   String? _spineModule;
   final List<TapGestureRecognizer> _recognizers = [];
@@ -120,9 +108,15 @@ class _FootnotesPaneState extends State<FootnotesPane> {
       children: [
         if (!widget.readingMode) ...[
           PaneHeader(
-            title: context.l10n.footnotesTitle,
+            title: context.l10n.commentaryTitle,
             badge: widget.badge,
             dragHandle: widget.dragHandle,
+            moduleCode: widget.module,
+            modules: [
+              for (final m in widget.modules)
+                (code: m.code, title: m.title),
+            ],
+            onModule: widget.modules.isEmpty ? null : widget.onModule,
             followValue: widget.followValue,
             followOptions: widget.followOptions,
             onFollow: widget.onFollow,
@@ -143,90 +137,126 @@ class _FootnotesPaneState extends State<FootnotesPane> {
 
   Widget _body(ThemeData theme) {
     _disposeRecognizers();
-    final anchor = widget.followedAnchor;
-    final module = widget.sourceModule;
-    if (anchor == null || module == null) {
-      return Center(
-        child: Text(
-          context.l10n.linkFootnotesHint,
-          style: theme.textTheme.bodyMedium,
-          textAlign: TextAlign.center,
-        ),
-      );
+    final module = widget.module;
+    if (module == null || widget.modules.isEmpty) {
+      return _hint(theme, context.l10n.noCommentaryModules);
     }
-    final spine = _spineFor(module);
+    final anchor = widget.followedAnchor;
+    final sourceModule = widget.sourceModule;
+    if (anchor == null || sourceModule == null) {
+      return _hint(theme, context.l10n.linkCommentaryHint);
+    }
+    final spine = _spineFor(sourceModule);
     final indexes =
         visibleChapterIndexes(spine, anchor, widget.followedAnchorEnd);
     if (indexes.isEmpty) return const SizedBox.shrink();
     final startVerse = _verseOf(anchor);
     final endVerse = _verseOf(widget.followedAnchorEnd ?? '');
     final multiChapter = indexes.length > 1;
-    final entries = <({ChapterRefView chapter, NoteView note})>[];
+    final entries = <({ChapterRefView chapter, CommentView comment})>[];
     for (final index in indexes) {
       final chapter = spine[index];
-      final notes = chapterNotes(
-        moduleCode: module,
-        bookOsis: chapter.bookOsis,
-        chapter: chapter.chapter,
-      );
-      for (final note in notes) {
+      final List<CommentView> comments;
+      try {
+        comments = chapterComments(
+          moduleCode: module,
+          bookOsis: chapter.bookOsis,
+          chapter: chapter.chapter,
+        );
+      } catch (_) {
+        continue;
+      }
+      for (final comment in comments) {
+        // An entry is shown while any of its verses is visible.
         if (index == indexes.first &&
             startVerse != null &&
-            note.verse < startVerse) {
+            comment.verseEnd < startVerse) {
           continue;
         }
         if (index == indexes.last &&
             endVerse != null &&
             widget.followedAnchorEnd != null &&
-            note.verse > endVerse) {
+            comment.verseStart > endVerse) {
           continue;
         }
-        entries.add((chapter: chapter, note: note));
+        entries.add((chapter: chapter, comment: comment));
       }
     }
     if (entries.isEmpty) {
-      return Center(
-        child: Text(
-          context.l10n.noFootnotes,
-          key: const Key('no-footnotes'),
-          style: theme.textTheme.bodyMedium,
-        ),
+      return _hint(
+        theme,
+        context.l10n.noCommentary,
+        key: const Key('no-commentary'),
       );
     }
     final settings = SettingsScope.of(context);
     final scale = settings.footnoteScale;
     final family = settings.fontFamily;
-    final numberStyle = theme.textTheme.labelMedium?.copyWith(
+    final headingStyle = theme.textTheme.titleSmall?.copyWith(
+      fontFamily: family,
+      fontSize: (theme.textTheme.titleSmall?.fontSize ?? 14) * scale,
+    );
+    final rangeStyle = theme.textTheme.labelMedium?.copyWith(
       color: theme.colorScheme.primary,
       fontFamily: family,
       fontSize: (theme.textTheme.labelMedium?.fontSize ?? 12) * scale,
     );
     final textStyle = theme.textTheme.bodyMedium?.copyWith(
       fontFamily: family,
-      height: 1.3,
+      height: 1.35,
       color: theme.colorScheme.onSurface,
       fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) * scale,
     );
     final refStyle = refStyleFor(theme, textStyle);
     return ListView.builder(
-      key: const Key('footnotes-list'),
+      key: const Key('commentary-list'),
       itemCount: entries.length,
       itemBuilder: (context, index) {
         final entry = entries[index];
-        final prefix = multiChapter
-            ? '${entry.chapter.chapter},${entry.note.verse}${entry.note.label}'
-            : '${entry.note.verse}${entry.note.label}';
+        final c = entry.comment;
+        final verses = c.verseStart == c.verseEnd
+            ? '${c.verseStart}'
+            : '${c.verseStart}-${c.verseEnd}';
+        final range = multiChapter
+            ? '${entry.chapter.chapter},$verses'
+            : verses;
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Text.rich(
-            TextSpan(children: [
-              TextSpan(text: '$prefix  ', style: numberStyle),
-              ...noteSpans(entry.note.text, entry.note.refs, textStyle,
-                  refStyle, _openPreview, _recognizers),
-            ]),
+          padding: const EdgeInsets.only(top: 6, bottom: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text.rich(
+                TextSpan(children: [
+                  TextSpan(text: '$range  ', style: rangeStyle),
+                  if (c.heading != null)
+                    TextSpan(text: c.heading, style: headingStyle),
+                ]),
+              ),
+              const SizedBox(height: 4),
+              Text.rich(
+                TextSpan(
+                  children: noteSpans(c.text, c.refs, textStyle, refStyle,
+                      _openPreview, _recognizers),
+                ),
+              ),
+            ],
           ),
         );
       },
+    );
+  }
+
+  Widget _hint(ThemeData theme, String message, {Key? key}) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          message,
+          key: key,
+          style: theme.textTheme.bodyMedium,
+          textAlign: TextAlign.center,
+        ),
+      ),
     );
   }
 
@@ -234,5 +264,4 @@ class _FootnotesPaneState extends State<FootnotesPane> {
     final parts = osis.split('.');
     return parts.length >= 3 ? int.tryParse(parts[2]) : null;
   }
-
 }

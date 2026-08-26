@@ -81,10 +81,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get footnotesView => 'Footnotes view';
 
   @override
+  String get commentaryView => 'Commentary view';
+
+  @override
   String get settingsTooltip => 'Settings';
 
   @override
-  String get importOsisTooltip => 'Import OSIS…';
+  String get importOsisTooltip => 'Import module…';
 
   @override
   String importedModule(String title, int verses) {
@@ -118,6 +121,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get footnotesTitle => 'Footnotes';
 
   @override
+  String get commentaryTitle => 'Commentary';
+
+  @override
   String get selectorTooltip => 'Select book, chapter, verse';
 
   @override
@@ -126,6 +132,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noFootnotes => 'No footnotes in view';
+
+  @override
+  String get linkCommentaryHint =>
+      'Link this view to a text view to see the commentary on its passage';
+
+  @override
+  String get noCommentary => 'No commentary in view';
+
+  @override
+  String get noCommentaryModules =>
+      'Import a commentary (a SWORD zip package) to use this view';
+
+  @override
+  String importedCommentary(String title, int entries) {
+    return 'Imported $title ($entries entries)';
+  }
 
   @override
   String get importToBegin => 'Import an OSIS module to begin reading';
