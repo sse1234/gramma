@@ -105,7 +105,6 @@ class _ProsePainter extends CustomPainter {
       fontSize: fontSize * layout.numberScale,
       color: accentColor,
     );
-    final headingStyle = textStyle.copyWith(fontWeight: FontWeight.w600);
     final linkStyle = textStyle.copyWith(
       color: accentColor,
       decoration: TextDecoration.underline,
@@ -118,11 +117,11 @@ class _ProsePainter extends CustomPainter {
             ? labelStyle
             : run.link != null
                 ? linkStyle
-                : run.headingLevel > 0
-                    ? headingStyle
-                    : textStyle;
+                : textStyle;
         paintRun(canvas, run.text, style, Offset(run.x * scale, y),
-            extraWeightEm: weightEm);
+            extraWeightEm: run.headingLevel > 0
+                ? weightEm + headingStrokeEm
+                : weightEm);
       }
     }
   }

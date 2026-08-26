@@ -115,7 +115,6 @@ class _ChapterPainter extends CustomPainter {
       color: numberColor,
     );
     final markerStyle = numberStyle.copyWith(fontStyle: FontStyle.italic);
-    final sectionStyle = textStyle.copyWith(fontWeight: FontWeight.w600);
     final subSectionStyle = textStyle.copyWith(fontStyle: FontStyle.italic);
     for (var i = 0; i < layout.lines.length; i++) {
       final y = i * lineHeight;
@@ -124,14 +123,14 @@ class _ChapterPainter extends CustomPainter {
             ? numberStyle
             : run.noteMarker
                 ? markerStyle
-                : run.headingLevel == 1
-                    ? sectionStyle
-                    : run.headingLevel == 2
-                        ? subSectionStyle
-                        : textStyle;
+                : run.headingLevel == 2
+                    ? subSectionStyle
+                    : textStyle;
         // Tops align, so the smaller verse numbers sit raised.
         paintRun(canvas, run.text, style, Offset(run.x * scale, y),
-            extraWeightEm: weightEm);
+            extraWeightEm: run.headingLevel == 1
+                ? weightEm + headingStrokeEm
+                : weightEm);
       }
     }
   }

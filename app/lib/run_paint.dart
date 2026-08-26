@@ -58,6 +58,13 @@ TextPainter _layoutPainter(String text, TextStyle style, double strokeEm) {
   return painter;
 }
 
+/// Section headings gain their weight by stroke, never by FontWeight:
+/// painted advances must match the engine's regular-face measurements,
+/// and a variable font (Literata) instantiates a genuinely wider real
+/// semibold, gluing heading words together. Added on top of the user's
+/// weight setting.
+const double headingStrokeEm = 0.05;
+
 /// Paints one text run at [offset]. [extraWeightEm] adds stroke weight in
 /// ems of the font size — the user's per-brightness font weight setting,
 /// the only source of added weight: 0 paints the font exactly as
