@@ -10,6 +10,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gramma/desks.dart';
 import 'package:gramma/typeset_chapter.dart';
+import 'package:gramma/typeset_prose.dart';
 import 'package:gramma/main.dart';
 import 'package:gramma/pane_model.dart';
 import 'package:gramma/settings.dart';
@@ -495,6 +496,12 @@ void main() {
     final notesAfter = tester.getRect(find.byType(FootnotesPane));
     expect(notesAfter.left, greaterThan(textAfter.right - 1),
         reason: 'footnotes moved into their own column');
+
+    // The fresh 50 % tiling snapped to the column grid immediately —
+    // without any divider drag (two typeset columns at 1400 wide).
+    await tester.pumpAndSettle();
+    expect(textAfter.width, moreOrLessEquals(848, epsilon: 2),
+        reason: 'a new tiling lands on whole column widths at once');
   });
 
   testWidgets('panes show identity badges and the selector navigates',
@@ -624,7 +631,14 @@ void main() {
     // names the exact pixel (ADR 0018).
     final paneWidth =
         tester.getSize(find.byKey(const Key('commentary-list'))).width;
-    const fontSize = 14.0; // bodyMedium default at commentary scale 1.0
+    // The reader's own em size (min(pane width, column width) / measure):
+    // commentary matches the Bible text exactly at scale 1.0.
+    final fontSize = (paneWidth < 400.0 ? paneWidth : 400.0) / 26.0;
+    final prose = tester.widget<TypesetProse>(find.byType(TypesetProse).first);
+    expect(prose.fontSize, moreOrLessEquals(fontSize, epsilon: 0.01),
+        reason: 'commentary glyphs are set at the Bible text size');
+    expect(prose.lineHeightEm, 1.5,
+        reason: 'commentary uses the reader line spacing setting');
     late List<CommentLayoutView> layouts;
     await tester.runAsync(() async {
       layouts = await layoutComments(
