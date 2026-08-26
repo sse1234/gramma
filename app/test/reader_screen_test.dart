@@ -607,32 +607,56 @@ void main() {
     await tester.pumpAndSettle();
 
     // The pane linked itself to the text view; once that view reports its
-    // position, the sections covering the visible verses appear.
+    // position, the typeset sections covering the visible verses appear
+    // (painted text, so asserted through the entries' semantics).
+    final semantics = tester.ensureSemantics();
     await _selectRef(tester, book: 'Gen', chapter: 1);
-    await _settle(tester, () => _found(find.textContaining('Der Anfang')));
+    await _settle(
+        tester, () => _found(find.byKey(const Key('comment-Gen.1.1'))));
     expect(find.byKey(const Key('commentary-list')), findsOneWidget);
-    expect(find.textContaining('Alles beginnt hier'), findsOneWidget);
-    expect(find.textContaining('Zweiter Absatz der Auslegung'),
+    expect(find.bySemanticsLabel(RegExp('Der Anfang')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('Zweiter Absatz der Auslegung')),
         findsOneWidget);
-    expect(find.textContaining('Licht wird.'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('Licht wird')), findsOneWidget);
 
-    // A reference inside an entry previews its passage.
-    TapGestureRecognizer? recognizer;
-    for (final rich in tester.widgetList<RichText>(find.byType(RichText))) {
-      rich.text.visitChildren((span) {
-        if (span is TextSpan &&
-            span.text == 'Kap. 3,1' &&
-            span.recognizer is TapGestureRecognizer) {
-          recognizer = span.recognizer as TapGestureRecognizer;
-          return false;
+    // Tap the typeset reference run at its computed position: the layout
+    // is deterministic, so recomputing it with the widget's parameters
+    // names the exact pixel (ADR 0018).
+    final paneWidth =
+        tester.getSize(find.byKey(const Key('commentary-list'))).width;
+    const fontSize = 14.0; // bodyMedium default at commentary scale 1.0
+    late List<CommentLayoutView> layouts;
+    await tester.runAsync(() async {
+      layouts = await layoutComments(
+        moduleCode: 'KomTest',
+        bookOsis: 'Gen',
+        chapter: 1,
+        measureEms: paneWidth / fontSize,
+      );
+    });
+    final entry = layouts.firstWhere((c) => c.verseStart == 1);
+    RunView? linkRun;
+    var lineIndex = 0;
+    for (var i = 0; i < entry.lines.length && linkRun == null; i++) {
+      for (final run in entry.lines[i].runs) {
+        if (run.link != null) {
+          linkRun = run;
+          lineIndex = i;
+          break;
         }
-        return true;
-      });
-      if (recognizer != null) break;
+      }
     }
-    expect(recognizer, isNotNull,
-        reason: 'the commentary reference must be tappable');
-    recognizer!.onTap!();
+    expect(linkRun, isNotNull,
+        reason: 'the reference must be a tappable run');
+    final runScale = fontSize / entry.unitsPerEm;
+    final lineHeight = fontSize * 1.5;
+    final origin = tester.getTopLeft(find.descendant(
+      of: find.byKey(const Key('comment-Gen.1.1')),
+      matching: find.byType(CustomPaint),
+    ));
+    await tester.tapAt(origin +
+        Offset((linkRun!.x + linkRun.width / 2) * runScale,
+            lineIndex * lineHeight + lineHeight * 0.4));
     await tester.pumpAndSettle();
     expect(find.textContaining('Und die Schlange war listiger'), findsWidgets,
         reason: 'preview shows the referenced passage');
@@ -640,14 +664,14 @@ void main() {
     await tester.tap(find.byKey(const Key('preview-open')));
     await tester.pumpAndSettle();
     await _settleLayouts(tester);
-    await tester.pumpAndSettle();
+    await _settle(
+        tester, () => _found(find.byKey(const Key('no-commentary'))));
     final position = tester.widget<Text>(
       find.byKey(const Key('current-position')).first,
     );
     expect(position.data, '1. Mose 3',
         reason: 'Open navigates the linked text view');
-    expect(find.byKey(const Key('no-commentary')), findsOneWidget,
-        reason: 'the fixture commentary has no sections for Gen 3');
+    semantics.dispose();
   });
 
   testWidgets('desk history: back, forward, and the dropdown', (tester) async {

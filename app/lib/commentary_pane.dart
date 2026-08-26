@@ -1,19 +1,24 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'footnotes_pane.dart' show visibleChapterIndexes;
 import 'l10n.dart';
-import 'note_text.dart';
 import 'passage_preview.dart';
 import 'reader_pane.dart';
 import 'settings.dart';
 import 'src/rust/api/library.dart';
+import 'src/rust/api/typeset.dart';
+import 'typeset_prose.dart';
 
 /// Receiver view for a commentary module (ADR 0017): follows a text view's
 /// reading position and shows the commentary sections covering the visible
 /// verses. Unlike the footnotes pane it carries its own module — the
 /// commentary — while the followed pane provides position and chapter
-/// spine. References inside entries preview their passage in a popup.
+/// spine.
+///
+/// Commentary is long-form reading, so entries are typeset by the
+/// Knuth–Plass engine like the Bible text (ADR 0018) — at the pane's own
+/// measure, which reflows freely with pane width and the commentary text
+/// size setting. References are tappable runs previewing their passage.
 class CommentaryPane extends StatefulWidget {
   const CommentaryPane({
     super.key,
@@ -65,20 +70,12 @@ class CommentaryPane extends StatefulWidget {
 class _CommentaryPaneState extends State<CommentaryPane> {
   List<ChapterRefView>? _spine;
   String? _spineModule;
-  final List<TapGestureRecognizer> _recognizers = [];
 
-  @override
-  void dispose() {
-    _disposeRecognizers();
-    super.dispose();
-  }
-
-  void _disposeRecognizers() {
-    for (final r in _recognizers) {
-      r.dispose();
-    }
-    _recognizers.clear();
-  }
+  /// Typeset entry layouts per "Book.Ch", valid for [_signature] — module,
+  /// typeface, text size, and pane measure all shape the layout.
+  final Map<String, List<CommentLayoutView>> _layouts = {};
+  final Set<String> _pending = {};
+  String _signature = '';
 
   List<ChapterRefView> _spineFor(String module) {
     if (_spineModule != module) {
@@ -98,6 +95,30 @@ class _CommentaryPaneState extends State<CommentaryPane> {
       moduleCode: module,
       onOpen: () => widget.onOpenReference(osis),
     );
+  }
+
+  void _ensureLayout(String module, String book, int chapter, double ems) {
+    final key = '$book.$chapter';
+    if (_layouts.containsKey(key) || _pending.contains(key)) return;
+    _pending.add(key);
+    layoutComments(
+      moduleCode: module,
+      bookOsis: book,
+      chapter: chapter,
+      measureEms: ems,
+    ).then((layouts) {
+      if (!mounted) return;
+      setState(() {
+        _pending.remove(key);
+        _layouts[key] = layouts;
+      });
+    }).catchError((_) {
+      if (!mounted) return;
+      setState(() {
+        _pending.remove(key);
+        _layouts[key] = const [];
+      });
+    });
   }
 
   @override
@@ -136,7 +157,6 @@ class _CommentaryPaneState extends State<CommentaryPane> {
   }
 
   Widget _body(ThemeData theme) {
-    _disposeRecognizers();
     final module = widget.module;
     if (module == null || widget.modules.isEmpty) {
       return _hint(theme, context.l10n.noCommentaryModules);
@@ -150,97 +170,81 @@ class _CommentaryPaneState extends State<CommentaryPane> {
     final indexes =
         visibleChapterIndexes(spine, anchor, widget.followedAnchorEnd);
     if (indexes.isEmpty) return const SizedBox.shrink();
-    final startVerse = _verseOf(anchor);
-    final endVerse = _verseOf(widget.followedAnchorEnd ?? '');
-    final multiChapter = indexes.length > 1;
-    final entries = <({ChapterRefView chapter, CommentView comment})>[];
-    for (final index in indexes) {
-      final chapter = spine[index];
-      final List<CommentView> comments;
-      try {
-        comments = chapterComments(
-          moduleCode: module,
-          bookOsis: chapter.bookOsis,
-          chapter: chapter.chapter,
-        );
-      } catch (_) {
-        continue;
-      }
-      for (final comment in comments) {
-        // An entry is shown while any of its verses is visible.
-        if (index == indexes.first &&
-            startVerse != null &&
-            comment.verseEnd < startVerse) {
-          continue;
-        }
-        if (index == indexes.last &&
-            endVerse != null &&
-            widget.followedAnchorEnd != null &&
-            comment.verseStart > endVerse) {
-          continue;
-        }
-        entries.add((chapter: chapter, comment: comment));
-      }
-    }
-    if (entries.isEmpty) {
-      return _hint(
-        theme,
-        context.l10n.noCommentary,
-        key: const Key('no-commentary'),
-      );
-    }
     final settings = SettingsScope.of(context);
-    final scale = settings.footnoteScale;
-    final family = settings.fontFamily;
-    final headingStyle = theme.textTheme.titleSmall?.copyWith(
-      fontFamily: family,
-      fontSize: (theme.textTheme.titleSmall?.fontSize ?? 14) * scale,
-    );
-    final rangeStyle = theme.textTheme.labelMedium?.copyWith(
-      color: theme.colorScheme.primary,
-      fontFamily: family,
-      fontSize: (theme.textTheme.labelMedium?.fontSize ?? 12) * scale,
-    );
-    final textStyle = theme.textTheme.bodyMedium?.copyWith(
-      fontFamily: family,
-      height: 1.35,
-      color: theme.colorScheme.onSurface,
-      fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) * scale,
-    );
-    final refStyle = refStyleFor(theme, textStyle);
-    return ListView.builder(
-      key: const Key('commentary-list'),
-      itemCount: entries.length,
-      itemBuilder: (context, index) {
-        final entry = entries[index];
-        final c = entry.comment;
-        final verses = c.verseStart == c.verseEnd
-            ? '${c.verseStart}'
-            : '${c.verseStart}-${c.verseEnd}';
-        final range = multiChapter
-            ? '${entry.chapter.chapter},$verses'
-            : verses;
-        return Padding(
-          padding: const EdgeInsets.only(top: 6, bottom: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text.rich(
-                TextSpan(children: [
-                  TextSpan(text: '$range  ', style: rangeStyle),
-                  if (c.heading != null)
-                    TextSpan(text: c.heading, style: headingStyle),
-                ]),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fontSize = (theme.textTheme.bodyMedium?.fontSize ?? 14) *
+            settings.commentaryScale;
+        final width = constraints.maxWidth;
+        if (width <= 0 || fontSize <= 0) return const SizedBox.shrink();
+        final ems = width / fontSize;
+        final signature =
+            '$module|${settings.fontFamily}|${fontSize.toStringAsFixed(1)}|'
+            '${width.toStringAsFixed(0)}';
+        if (signature != _signature) {
+          _signature = signature;
+          _layouts.clear();
+          _pending.clear();
+        }
+        final startVerse = _verseOf(anchor);
+        final endVerse = _verseOf(widget.followedAnchorEnd ?? '');
+        final multiChapter = indexes.length > 1;
+        var loading = false;
+        final items = <Widget>[];
+        for (final index in indexes) {
+          final chapter = spine[index];
+          final key = '${chapter.bookOsis}.${chapter.chapter}';
+          _ensureLayout(module, chapter.bookOsis, chapter.chapter, ems);
+          final layouts = _layouts[key];
+          if (layouts == null) {
+            loading = true;
+            continue;
+          }
+          final visible = layouts.where((c) {
+            // An entry is shown while any of its verses is visible.
+            if (index == indexes.first &&
+                startVerse != null &&
+                c.verseEnd < startVerse) {
+              return false;
+            }
+            if (index == indexes.last &&
+                endVerse != null &&
+                widget.followedAnchorEnd != null &&
+                c.verseStart > endVerse) {
+              return false;
+            }
+            return true;
+          }).toList();
+          if (multiChapter && visible.isNotEmpty) {
+            items.add(Padding(
+              padding: const EdgeInsets.only(top: 10, bottom: 4),
+              child: Text(chapter.heading, style: theme.textTheme.titleSmall),
+            ));
+          }
+          for (final entry in visible) {
+            items.add(Padding(
+              key: Key('comment-$key.${entry.verseStart}'),
+              padding: const EdgeInsets.only(top: 6, bottom: 10),
+              child: TypesetProse(
+                layout: entry,
+                fontSize: fontSize,
+                onLinkTap: _openPreview,
+                onPlainTap: widget.onToggleMode,
               ),
-              const SizedBox(height: 4),
-              Text.rich(
-                TextSpan(
-                  children: noteSpans(c.text, c.refs, textStyle, refStyle,
-                      _openPreview, _recognizers),
-                ),
-              ),
-            ],
-          ),
+            ));
+          }
+        }
+        if (items.isEmpty) {
+          if (loading) return const SizedBox.shrink();
+          return _hint(
+            theme,
+            context.l10n.noCommentary,
+            key: const Key('no-commentary'),
+          );
+        }
+        return ListView(
+          key: const Key('commentary-list'),
+          children: items,
         );
       },
     );

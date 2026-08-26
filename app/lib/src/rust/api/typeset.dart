@@ -32,6 +32,22 @@ Future<ChapterLayoutView> layoutChapter({
   measureEms: measureEms,
 );
 
+/// Typeset the commentary sections of one chapter at `measure_ems` ems —
+/// the pane's width in ems of its text size; commentary reflows freely,
+/// without the reader's protected measure. Async: shaping and breaking
+/// run on a worker thread.
+Future<List<CommentLayoutView>> layoutComments({
+  required String moduleCode,
+  required String bookOsis,
+  required int chapter,
+  required double measureEms,
+}) => RustLib.instance.api.crateApiTypesetLayoutComments(
+  moduleCode: moduleCode,
+  bookOsis: bookOsis,
+  chapter: chapter,
+  measureEms: measureEms,
+);
+
 /// Text-line count of every chapter in the module's spine order, at the
 /// canonical measure. This makes global line numbering possible, which the
 /// multi-column reader chunks into viewport-sized columns — layout itself
@@ -85,6 +101,64 @@ class ChapterLayoutView {
           plainText == other.plainText;
 }
 
+/// One commentary section, typeset (ADR 0018): the same engine as the
+/// Bible text, at the pane's own measure. Runs with a `link` index are
+/// tappable references resolving through `refs`.
+class CommentLayoutView {
+  final int verseStart;
+  final int verseEnd;
+  final List<LineView> lines;
+
+  /// OSIS targets by `RunView.link` index.
+  final List<String> refs;
+  final int unitsPerEm;
+
+  /// Line width in font units for this layout.
+  final PlatformInt64 measureUnits;
+
+  /// The label renders at this fraction of the text size.
+  final double numberScale;
+
+  /// Flowing text of the entry, for accessibility semantics.
+  final String plainText;
+
+  const CommentLayoutView({
+    required this.verseStart,
+    required this.verseEnd,
+    required this.lines,
+    required this.refs,
+    required this.unitsPerEm,
+    required this.measureUnits,
+    required this.numberScale,
+    required this.plainText,
+  });
+
+  @override
+  int get hashCode =>
+      verseStart.hashCode ^
+      verseEnd.hashCode ^
+      lines.hashCode ^
+      refs.hashCode ^
+      unitsPerEm.hashCode ^
+      measureUnits.hashCode ^
+      numberScale.hashCode ^
+      plainText.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommentLayoutView &&
+          runtimeType == other.runtimeType &&
+          verseStart == other.verseStart &&
+          verseEnd == other.verseEnd &&
+          lines == other.lines &&
+          refs == other.refs &&
+          unitsPerEm == other.unitsPerEm &&
+          measureUnits == other.measureUnits &&
+          numberScale == other.numberScale &&
+          plainText == other.plainText;
+}
+
 class LineView {
   final List<RunView> runs;
 
@@ -120,6 +194,10 @@ class RunView {
   /// The verse this run belongs to.
   final int verse;
 
+  /// Reference index in the owning layout's refs (prose, ADR 0018);
+  /// tapping the run opens that reference. None for plain text.
+  final int? link;
+
   const RunView({
     required this.text,
     required this.x,
@@ -128,6 +206,7 @@ class RunView {
     required this.noteMarker,
     required this.headingLevel,
     required this.verse,
+    this.link,
   });
 
   @override
@@ -138,7 +217,8 @@ class RunView {
       verseNumber.hashCode ^
       noteMarker.hashCode ^
       headingLevel.hashCode ^
-      verse.hashCode;
+      verse.hashCode ^
+      link.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -151,5 +231,6 @@ class RunView {
           verseNumber == other.verseNumber &&
           noteMarker == other.noteMarker &&
           headingLevel == other.headingLevel &&
-          verse == other.verse;
+          verse == other.verse &&
+          link == other.link;
 }
