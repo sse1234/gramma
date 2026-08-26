@@ -280,3 +280,59 @@ fn body_runs_carry_no_heading_level() {
             .all(|r| r.heading_level == 0)
     );
 }
+
+#[test]
+fn no_grotesque_lines_across_fonts_and_measures() {
+    // Hebrews 10, Elberfelder 1905 (public domain): the chapter whose
+    // whole-paragraph breaking once produced a first line of two words
+    // stretched across the full measure ("1 Denn da") and orphaned
+    // hyphen fragments, whenever the tolerance passes escalated. Every
+    // interior line must stay typographically sane at every measure, in
+    // every bundled face.
+    let fixture = include_str!("fixtures/heb10_elb1905.txt");
+    let verses: Vec<(u16, &str)> = fixture
+        .lines()
+        .map(|l| {
+            let (n, t) = l.split_once('|').unwrap();
+            (n.parse().unwrap(), t)
+        })
+        .collect();
+    let literata: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../app/fonts/Literata-Regular.ttf"
+    ));
+    let hyph = german();
+    for (name, data) in [("Gentium", FONT), ("Literata", literata)] {
+        let m = FontMeasure::new(data).unwrap();
+        let (space, _, _) = m.space();
+        for ems in 14..=30i64 {
+            let width = ems * m.units_per_em() as i64;
+            let lines = layout_verses(&verses, &[], &[], &m, Some(&hyph), width);
+            for (i, line) in lines.iter().enumerate() {
+                if line.runs.is_empty() || i + 1 == lines.len() {
+                    continue;
+                }
+                let max_gap = line
+                    .runs
+                    .windows(2)
+                    .map(|w| w[1].x - (w[0].x + w[0].width))
+                    .fold(0.0f64, f64::max);
+                // Narrow measures with long German compounds run
+                // legitimately loose (a single space can carry ~2em); the
+                // degenerate lines this guards against gapped at 5em+.
+                assert!(
+                    max_gap <= 2.2 * m.units_per_em() as f64,
+                    "{name} {ems}em line {i}: word gap {max_gap:.0} vs \
+                     space {space}: {:?}",
+                    line.runs.iter().map(|r| &r.text).collect::<Vec<_>>()
+                );
+                let edge = line.runs.last().map(|r| r.x + r.width).unwrap();
+                assert!(
+                    line.runs.len() > 1 || edge >= 0.5 * width as f64,
+                    "{name} {ems}em line {i}: orphaned fragment {:?}",
+                    line.runs.iter().map(|r| &r.text).collect::<Vec<_>>()
+                );
+            }
+        }
+    }
+}

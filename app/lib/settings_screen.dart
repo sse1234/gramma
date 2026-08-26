@@ -15,10 +15,33 @@ import 'src/rust/api/typeset.dart';
 import 'src/rust/api/user.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.inDialog = false});
+
+  /// Rendered inside a floating dialog (wide screens) instead of its own
+  /// route: a header row with a close button replaces the app bar.
+  final bool inDialog;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+/// Full-screen route on narrow screens; a floating dialog sized to its
+/// content on desktops and tablets.
+Future<void> showSettings(BuildContext context) {
+  if (MediaQuery.of(context).size.width < 700) {
+    return Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
+  }
+  return showDialog<void>(
+    context: context,
+    builder: (_) => Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 760),
+        child: const SettingsScreen(inDialog: true),
+      ),
+    ),
+  );
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
@@ -271,12 +294,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final settings = SettingsScope.of(context);
     final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(title: Text(context.l10n.settingsTitle)),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: ListView(
+    final list = ListView(
             padding: const EdgeInsets.all(24),
             children: [
               Text(context.l10n.sectionReading,
@@ -627,7 +645,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: 24),
             ],
+    );
+    if (widget.inDialog) {
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 12, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(context.l10n.settingsTitle,
+                      style: theme.textTheme.titleLarge),
+                ),
+                IconButton(
+                  key: const Key('settings-close'),
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
           ),
+          Expanded(child: list),
+        ],
+      );
+    }
+    return Scaffold(
+      appBar: AppBar(title: Text(context.l10n.settingsTitle)),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: list,
         ),
       ),
     );

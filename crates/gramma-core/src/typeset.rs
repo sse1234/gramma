@@ -9,8 +9,10 @@
 //! operations, so results are identical on every platform — the foundation
 //! of the "same words per line everywhere" requirement.
 //!
-//! Three passes mirror TeX's behavior: the configured tolerance first, then
-//! a permissive tolerance, then a last resort permitting overfull lines, so
+//! The pass escalation mirrors TeX: the configured tolerance first, then
+//! the same tolerance with emergency stretch (extra stretchability in the
+//! badness ratio only, so loose lines stay comparable instead of
+//! saturating), then permissive last resorts allowing overfull lines, so
 //! well-formed paragraphs always break.
 
 pub mod layout;
@@ -123,9 +125,22 @@ pub fn break_lines(items: &[Item], params: &Params) -> Result<BreakResult, Break
         Some(Item::Penalty { penalty, .. }) if *penalty == FORCED_BREAK => {}
         _ => return Err(BreakError::Unterminated),
     }
-    let passes = [(params.tolerance, false), (INF_BAD, false), (INF_BAD, true)];
-    for (tolerance, allow_overfull) in passes {
-        if let Some(result) = break_pass(items, params, tolerance, allow_overfull) {
+    // Escalation mirrors TeX: the configured tolerance first; then the
+    // same tolerance with emergency stretch (extra stretchability that
+    // enters the badness ratio only, keeping loose lines comparable
+    // instead of saturating at INF_BAD — an unbounded tolerance would let
+    // one grotesquely loose line cost the same as a mildly loose one and
+    // win by saving a line elsewhere); then permissive passes for the
+    // truly desperate paragraphs.
+    let emergency = params.line_width / 8;
+    let passes = [
+        (params.tolerance, 0, false),
+        (params.tolerance, emergency, false),
+        (INF_BAD, emergency, true),
+        (f64::INFINITY, emergency, true),
+    ];
+    for (tolerance, extra_stretch, allow_overfull) in passes {
+        if let Some(result) = break_pass(items, params, tolerance, extra_stretch, allow_overfull) {
             return Ok(result);
         }
     }
@@ -148,6 +163,7 @@ fn break_pass(
     items: &[Item],
     params: &Params,
     tolerance: f64,
+    extra_stretch: Scaled,
     allow_overfull: bool,
 ) -> Option<BreakResult> {
     let n = items.len();
@@ -206,6 +222,10 @@ fn break_pass(
             let y = ty[b] - ty[a.start];
             let z = tz[b] - tz[a.start];
             let slack = params.line_width - l;
+            // Emergency stretch joins the ratio's denominator only; the
+            // painted glue setting uses the real stretch, so lines stay
+            // flush — this merely keeps the optimizer discriminating.
+            let y = y + extra_stretch;
             let r = if slack > 0 {
                 if y > 0 {
                     slack as f64 / y as f64
