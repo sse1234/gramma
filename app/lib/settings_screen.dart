@@ -204,6 +204,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: Text('the lighter companion cut'),
                   value: 'GentiumPlus',
                 ),
+                const RadioListTile<String>(
+                  key: Key('font-Literata'),
+                  title: Text('Literata'),
+                  subtitle:
+                      Text('designed for e-reading — larger x-height'),
+                  value: 'Literata',
+                ),
               ],
             ),
           ),
