@@ -1,15 +1,4 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
-
-/// Impeller (iOS, and Android when it lands there) rasterizes glyphs
-/// visibly lighter than the desktop renderer's antialiasing; a hairline
-/// stroke pass over the fill restores the stem weight so the page reads
-/// the same on every platform. Width in ems of the run's font size.
-const strokeDarkenEm = 0.022;
-
-final bool _strokeDarken = !kIsWeb &&
-    (defaultTargetPlatform == TargetPlatform.iOS ||
-        defaultTargetPlatform == TargetPlatform.android);
 
 /// Laid-out painters keyed by text and the style facets the painters use.
 /// A chapter entering the viewport paints ~1500 runs in one frame; most
@@ -57,8 +46,11 @@ TextPainter _layoutPainter(String text, TextStyle style, double strokeEm) {
 }
 
 /// Paints one text run at [offset]. [extraWeightEm] adds stroke weight in
-/// ems of the font size (the user's per-brightness font weight setting),
-/// on top of the platform darkening baseline.
+/// ems of the font size — the user's per-brightness font weight setting,
+/// the only source of added weight: 0 paints the font exactly as
+/// designed, identical to any Text widget. (Impeller's lighter
+/// rasterization on mobile is compensated by the setting's platform
+/// default, not by hidden magic here.)
 void paintRun(
   Canvas canvas,
   String text,
@@ -67,9 +59,7 @@ void paintRun(
   double extraWeightEm = 0,
 }) {
   _layoutPainter(text, style, 0).paint(canvas, offset);
-  final strokeEm =
-      (_strokeDarken ? strokeDarkenEm : 0.0) + extraWeightEm;
-  if (strokeEm > 0 && style.color != null) {
-    _layoutPainter(text, style, strokeEm).paint(canvas, offset);
+  if (extraWeightEm > 0 && style.color != null) {
+    _layoutPainter(text, style, extraWeightEm).paint(canvas, offset);
   }
 }

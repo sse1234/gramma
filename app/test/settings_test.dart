@@ -207,8 +207,8 @@ void main() {
 
   test('font weight is separate per brightness and persists', () async {
     final controller = await _controller();
-    expect(controller.fontWeightLight, 0);
-    expect(controller.fontWeightDark, 0);
+    expect(controller.fontWeightLight, SettingsController.defaultFontWeight);
+    expect(controller.fontWeightDark, SettingsController.defaultFontWeight);
     controller.setFontWeightDark(0.04);
     controller.setFontWeightLight(0.9);
     expect(controller.fontWeightLight, SettingsController.maxFontWeight,

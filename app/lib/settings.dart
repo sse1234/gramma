@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -57,8 +58,10 @@ class SettingsController extends ChangeNotifier {
     _previewScale = _prefs.getDouble('previewScale') ?? 1.0;
     _columnAdvance = _prefs.getDouble('columnAdvance') ?? defaultColumnAdvance;
     _currentDeskId = _prefs.getString('currentDesk');
-    _fontWeightLight = _prefs.getDouble('fontWeightLight') ?? 0;
-    _fontWeightDark = _prefs.getDouble('fontWeightDark') ?? 0;
+    _fontWeightLight =
+        _prefs.getDouble('fontWeightLight') ?? defaultFontWeight;
+    _fontWeightDark =
+        _prefs.getDouble('fontWeightDark') ?? defaultFontWeight;
     _themeMode = switch (_prefs.getString('themeMode')) {
       'light' => ThemeMode.light,
       'dark' => ThemeMode.dark,
@@ -95,8 +98,18 @@ class SettingsController extends ChangeNotifier {
 
   /// Extra stroke weight over the font's natural stems, in ems of the
   /// font size, separately per brightness: dim rooms with dim screens
-  /// want heavier dark-mode strokes. 0 = the font as designed.
+  /// want heavier dark-mode strokes. 0 = the font as designed, matching
+  /// the footnote and preview text exactly.
   static const maxFontWeight = 0.06;
+
+  /// Impeller (iOS/Android) rasterizes glyphs visibly lighter than the
+  /// desktop renderer, so those platforms default one notch up; the
+  /// setting itself is the only mechanism — no hidden baseline.
+  static final defaultFontWeight = !kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.iOS ||
+              defaultTargetPlatform == TargetPlatform.android)
+      ? 0.02
+      : 0.0;
 
   double get fontWeightLight => _fontWeightLight;
   double get fontWeightDark => _fontWeightDark;
