@@ -160,8 +160,6 @@ class _ColumnPainter extends CustomPainter {
           );
           final markerStyle =
               numberStyle.copyWith(fontStyle: FontStyle.italic);
-          final sectionStyle =
-              textStyle.copyWith(fontWeight: FontWeight.w600);
           final subSectionStyle =
               textStyle.copyWith(fontStyle: FontStyle.italic);
           for (final run in line.runs) {
@@ -169,13 +167,13 @@ class _ColumnPainter extends CustomPainter {
                 ? numberStyle
                 : run.noteMarker
                     ? markerStyle
-                    : run.headingLevel == 1
-                        ? sectionStyle
-                        : run.headingLevel == 2
-                            ? subSectionStyle
-                            : textStyle;
+                    : run.headingLevel == 2
+                        ? subSectionStyle
+                        : textStyle;
             paintRun(canvas, run.text, style, Offset(run.x * scale, y),
-                extraWeightEm: weightEm);
+                extraWeightEm: run.headingLevel == 1
+                    ? weightEm + headingStrokeEm
+                    : weightEm);
           }
       }
     }

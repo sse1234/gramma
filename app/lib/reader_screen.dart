@@ -355,6 +355,9 @@ class _ReaderScreenState extends State<ReaderScreen>
   /// all column boundaries to the grid.
   bool _snapPending = false;
 
+  /// Last content width the desk was built at, to snap on window resize.
+  double? _deskWidth;
+
   void _addPane(PaneKind kind) {
     if (!_layout.hasFreeBadge) return;
     setState(() {
@@ -463,11 +466,12 @@ class _ReaderScreenState extends State<ReaderScreen>
   /// Vertical tiling only makes sense at whole column-width multiples
   /// (constant zoom): snap the divider there on release.
   void _snapColumns(int left, double contentWidth) {
-    setState(() => _applySnap(left, contentWidth));
+    if (!_applySnap(left, contentWidth)) return;
+    setState(() {});
     _save();
   }
 
-  void _applySnap(int left, double contentWidth) {
+  bool _applySnap(int left, double contentWidth) {
     final columns = _layout.columns;
     final sum = columns.fold(0.0, (a, c) => a + c.weight);
     final leftWidth = columns[left].weight / sum * contentWidth;
@@ -476,20 +480,23 @@ class _ReaderScreenState extends State<ReaderScreen>
     final columnWidth = SettingsScope.of(context).columnWidth;
     final target = snapToColumns(leftWidth, columnWidth, _gutter, available);
     final dw = (target - leftWidth) / contentWidth * sum;
+    if (dw.abs() < 1e-6) return false;
     columns[left].weight += dw;
     columns[left + 1].weight -= dw;
+    return true;
   }
 
-  /// A structural tiling change (new pane, drag, close) lands on the
-  /// column grid immediately — the same snap a divider release applies —
-  /// instead of waiting for the first manual drag of a fresh 50 % split.
+  /// A structural tiling change (new pane, drag, close) or a window
+  /// resize lands on the column grid immediately — the same snap a
+  /// divider release applies — instead of waiting for a manual drag.
   void _snapAllColumns(double contentWidth) {
     if (_layout.columns.length < 2) return;
-    setState(() {
-      for (var left = 0; left < _layout.columns.length - 1; left++) {
-        _applySnap(left, contentWidth);
-      }
-    });
+    var moved = false;
+    for (var left = 0; left < _layout.columns.length - 1; left++) {
+      moved = _applySnap(left, contentWidth) || moved;
+    }
+    if (!moved) return;
+    setState(() {});
     _save();
   }
 
@@ -754,7 +761,10 @@ class _ReaderScreenState extends State<ReaderScreen>
             final columns = _layout.columns;
             final contentWidth = constraints.maxWidth -
                 (columns.length - 1) * _gripThickness;
-            if (_snapPending) {
+            final resized = _deskWidth != null &&
+                (_deskWidth! - contentWidth).abs() > 0.5;
+            _deskWidth = contentWidth;
+            if (_snapPending || resized) {
               _snapPending = false;
               if (columns.length > 1) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {

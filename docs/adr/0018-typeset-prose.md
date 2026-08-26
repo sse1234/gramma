@@ -36,9 +36,15 @@ doctrine to protect for secondary literature.
   reflows with the pane — deliberately unprotected. The same rule will
   apply to secondary literature later.
 - A structural tiling change (new pane, drag into or out of a column,
-  close) snaps all column boundaries to whole Bible-column multiples
-  immediately — the same snap a divider release applies — so a fresh
-  50 % split never sits off the grid.
+  close) and a desktop window resize snap all column boundaries to
+  whole Bible-column multiples immediately — the same snap a divider
+  release applies — so the text views never sit off the grid.
+- Headings in engine-typeset text gain their weight by stroke, never by
+  `FontWeight`: painted advances must match the engine's regular-face
+  measurements, and a variable font (Literata) instantiates a genuinely
+  wider real semibold, gluing heading words together. This rule binds
+  every painter of measured runs; standalone whole-string labels may
+  use real weights.
 - One painting path: `paintRun` with the per-brightness weight stroke,
   so commentary text carries the user's font weight exactly like the
   reader. References paint underlined in the accent color; labels use

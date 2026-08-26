@@ -386,6 +386,31 @@ void main() {
         reason: 'weights persist in the layout object');
   });
 
+  testWidgets('window resize keeps text columns on the grid', (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1400, 700);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Text view'));
+    await _settleLayouts(tester);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(ReaderPane).first).width,
+        moreOrLessEquals(848, epsilon: 2),
+        reason: 'the fresh split snapped on creation');
+
+    tester.view.physicalSize = const Size(1200, 700);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(ReaderPane).first).width,
+        moreOrLessEquals(848, epsilon: 2),
+        reason: 'a window resize re-snaps to whole column widths '
+            '(proportional weights alone would give ~721)');
+  });
+
   testWidgets('column divider snaps to whole column widths', (tester) async {
     _freshUserStore();
     tester.view.physicalSize = const Size(1400, 700);
