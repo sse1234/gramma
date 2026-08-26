@@ -189,7 +189,9 @@ fn parse_zcom_parsed(conf: Conf, testaments: &[Testament]) -> Result<SwordCommen
 fn walk_testament(t: &Testament, entries: &mut Vec<CommentaryEntry>) -> Result<(), SwordError> {
     let blocks: Vec<(u32, u32)> = t
         .bzs
-        .chunks_exact(12)
+        .as_chunks::<12>()
+        .0
+        .iter()
         .map(|c| {
             (
                 u32::from_le_bytes(c[0..4].try_into().unwrap()),
@@ -199,7 +201,7 @@ fn walk_testament(t: &Testament, entries: &mut Vec<CommentaryEntry>) -> Result<(
         .collect();
     let mut cache: HashMap<u32, Vec<u8>> = HashMap::new();
     let mut seen: std::collections::HashSet<(u32, u32, u16)> = Default::default();
-    for slot in t.bzv.chunks_exact(10) {
+    for slot in t.bzv.as_chunks::<10>().0 {
         let block = u32::from_le_bytes(slot[0..4].try_into().unwrap());
         let offset = u32::from_le_bytes(slot[4..8].try_into().unwrap());
         let size = u16::from_le_bytes(slot[8..10].try_into().unwrap());
@@ -380,14 +382,14 @@ fn parse_fragment(fragment: &str) -> Result<Option<CommentaryEntry>, SwordError>
                     }
                 }
                 b"reference" => {
-                    if let Some((start, osis)) = ref_start.take() {
-                        if text.out.len() > start {
-                            refs.push(CommentRef {
-                                start: start as u32,
-                                end: text.out.len() as u32,
-                                osis,
-                            });
-                        }
+                    if let Some((start, osis)) = ref_start.take()
+                        && text.out.len() > start
+                    {
+                        refs.push(CommentRef {
+                            start: start as u32,
+                            end: text.out.len() as u32,
+                            osis,
+                        });
                     }
                 }
                 _ => {}
