@@ -666,9 +666,7 @@ class _ReaderScreenState extends State<ReaderScreen>
             tooltip: context.l10n.settingsTooltip,
             icon: const Icon(Icons.settings_outlined),
             onPressed: () async {
-              await Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              );
+              await showSettings(context);
               // Sync may have been (re)configured there.
               _syncPull();
             },

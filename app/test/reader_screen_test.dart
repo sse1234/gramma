@@ -914,6 +914,21 @@ void main() {
     expect(find.text('1. Mose 1'), findsWidgets);
   });
 
+  testWidgets('wide screens get settings as a floating dialog',
+      (tester) async {
+    _freshUserStore();
+    _desktopViewport(tester);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('open-settings')));
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsOneWidget,
+        reason: 'no full-screen route on a desktop viewport');
+    await tester.tap(find.byKey(const Key('settings-close')));
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsNothing);
+  });
+
   testWidgets('corrupted pane weights restore to a usable desk',
       (tester) async {
     _freshUserStore();
