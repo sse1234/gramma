@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'run_hit.dart';
 import 'run_paint.dart';
 import 'settings.dart';
 import 'src/rust/api/typeset.dart';
@@ -11,12 +12,23 @@ import 'src/rust/api/typeset.dart';
 /// pixel width — so the font size follows the column and the words per line
 /// stay identical on every device.
 class TypesetChapter extends StatelessWidget {
-  const TypesetChapter({super.key, required this.layout, this.lineHeightEm = 1.5});
+  const TypesetChapter({
+    super.key,
+    required this.layout,
+    this.lineHeightEm = 1.5,
+    this.onMarkerTap,
+    this.onPlainTap,
+  });
 
   final ChapterLayoutView layout;
 
   /// Line height as a multiple of the font size.
   final double lineHeightEm;
+
+  /// A tap on an inline note marker (ADR 0016); other taps fall through
+  /// to [onPlainTap] (the reading-mode toggle).
+  final void Function(RunView run)? onMarkerTap;
+  final VoidCallback? onPlainTap;
 
   @override
   Widget build(BuildContext context) {
@@ -32,17 +44,31 @@ class TypesetChapter extends StatelessWidget {
         final lineHeight = fontSize * lineHeightEm;
         return Semantics(
           label: layout.plainText,
-          child: CustomPaint(
-            size: Size(constraints.maxWidth, layout.lines.length * lineHeight),
-            painter: _ChapterPainter(
-              layout: layout,
-              scale: scale,
-              fontSize: fontSize,
-              lineHeight: lineHeight,
-              textColor: scheme.onSurface,
-              numberColor: scheme.primary,
-              weightEm: weightEm,
-              family: family,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapUp: (details) {
+              final run = runAtOffset(
+                  layout.lines, scale, lineHeight, details.localPosition,
+                  slop: 6);
+              if (run != null && run.noteMarker && onMarkerTap != null) {
+                onMarkerTap!(run);
+              } else {
+                onPlainTap?.call();
+              }
+            },
+            child: CustomPaint(
+              size:
+                  Size(constraints.maxWidth, layout.lines.length * lineHeight),
+              painter: _ChapterPainter(
+                layout: layout,
+                scale: scale,
+                fontSize: fontSize,
+                lineHeight: lineHeight,
+                textColor: scheme.onSurface,
+                numberColor: scheme.primary,
+                weightEm: weightEm,
+                family: family,
+              ),
             ),
           ),
         );

@@ -5,6 +5,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'column_plan.dart';
 import 'l10n.dart';
+import 'note_popup.dart';
 import 'column_snap_physics.dart';
 import 'pane_badge.dart';
 import 'pane_model.dart';
@@ -568,6 +569,37 @@ class _ReaderPaneState extends State<ReaderPane> {
     }
   }
 
+  /// A tapped inline note marker (ADR 0016): the footnote right where
+  /// the reader's eye is, with in-popup reference navigation.
+  void _openNotePopup(int chapterIndex, int verse, String label) {
+    final active = _active;
+    if (active == null || chapterIndex >= _spine.length) return;
+    final entry = _spine[chapterIndex];
+    final notes = chapterNotes(
+      moduleCode: active.code,
+      bookOsis: entry.bookOsis,
+      chapter: entry.chapter,
+    );
+    final note = notes
+        .where((n) => n.verse == verse && n.label == label)
+        .firstOrNull;
+    if (note == null || !mounted) return;
+    final settings = SettingsScope.of(context);
+    showNotePopup(
+      context,
+      note: note,
+      title: '${entry.heading},$verse$label',
+      previewModule: settings.defaultModule ?? active.code,
+      onOpenReference: (osis) {
+        final index = _indexOfOsis(osis.split('-').first);
+        if (index >= 0) {
+          widget.onJump(osis.split('-').first);
+          _jumpToChapter(index, verse: _verseOfOsis(osis.split('-').first));
+        }
+      },
+    );
+  }
+
   Future<void> _openSelector() async {
     if (_spine.isEmpty) return;
     final result = await showReferenceSelector(context, _spine);
@@ -865,7 +897,8 @@ class _ReaderPaneState extends State<ReaderPane> {
         }
         final lineIndex = local - _headingLines;
         if (lineIndex < layout.lines.length) {
-          rows.add(TextRow(row, layout.lines[lineIndex], layout.numberScale));
+          rows.add(TextRow(
+              row, layout.lines[lineIndex], layout.numberScale, chapter));
         }
       }
     }
@@ -875,6 +908,9 @@ class _ReaderPaneState extends State<ReaderPane> {
       scale: scale,
       fontSize: fontSize,
       lineHeight: lineHeight,
+      onMarkerTap: (chapter, run) =>
+          _openNotePopup(chapter, run.verse, run.text),
+      onPlainTap: widget.onToggleMode,
     );
   }
 
@@ -908,7 +944,12 @@ class _ReaderPaneState extends State<ReaderPane> {
             ),
           ),
           if (layout != null)
-            TypesetChapter(layout: layout, lineHeightEm: _lineSpacing)
+            TypesetChapter(
+              layout: layout,
+              lineHeightEm: _lineSpacing,
+              onMarkerTap: (run) => _openNotePopup(index, run.verse, run.text),
+              onPlainTap: widget.onToggleMode,
+            )
           else
             LayoutBuilder(
               builder: (context, constraints) => SizedBox(
