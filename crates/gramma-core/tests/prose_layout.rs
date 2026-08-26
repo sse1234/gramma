@@ -3,7 +3,7 @@
 //! heading line, justified paragraphs, and reference words carrying a
 //! link index so the painted text stays tappable (ADR 0016).
 
-use gramma_core::typeset::layout::{layout_prose, LineOut, ProseParagraph, RunOut};
+use gramma_core::typeset::layout::{LineOut, ProseParagraph, RunOut, layout_prose};
 use gramma_core::typeset::shape::FontMeasure;
 use hyphenation::{Language, Load, Standard};
 
@@ -80,7 +80,10 @@ fn entry_with_heading_label_links_and_paragraphs() {
     // directly above its body, as in chapters).
     let blanks = lines.iter().filter(|l| l.runs.is_empty()).count();
     assert_eq!(blanks, 1);
-    assert!(!lines[1].runs.is_empty(), "body follows the heading directly");
+    assert!(
+        !lines[1].runs.is_empty(),
+        "body follows the heading directly"
+    );
 
     // Justified: no line paints past the measure.
     for line in &lines {
