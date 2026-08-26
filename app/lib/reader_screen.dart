@@ -1,6 +1,7 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
+import 'commentary_pane.dart';
 import 'desks.dart';
 import 'l10n.dart';
 import 'footnotes_pane.dart';
@@ -129,11 +130,19 @@ class _ReaderScreenState extends State<ReaderScreen>
   LayoutModel _freshLayout() {
     return LayoutModel([
       PaneColumn(panes: [
-        PaneSpec(kind: PaneKind.text, module: _modules.firstOrNull?.code),
+        PaneSpec(kind: PaneKind.text, module: _bibleModules.firstOrNull?.code),
       ]),
     ])
       ..ensureBadges();
   }
+
+  /// Bible texts carry the reading views; commentaries live in commentary
+  /// views only (ADR 0017).
+  List<ModuleView> get _bibleModules =>
+      [for (final m in _modules) if (m.kind != 'commentary') m];
+
+  List<ModuleView> get _commentaryModules =>
+      [for (final m in _modules) if (m.kind == 'commentary') m];
 
   void _save() {
     userSet(key: 'desk/$_deskId', value: _layout.encode());
@@ -349,16 +358,20 @@ class _ReaderScreenState extends State<ReaderScreen>
           _layout.columns.add(PaneColumn(panes: [
             PaneSpec(
               kind: PaneKind.text,
-              module: _modules.firstOrNull?.code,
+              module: _bibleModules.firstOrNull?.code,
               anchor: _layout.allPanes.firstOrNull?.anchor,
             ),
           ]));
         case PaneKind.footnotes:
+        case PaneKind.commentary:
           final source = _layout.allPanes
               .where((p) => p.kind == PaneKind.text)
               .firstOrNull;
           final pane = PaneSpec(
-            kind: PaneKind.footnotes,
+            kind: kind,
+            module: kind == PaneKind.commentary
+                ? _commentaryModules.firstOrNull?.code
+                : null,
             follow: source?.id,
             weight: 0.5,
           );
@@ -379,10 +392,15 @@ class _ReaderScreenState extends State<ReaderScreen>
     final file = await openFile(
       acceptedTypeGroups: const [
         // iOS/macOS match on UTIs, the other platforms on extensions.
+        // SWORD commentary packages (ADR 0017) arrive as zip files.
         XTypeGroup(
-          label: 'OSIS XML',
-          extensions: ['xml', 'osis'],
-          uniformTypeIdentifiers: ['public.xml', 'public.text'],
+          label: 'OSIS XML / SWORD',
+          extensions: ['xml', 'osis', 'zip'],
+          uniformTypeIdentifiers: [
+            'public.xml',
+            'public.text',
+            'public.zip-archive',
+          ],
         ),
       ],
     );
@@ -390,11 +408,14 @@ class _ReaderScreenState extends State<ReaderScreen>
     final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
     try {
-      final imported = await importOsisFile(path: file.path);
+      final imported = file.path.toLowerCase().endsWith('.zip')
+          ? await importSwordFile(path: file.path)
+          : await importOsisFile(path: file.path);
       setState(() => _modules = modules());
       messenger.showSnackBar(SnackBar(
-        content: Text(
-            l10n.importedModule(imported.title, imported.verses.toInt())),
+        content: Text(imported.kind == 'commentary'
+            ? l10n.importedCommentary(imported.title, imported.verses.toInt())
+            : l10n.importedModule(imported.title, imported.verses.toInt())),
       ));
     } catch (e) {
       messenger.showSnackBar(
@@ -480,9 +501,11 @@ class _ReaderScreenState extends State<ReaderScreen>
           child: Padding(
             padding: const EdgeInsets.all(8),
             child: Icon(
-              spec.kind == PaneKind.footnotes
-                  ? Icons.notes_outlined
-                  : Icons.menu_book_outlined,
+              switch (spec.kind) {
+                PaneKind.footnotes => Icons.notes_outlined,
+                PaneKind.commentary => Icons.comment_outlined,
+                PaneKind.text => Icons.menu_book_outlined,
+              },
               size: 20,
             ),
           ),
@@ -659,6 +682,11 @@ class _ReaderScreenState extends State<ReaderScreen>
                 value: PaneKind.footnotes,
                 child: Text(context.l10n.footnotesView),
               ),
+              PopupMenuItem(
+                key: const Key('add-commentary'),
+                value: PaneKind.commentary,
+                child: Text(context.l10n.commentaryView),
+              ),
             ],
           ),
           IconButton(
@@ -779,7 +807,7 @@ class _ReaderScreenState extends State<ReaderScreen>
         return ReaderPane(
           key: ValueKey('pane-${spec.id}'),
           spec: spec,
-          modules: _modules,
+          modules: _bibleModules,
           followedAnchor: followedAnchor,
           followOptions: _followOptionsFor(spec),
           readingMode: settings.readingMode,
@@ -808,6 +836,25 @@ class _ReaderScreenState extends State<ReaderScreen>
           followedAnchorEnd: _layout.byId(spec.follow)?.anchorEnd,
           onOpenReference: (osis) => _openReference(spec, osis),
           sourceModule: _layout.byId(spec.follow)?.module,
+          followValue: spec.follow,
+          followOptions: _followOptionsFor(spec),
+          readingMode: settings.readingMode,
+          onToggleMode: toggleMode,
+          badge: badge,
+          dragHandle: _dragHandle(spec),
+          onFollow: (follow) => _setFollow(spec.id, follow),
+          onClose: closable ? () => _closePane(spec.id) : null,
+        );
+      case PaneKind.commentary:
+        return CommentaryPane(
+          key: ValueKey('pane-${spec.id}'),
+          module: spec.module,
+          modules: _commentaryModules,
+          onModule: (code) => _setModule(spec.id, code),
+          followedAnchor: followedAnchor,
+          followedAnchorEnd: _layout.byId(spec.follow)?.anchorEnd,
+          sourceModule: _layout.byId(spec.follow)?.module,
+          onOpenReference: (osis) => _openReference(spec, osis),
           followValue: spec.follow,
           followOptions: _followOptionsFor(spec),
           readingMode: settings.readingMode,

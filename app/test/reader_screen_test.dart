@@ -109,6 +109,7 @@ void main() {
       fontData: File('fonts/GentiumBookPlus-Regular.ttf').readAsBytesSync(),
     );
     await importOsisFile(path: _fixture);
+    await importSwordFile(path: 'test/fixtures/commentary.sword.zip');
     _freshUserStore();
   });
 
@@ -583,6 +584,70 @@ void main() {
     );
     expect(position.data, '1. Mose 1',
         reason: 'Open navigates the linked text view');
+  });
+
+  testWidgets('commentary view: entries, references, and module separation',
+      (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+
+    // Commentaries never appear among the reading texts (ADR 0017).
+    final readerModules =
+        tester.widget<ReaderPane>(find.byType(ReaderPane)).modules;
+    expect(readerModules.any((m) => m.kind == 'commentary'), isFalse);
+
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-commentary')));
+    await tester.pumpAndSettle();
+
+    // The pane linked itself to the text view; once that view reports its
+    // position, the sections covering the visible verses appear.
+    await _selectRef(tester, book: 'Gen', chapter: 1);
+    await _settle(tester, () => _found(find.textContaining('Der Anfang')));
+    expect(find.byKey(const Key('commentary-list')), findsOneWidget);
+    expect(find.textContaining('Alles beginnt hier'), findsOneWidget);
+    expect(find.textContaining('Zweiter Absatz der Auslegung'),
+        findsOneWidget);
+    expect(find.textContaining('Licht wird.'), findsOneWidget);
+
+    // A reference inside an entry previews its passage.
+    TapGestureRecognizer? recognizer;
+    for (final rich in tester.widgetList<RichText>(find.byType(RichText))) {
+      rich.text.visitChildren((span) {
+        if (span is TextSpan &&
+            span.text == 'Kap. 3,1' &&
+            span.recognizer is TapGestureRecognizer) {
+          recognizer = span.recognizer as TapGestureRecognizer;
+          return false;
+        }
+        return true;
+      });
+      if (recognizer != null) break;
+    }
+    expect(recognizer, isNotNull,
+        reason: 'the commentary reference must be tappable');
+    recognizer!.onTap!();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Und die Schlange war listiger'), findsWidgets,
+        reason: 'preview shows the referenced passage');
+
+    await tester.tap(find.byKey(const Key('preview-open')));
+    await tester.pumpAndSettle();
+    await _settleLayouts(tester);
+    await tester.pumpAndSettle();
+    final position = tester.widget<Text>(
+      find.byKey(const Key('current-position')).first,
+    );
+    expect(position.data, '1. Mose 3',
+        reason: 'Open navigates the linked text view');
+    expect(find.byKey(const Key('no-commentary')), findsOneWidget,
+        reason: 'the fixture commentary has no sections for Gen 3');
   });
 
   testWidgets('desk history: back, forward, and the dropdown', (tester) async {

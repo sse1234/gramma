@@ -6,6 +6,7 @@
 pub mod library;
 pub mod osis;
 pub mod reference;
+pub mod sword;
 pub mod sync;
 pub mod typeset;
 pub mod user;

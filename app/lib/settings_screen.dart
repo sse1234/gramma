@@ -54,7 +54,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     try {
-      _modules = modules();
+      // The default text is a Bible text; commentaries (ADR 0017) are not
+      // reading-view candidates.
+      _modules = [
+        for (final m in modules())
+          if (m.kind != 'commentary') m
+      ];
     } catch (_) {
       _modules = const [];
     }

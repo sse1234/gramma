@@ -230,6 +230,12 @@ abstract class AppLocalizations {
   /// **'Footnotes view'**
   String get footnotesView;
 
+  /// No description provided for @commentaryView.
+  ///
+  /// In en, this message translates to:
+  /// **'Commentary view'**
+  String get commentaryView;
+
   /// No description provided for @settingsTooltip.
   ///
   /// In en, this message translates to:
@@ -239,7 +245,7 @@ abstract class AppLocalizations {
   /// No description provided for @importOsisTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Import OSIS…'**
+  /// **'Import module…'**
   String get importOsisTooltip;
 
   /// No description provided for @importedModule.
@@ -296,6 +302,12 @@ abstract class AppLocalizations {
   /// **'Footnotes'**
   String get footnotesTitle;
 
+  /// No description provided for @commentaryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Commentary'**
+  String get commentaryTitle;
+
   /// No description provided for @selectorTooltip.
   ///
   /// In en, this message translates to:
@@ -313,6 +325,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No footnotes in view'**
   String get noFootnotes;
+
+  /// No description provided for @linkCommentaryHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Link this view to a text view to see the commentary on its passage'**
+  String get linkCommentaryHint;
+
+  /// No description provided for @noCommentary.
+  ///
+  /// In en, this message translates to:
+  /// **'No commentary in view'**
+  String get noCommentary;
+
+  /// No description provided for @noCommentaryModules.
+  ///
+  /// In en, this message translates to:
+  /// **'Import a commentary (a SWORD zip package) to use this view'**
+  String get noCommentaryModules;
+
+  /// No description provided for @importedCommentary.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported {title} ({entries} entries)'**
+  String importedCommentary(String title, int entries);
 
   /// No description provided for @importToBegin.
   ///

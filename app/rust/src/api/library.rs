@@ -25,8 +25,21 @@ pub struct ModuleView {
     pub code: String,
     pub title: String,
     pub language: String,
+    /// Content units: verses of a Bible text, entries of a commentary.
     pub verses: u32,
     pub notes: u32,
+    /// "bible" or "commentary" (ADR 0017).
+    pub kind: String,
+}
+
+/// One commentary section (ADR 0017): a verse range of one chapter, with
+/// paragraphs separated by "\n\n" and explicit references from the source.
+pub struct CommentView {
+    pub verse_start: u16,
+    pub verse_end: u16,
+    pub heading: Option<String>,
+    pub text: String,
+    pub refs: Vec<NoteRefView>,
 }
 
 pub struct VerseView {
@@ -91,6 +104,56 @@ pub fn import_osis_file(path: String) -> anyhow::Result<ModuleView> {
         language: info.language,
         verses: info.verses,
         notes: info.notes,
+        kind: info.kind,
+    })
+}
+
+/// Import a SWORD zCom commentary package (a CrossWire zip, ADR 0017).
+pub fn import_sword_file(path: String) -> anyhow::Result<ModuleView> {
+    let doc = gramma_core::sword::read_zcom_zip(Path::new(&path))
+        .with_context(|| format!("read {path}"))?;
+    let mut guard = LIBRARY.lock().unwrap();
+    let library = guard
+        .as_mut()
+        .ok_or_else(|| anyhow!("library not opened"))?;
+    let info = library.import_commentary(&doc)?;
+    Ok(ModuleView {
+        code: info.code,
+        title: info.title,
+        language: info.language,
+        verses: info.verses,
+        notes: info.notes,
+        kind: info.kind,
+    })
+}
+
+/// Commentary entries of one chapter, ordered by starting verse.
+#[flutter_rust_bridge::frb(sync)]
+pub fn chapter_comments(
+    module_code: String,
+    book_osis: String,
+    chapter: u16,
+) -> anyhow::Result<Vec<CommentView>> {
+    let book = book_by_osis(&book_osis).ok_or_else(|| anyhow!("unknown book: {book_osis}"))?;
+    with_library(|library| library.comments(&module_code, book, chapter)).map(|comments| {
+        comments
+            .into_iter()
+            .map(|c| CommentView {
+                verse_start: c.verse_start,
+                verse_end: c.verse_end,
+                heading: c.heading,
+                text: c.text,
+                refs: c
+                    .refs
+                    .into_iter()
+                    .map(|r| NoteRefView {
+                        start: r.start,
+                        end: r.end,
+                        osis: r.osis,
+                    })
+                    .collect(),
+            })
+            .collect()
     })
 }
 
@@ -109,6 +172,7 @@ pub fn modules() -> anyhow::Result<Vec<ModuleView>> {
             language: m.language,
             verses: m.verses,
             notes: m.notes,
+            kind: m.kind,
         })
         .collect())
 }

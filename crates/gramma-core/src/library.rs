@@ -23,8 +23,23 @@ pub struct ModuleInfo {
     pub code: String,
     pub title: String,
     pub language: String,
+    /// Content units: verses of a Bible text, entries of a commentary.
     pub verses: u32,
     pub notes: u32,
+    /// "bible" or "commentary".
+    pub kind: String,
+}
+
+/// One commentary section (ADR 0017), covering verses
+/// `verse_start..=verse_end` of one chapter.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Comment {
+    pub verse_start: u16,
+    pub verse_end: u16,
+    pub heading: Option<String>,
+    /// Paragraphs separated by "\n\n".
+    pub text: String,
+    pub refs: Vec<crate::sword::CommentRef>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,7 +83,8 @@ CREATE TABLE IF NOT EXISTS module(
   id INTEGER PRIMARY KEY,
   code TEXT NOT NULL UNIQUE,
   title TEXT NOT NULL,
-  language TEXT NOT NULL
+  language TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'bible'
 );
 CREATE TABLE IF NOT EXISTS verse(
   module_id INTEGER NOT NULL REFERENCES module(id) ON DELETE CASCADE,
@@ -98,6 +114,27 @@ CREATE TABLE IF NOT EXISTS note(
   text TEXT NOT NULL,
   PRIMARY KEY(module_id, book, chapter, verse, seq)
 ) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS comment(
+  module_id INTEGER NOT NULL REFERENCES module(id) ON DELETE CASCADE,
+  book INTEGER NOT NULL,
+  chapter INTEGER NOT NULL,
+  verse_start INTEGER NOT NULL,
+  verse_end INTEGER NOT NULL,
+  heading TEXT,
+  text TEXT NOT NULL,
+  PRIMARY KEY(module_id, book, chapter, verse_start)
+) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS comment_ref(
+  module_id INTEGER NOT NULL REFERENCES module(id) ON DELETE CASCADE,
+  book INTEGER NOT NULL,
+  chapter INTEGER NOT NULL,
+  verse_start INTEGER NOT NULL,
+  seq INTEGER NOT NULL,
+  ref_start INTEGER NOT NULL,
+  ref_end INTEGER NOT NULL,
+  osis TEXT NOT NULL,
+  PRIMARY KEY(module_id, book, chapter, verse_start, seq)
+) WITHOUT ROWID;
 ";
 
 pub struct Library {
@@ -116,9 +153,14 @@ impl Library {
     fn init(conn: Connection) -> Result<Self, LibraryError> {
         conn.pragma_update(None, "foreign_keys", true)?;
         conn.execute_batch(SCHEMA)?;
-        // Migration: earlier note tables lack the offset column.
+        // Migration: earlier note tables lack the offset column, earlier
+        // module tables the kind column.
         let _ = conn.execute(
             "ALTER TABLE note ADD COLUMN offset INTEGER NOT NULL DEFAULT 0",
+            [],
+        );
+        let _ = conn.execute(
+            "ALTER TABLE module ADD COLUMN kind TEXT NOT NULL DEFAULT 'bible'",
             [],
         );
         Ok(Library { conn })
@@ -199,14 +241,129 @@ impl Library {
             language: doc.language,
             verses,
             notes: doc.notes.len() as u32,
+            kind: "bible".to_string(),
         })
+    }
+
+    /// Import a SWORD commentary (ADR 0017), replacing any existing module
+    /// with the same code.
+    pub fn import_commentary(
+        &mut self,
+        doc: &crate::sword::SwordCommentary,
+    ) -> Result<ModuleInfo, LibraryError> {
+        let tx = self.conn.transaction()?;
+        tx.execute("DELETE FROM module WHERE code = ?1", [&doc.code])?;
+        tx.execute(
+            "INSERT INTO module(code, title, language, kind)
+             VALUES (?1, ?2, ?3, 'commentary')",
+            (&doc.code, &doc.title, &doc.language),
+        )?;
+        let module_id = tx.last_insert_rowid();
+        {
+            let mut insert = tx.prepare(
+                "INSERT OR REPLACE INTO comment
+                   (module_id, book, chapter, verse_start, verse_end, heading, text)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            )?;
+            let mut insert_ref = tx.prepare(
+                "INSERT OR REPLACE INTO comment_ref
+                   (module_id, book, chapter, verse_start, seq, ref_start, ref_end, osis)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            )?;
+            for e in &doc.entries {
+                insert.execute((
+                    module_id,
+                    e.book.index() as i64,
+                    e.chapter,
+                    e.verse_start,
+                    e.verse_end,
+                    &e.heading,
+                    &e.text,
+                ))?;
+                for (seq, r) in e.refs.iter().enumerate() {
+                    insert_ref.execute((
+                        module_id,
+                        e.book.index() as i64,
+                        e.chapter,
+                        e.verse_start,
+                        seq as i64 + 1,
+                        r.start,
+                        r.end,
+                        &r.osis,
+                    ))?;
+                }
+            }
+        }
+        tx.commit()?;
+        let entries: u32 = self.conn.query_row(
+            "SELECT COUNT(*) FROM comment WHERE module_id = ?1",
+            [module_id],
+            |row| row.get(0),
+        )?;
+        Ok(ModuleInfo {
+            code: doc.code.clone(),
+            title: doc.title.clone(),
+            language: doc.language.clone(),
+            verses: entries,
+            notes: 0,
+            kind: "commentary".to_string(),
+        })
+    }
+
+    /// Commentary entries of one chapter, ordered by starting verse.
+    pub fn comments(
+        &self,
+        module_code: &str,
+        book: BookId,
+        chapter: u16,
+    ) -> Result<Vec<Comment>, LibraryError> {
+        let module_id = self.module_id(module_code)?;
+        let mut stmt = self.conn.prepare(
+            "SELECT verse_start, verse_end, heading, text FROM comment
+             WHERE module_id = ?1 AND book = ?2 AND chapter = ?3
+             ORDER BY verse_start",
+        )?;
+        let mut comments = stmt
+            .query_map((module_id, book.index() as i64, chapter), |row| {
+                Ok(Comment {
+                    verse_start: row.get(0)?,
+                    verse_end: row.get(1)?,
+                    heading: row.get(2)?,
+                    text: row.get(3)?,
+                    refs: Vec::new(),
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut refs = self.conn.prepare(
+            "SELECT ref_start, ref_end, osis FROM comment_ref
+             WHERE module_id = ?1 AND book = ?2 AND chapter = ?3
+               AND verse_start = ?4
+             ORDER BY seq",
+        )?;
+        for comment in &mut comments {
+            comment.refs = refs
+                .query_map(
+                    (module_id, book.index() as i64, chapter, comment.verse_start),
+                    |row| {
+                        Ok(crate::sword::CommentRef {
+                            start: row.get(0)?,
+                            end: row.get(1)?,
+                            osis: row.get(2)?,
+                        })
+                    },
+                )?
+                .collect::<Result<Vec<_>, _>>()?;
+        }
+        Ok(comments)
     }
 
     pub fn modules(&self) -> Result<Vec<ModuleInfo>, LibraryError> {
         let mut stmt = self.conn.prepare(
             "SELECT code, title, language,
-                    (SELECT COUNT(*) FROM verse v WHERE v.module_id = m.id),
-                    (SELECT COUNT(*) FROM note n WHERE n.module_id = m.id)
+                    (SELECT COUNT(*) FROM verse v WHERE v.module_id = m.id)
+                    + (SELECT COUNT(*) FROM comment c WHERE c.module_id = m.id),
+                    (SELECT COUNT(*) FROM note n WHERE n.module_id = m.id),
+                    kind
              FROM module m ORDER BY code",
         )?;
         let modules = stmt
@@ -217,6 +374,7 @@ impl Library {
                     language: row.get(2)?,
                     verses: row.get(3)?,
                     notes: row.get(4)?,
+                    kind: row.get(5)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;

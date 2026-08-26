@@ -1,6 +1,8 @@
 /// This is copied from Cargokit (which is the official way to use it currently)
 /// Details: https://fzyzcjy.github.io/flutter_rust_bridge/manual/integrate/builtin
 
+import 'dart:io';
+
 import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
@@ -141,6 +143,18 @@ class RustBuilder {
 
   String get _toolchain => _buildOptions?.toolchain.name ?? 'stable';
 
+  /// PATH with the rustup toolchain's own bin directory first. A
+  /// standalone cargo/rustc sitting earlier on the caller's PATH (e.g.
+  /// Homebrew's `rust` formula) would otherwise shadow the toolchain
+  /// `rustup run` selects and fail cross-target builds with E0463.
+  String _toolchainFirstPath(String toolchain) {
+    final which =
+        runCommand('rustup', ['which', '--toolchain', toolchain, 'rustc']);
+    final bin = path.dirname(which.stdout.toString().trim());
+    final sep = Platform.isWindows ? ';' : ':';
+    return '$bin$sep${Platform.environment['PATH'] ?? ''}';
+  }
+
   /// Returns the path of directory containing build artifacts.
   Future<String> build() async {
     final extraArgs = _buildOptions?.flags ?? [];
@@ -168,7 +182,10 @@ class RustBuilder {
         '--target-dir',
         environment.targetTempDir,
       ],
-      environment: await _buildEnvironment(),
+      environment: {
+        ...await _buildEnvironment(),
+        'PATH': _toolchainFirstPath(_toolchain),
+      },
     );
     return path.join(
       environment.targetTempDir,

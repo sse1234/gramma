@@ -6,6 +6,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+flate2 = "1.1.9"
 hyphenation = { version = "0.8.4", features = ["embed_all"] }
 quick-xml = "0.41.0"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
@@ -13,6 +14,7 @@ rustybuzz = "0.20.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0.20"
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 proptest = "1.11.0"

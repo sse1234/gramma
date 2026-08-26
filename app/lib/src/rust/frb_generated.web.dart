@@ -45,6 +45,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ChapterView dco_decode_chapter_view(dynamic raw);
 
   @protected
+  CommentView dco_decode_comment_view(dynamic raw);
+
+  @protected
   double dco_decode_f_64(dynamic raw);
 
   @protected
@@ -58,6 +61,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ChapterRefView> dco_decode_list_chapter_ref_view(dynamic raw);
+
+  @protected
+  List<CommentView> dco_decode_list_comment_view(dynamic raw);
 
   @protected
   List<LineView> dco_decode_list_line_view(dynamic raw);
@@ -140,6 +146,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ChapterView sse_decode_chapter_view(SseDeserializer deserializer);
 
   @protected
+  CommentView sse_decode_comment_view(SseDeserializer deserializer);
+
+  @protected
   double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
@@ -155,6 +164,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ChapterRefView> sse_decode_list_chapter_ref_view(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<CommentView> sse_decode_list_comment_view(SseDeserializer deserializer);
 
   @protected
   List<LineView> sse_decode_list_line_view(SseDeserializer deserializer);
@@ -247,6 +259,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_chapter_view(ChapterView self, SseSerializer serializer);
 
   @protected
+  void sse_encode_comment_view(CommentView self, SseSerializer serializer);
+
+  @protected
   void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
@@ -261,6 +276,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_chapter_ref_view(
     List<ChapterRefView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_comment_view(
+    List<CommentView> self,
     SseSerializer serializer,
   );
 

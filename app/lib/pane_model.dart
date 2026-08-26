@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 /// View kinds per ADR 0008. Text views send and receive reading position;
-/// footnotes views are receivers only.
-enum PaneKind { text, footnotes }
+/// footnotes and commentary views (ADR 0017) are receivers only.
+enum PaneKind { text, footnotes, commentary }
 
 /// Weights are user-dragged and persisted; anything non-finite or
 /// non-positive (from a corrupted store or a historical resize bug) resets

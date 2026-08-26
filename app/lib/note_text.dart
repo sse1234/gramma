@@ -5,25 +5,26 @@ import 'package:flutter/material.dart';
 
 import 'src/rust/api/library.dart';
 
-/// A note's text as spans with its scanned references tappable — shared
-/// by the footnotes pane and the inline note popup (ADR 0016).
-/// Reference offsets are byte positions in UTF-8, so slicing goes
-/// through utf8. Created recognizers are added to [recognizers]; the
-/// caller owns their disposal.
+/// Prose with verse references as spans with the references tappable —
+/// shared by the footnotes pane, the inline note popup (ADR 0016), and
+/// the commentary pane (ADR 0017). Reference offsets are byte positions
+/// in UTF-8, so slicing goes through utf8. Created recognizers are added
+/// to [recognizers]; the caller owns their disposal.
 List<TextSpan> noteSpans(
-  NoteView note,
+  String text,
+  List<NoteRefView> refs,
   TextStyle? textStyle,
   TextStyle? refStyle,
   ValueChanged<String> onRef,
   List<TapGestureRecognizer> recognizers,
 ) {
-  if (note.refs.isEmpty) {
-    return [TextSpan(text: note.text, style: textStyle)];
+  if (refs.isEmpty) {
+    return [TextSpan(text: text, style: textStyle)];
   }
-  final bytes = utf8.encode(note.text);
+  final bytes = utf8.encode(text);
   final spans = <TextSpan>[];
   var cursor = 0;
-  for (final ref in note.refs) {
+  for (final ref in refs) {
     if (ref.start > cursor) {
       spans.add(TextSpan(
         text: utf8.decode(bytes.sublist(cursor, ref.start)),

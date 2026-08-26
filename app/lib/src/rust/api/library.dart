@@ -15,6 +15,21 @@ void openLibrary({required String path}) =>
 Future<ModuleView> importOsisFile({required String path}) =>
     RustLib.instance.api.crateApiLibraryImportOsisFile(path: path);
 
+/// Import a SWORD zCom commentary package (a CrossWire zip, ADR 0017).
+Future<ModuleView> importSwordFile({required String path}) =>
+    RustLib.instance.api.crateApiLibraryImportSwordFile(path: path);
+
+/// Commentary entries of one chapter, ordered by starting verse.
+List<CommentView> chapterComments({
+  required String moduleCode,
+  required String bookOsis,
+  required int chapter,
+}) => RustLib.instance.api.crateApiLibraryChapterComments(
+  moduleCode: moduleCode,
+  bookOsis: bookOsis,
+  chapter: chapter,
+);
+
 List<ModuleView> modules() => RustLib.instance.api.crateApiLibraryModules();
 
 List<ChapterRefView> contents({required String moduleCode}) =>
@@ -119,12 +134,54 @@ class ChapterView {
           verses == other.verses;
 }
 
+/// One commentary section (ADR 0017): a verse range of one chapter, with
+/// paragraphs separated by "\n\n" and explicit references from the source.
+class CommentView {
+  final int verseStart;
+  final int verseEnd;
+  final String? heading;
+  final String text;
+  final List<NoteRefView> refs;
+
+  const CommentView({
+    required this.verseStart,
+    required this.verseEnd,
+    this.heading,
+    required this.text,
+    required this.refs,
+  });
+
+  @override
+  int get hashCode =>
+      verseStart.hashCode ^
+      verseEnd.hashCode ^
+      heading.hashCode ^
+      text.hashCode ^
+      refs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CommentView &&
+          runtimeType == other.runtimeType &&
+          verseStart == other.verseStart &&
+          verseEnd == other.verseEnd &&
+          heading == other.heading &&
+          text == other.text &&
+          refs == other.refs;
+}
+
 class ModuleView {
   final String code;
   final String title;
   final String language;
+
+  /// Content units: verses of a Bible text, entries of a commentary.
   final int verses;
   final int notes;
+
+  /// "bible" or "commentary" (ADR 0017).
+  final String kind;
 
   const ModuleView({
     required this.code,
@@ -132,6 +189,7 @@ class ModuleView {
     required this.language,
     required this.verses,
     required this.notes,
+    required this.kind,
   });
 
   @override
@@ -140,7 +198,8 @@ class ModuleView {
       title.hashCode ^
       language.hashCode ^
       verses.hashCode ^
-      notes.hashCode;
+      notes.hashCode ^
+      kind.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -151,7 +210,8 @@ class ModuleView {
           title == other.title &&
           language == other.language &&
           verses == other.verses &&
-          notes == other.notes;
+          notes == other.notes &&
+          kind == other.kind;
 }
 
 class NoteRefView {
