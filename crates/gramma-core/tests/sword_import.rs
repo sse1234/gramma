@@ -4,11 +4,11 @@
 
 use std::io::Write;
 
-use flate2::write::ZlibEncoder;
 use flate2::Compression;
+use flate2::write::ZlibEncoder;
 use gramma_core::library::Library;
 use gramma_core::reference::BookId;
-use gramma_core::sword::{parse_zcom, read_zcom_zip, Testament};
+use gramma_core::sword::{Testament, parse_zcom, read_zcom_zip};
 
 const CONF: &str = "\
 [GerTest]
@@ -119,11 +119,8 @@ fn reads_the_zip_package_form() {
         zip.start_file("mods.d/gertest.conf", opts).unwrap();
         zip.write_all(CONF.as_bytes()).unwrap();
         for (name, data) in [("ot.bzs", &t.bzs), ("ot.bzv", &t.bzv), ("ot.bzz", &t.bzz)] {
-            zip.start_file(
-                format!("modules/comments/zcom/gertest/{name}"),
-                opts,
-            )
-            .unwrap();
+            zip.start_file(format!("modules/comments/zcom/gertest/{name}"), opts)
+                .unwrap();
             zip.write_all(data).unwrap();
         }
         zip.finish().unwrap();
@@ -170,7 +167,11 @@ fn reads_a_real_package_when_provided() {
     let path = std::env::var("GRAMMA_SWORD_ZIP").expect("set GRAMMA_SWORD_ZIP");
     let doc = read_zcom_zip(std::path::Path::new(&path)).unwrap();
     assert!(!doc.code.is_empty());
-    assert!(doc.entries.len() > 100, "only {} entries", doc.entries.len());
+    assert!(
+        doc.entries.len() > 100,
+        "only {} entries",
+        doc.entries.len()
+    );
     for e in &doc.entries {
         assert!(!e.text.is_empty() || e.heading.is_some());
         assert!(e.verse_start <= e.verse_end);

@@ -86,7 +86,9 @@ pub fn layout_verses(
                 lines.push(LineOut { runs: Vec::new() });
             }
             for &&(verse, level, text) in &verse_headings {
-                lines.extend(layout_heading(None, text, level, verse, measure, line_width));
+                lines.extend(layout_heading(
+                    None, text, level, verse, measure, line_width,
+                ));
             }
         }
         segment.push((number, text));
@@ -153,7 +155,7 @@ fn layout_heading(
             verse,
             heading_level: level,
             link: None,
-            }));
+        }));
     }
     finish_paragraph(&mut items);
     meta.resize(items.len(), None);
@@ -266,7 +268,7 @@ fn layout_paragraph(
                         verse: *number,
                         heading_level: 0,
                         link: None,
-            }),
+                    }),
                 );
                 if offset < word.len() {
                     push(
@@ -347,7 +349,7 @@ fn push_marker(
         verse,
         heading_level: 0,
         link: None,
-            }));
+    }));
 }
 
 fn words_with_offsets(text: &str) -> impl Iterator<Item = (&str, usize)> {
@@ -386,11 +388,9 @@ fn set_line(
             Item::Box { .. } => {
                 let m = meta[i].as_ref().expect("box has meta");
                 match pieces.last_mut() {
-                    Some(Piece::Run { text, kind, link, .. })
-                        if *kind == RunKind::Word
-                            && m.kind == RunKind::Word
-                            && *link == m.link =>
-                    {
+                    Some(Piece::Run {
+                        text, kind, link, ..
+                    }) if *kind == RunKind::Word && m.kind == RunKind::Word && *link == m.link => {
                         text.push_str(&m.text);
                     }
                     _ => pieces.push(Piece::Run {

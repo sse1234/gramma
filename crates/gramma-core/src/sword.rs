@@ -18,10 +18,10 @@ use std::io::Read;
 use std::path::Path;
 
 use flate2::read::ZlibDecoder;
-use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
+use quick_xml::events::{BytesStart, Event};
 
-use crate::reference::{book_by_osis, BookId};
+use crate::reference::{BookId, book_by_osis};
 
 #[derive(Debug, thiserror::Error)]
 pub enum SwordError {
@@ -170,10 +170,7 @@ pub fn parse_zcom(conf: &str, testaments: &[Testament]) -> Result<SwordCommentar
     parse_zcom_parsed(parse_conf(conf)?, testaments)
 }
 
-fn parse_zcom_parsed(
-    conf: Conf,
-    testaments: &[Testament],
-) -> Result<SwordCommentary, SwordError> {
+fn parse_zcom_parsed(conf: Conf, testaments: &[Testament]) -> Result<SwordCommentary, SwordError> {
     let mut entries = Vec::new();
     for t in testaments {
         walk_testament(t, &mut entries)?;
@@ -301,9 +298,10 @@ impl TextBuilder {
             if trimmed.len() < rest.len() {
                 self.space = true;
             }
-            let Some(end) = trimmed.find(char::is_whitespace).or_else(|| {
-                (!trimmed.is_empty()).then_some(trimmed.len())
-            }) else {
+            let Some(end) = trimmed
+                .find(char::is_whitespace)
+                .or_else(|| (!trimmed.is_empty()).then_some(trimmed.len()))
+            else {
                 break;
             };
             self.flush_separator();
@@ -370,7 +368,10 @@ fn parse_fragment(fragment: &str) -> Result<Option<CommentaryEntry>, SwordError>
                 b"title" => {
                     if heading_capture {
                         heading_capture = false;
-                        let t = heading_text.split_whitespace().collect::<Vec<_>>().join(" ");
+                        let t = heading_text
+                            .split_whitespace()
+                            .collect::<Vec<_>>()
+                            .join(" ");
                         if !t.is_empty() {
                             heading = Some(t);
                         }
