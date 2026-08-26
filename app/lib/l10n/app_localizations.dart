@@ -404,6 +404,12 @@ abstract class AppLocalizations {
   /// **'Preview text size'**
   String get previewTextSize;
 
+  /// No description provided for @commentaryTextSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Commentary text size'**
+  String get commentaryTextSize;
+
   /// No description provided for @lineSpacing.
   ///
   /// In en, this message translates to:

@@ -5,7 +5,9 @@ use std::sync::{Mutex, OnceLock, RwLock};
 
 use anyhow::anyhow;
 use gramma_core::reference::book_by_osis;
-use gramma_core::typeset::layout::{layout_verses, VERSE_NUMBER_SCALE_PERCENT};
+use gramma_core::typeset::layout::{
+    layout_prose, layout_verses, ProseParagraph, VERSE_NUMBER_SCALE_PERCENT,
+};
 use gramma_core::typeset::shape::FontMeasure;
 use hyphenation::{Language, Load, Standard};
 
@@ -59,6 +61,9 @@ pub struct RunView {
     pub heading_level: u8,
     /// The verse this run belongs to.
     pub verse: u16,
+    /// Reference index in the owning layout's refs (prose, ADR 0018);
+    /// tapping the run opens that reference. None for plain text.
+    pub link: Option<u32>,
 }
 
 pub struct LineView {
@@ -152,6 +157,7 @@ pub fn layout_chapter(
                         note_marker: r.note_marker,
                         heading_level: r.heading_level,
                         verse: r.verse,
+                        link: r.link,
                     })
                     .collect(),
             })
@@ -161,6 +167,126 @@ pub fn layout_chapter(
         number_scale: VERSE_NUMBER_SCALE_PERCENT as f64 / 100.0,
         plain_text,
     })
+}
+
+/// One commentary section, typeset (ADR 0018): the same engine as the
+/// Bible text, at the pane's own measure. Runs with a `link` index are
+/// tappable references resolving through `refs`.
+pub struct CommentLayoutView {
+    pub verse_start: u16,
+    pub verse_end: u16,
+    pub lines: Vec<LineView>,
+    /// OSIS targets by `RunView.link` index.
+    pub refs: Vec<String>,
+    pub units_per_em: u16,
+    /// Line width in font units for this layout.
+    pub measure_units: i64,
+    /// The label renders at this fraction of the text size.
+    pub number_scale: f64,
+    /// Flowing text of the entry, for accessibility semantics.
+    pub plain_text: String,
+}
+
+/// Typeset the commentary sections of one chapter at `measure_ems` ems —
+/// the pane's width in ems of its text size; commentary reflows freely,
+/// without the reader's protected measure. Async: shaping and breaking
+/// run on a worker thread.
+pub fn layout_comments(
+    module_code: String,
+    book_osis: String,
+    chapter: u16,
+    measure_ems: f64,
+) -> anyhow::Result<Vec<CommentLayoutView>> {
+    let measure = active_measure()?;
+    let book = book_by_osis(&book_osis).ok_or_else(|| anyhow!("unknown book: {book_osis}"))?;
+    let (comments, german) = with_library(|library| {
+        let comments = library.comments(&module_code, book, chapter)?;
+        let german = library
+            .modules()?
+            .iter()
+            .any(|m| m.code == module_code && m.language.starts_with("de"));
+        Ok((comments, german))
+    })?;
+    let hyphenator = german.then(|| {
+        GERMAN.get_or_init(|| {
+            Standard::from_embedded(Language::German1996).expect("embedded patterns")
+        })
+    });
+    let measure_units = (measure_ems * measure.units_per_em() as f64) as i64;
+    Ok(comments
+        .into_iter()
+        .map(|c| {
+            let label = if c.verse_start == c.verse_end {
+                c.verse_start.to_string()
+            } else {
+                format!("{}-{}", c.verse_start, c.verse_end)
+            };
+            // Reference offsets address the whole entry text; paragraphs
+            // carry them re-based to their own start.
+            let mut paragraphs = Vec::new();
+            let mut cursor = 0usize;
+            for part in c.text.split("\n\n") {
+                let start = cursor;
+                let end = start + part.len();
+                let links = c
+                    .refs
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, r)| (r.start as usize) < end && (r.end as usize) > start)
+                    .map(|(i, r)| {
+                        (
+                            (r.start as usize).saturating_sub(start),
+                            (r.end as usize).min(end) - start,
+                            i as u32,
+                        )
+                    })
+                    .collect();
+                paragraphs.push(ProseParagraph { text: part, links });
+                cursor = end + 2;
+            }
+            let lines = layout_prose(
+                Some(&label),
+                c.heading.as_deref(),
+                &paragraphs,
+                c.verse_start,
+                measure,
+                hyphenator,
+                measure_units,
+            );
+            let plain_text = match &c.heading {
+                Some(h) => format!("{label} {h}. {}", c.text.replace("\n\n", " ")),
+                None => format!("{label} {}", c.text.replace("\n\n", " ")),
+            };
+            CommentLayoutView {
+                verse_start: c.verse_start,
+                verse_end: c.verse_end,
+                lines: lines
+                    .into_iter()
+                    .map(|l| LineView {
+                        runs: l
+                            .runs
+                            .into_iter()
+                            .map(|r| RunView {
+                                text: r.text,
+                                x: r.x,
+                                width: r.width,
+                                verse_number: r.verse_number,
+                                note_marker: r.note_marker,
+                                heading_level: r.heading_level,
+                                verse: r.verse,
+                                link: r.link,
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+                refs: c.refs.into_iter().map(|r| r.osis).collect(),
+                units_per_em: measure.units_per_em(),
+                measure_units,
+                number_scale: VERSE_NUMBER_SCALE_PERCENT as f64 / 100.0,
+                plain_text,
+            }
+        })
+        .collect())
 }
 
 /// Text-line count of every chapter in the module's spine order, at the

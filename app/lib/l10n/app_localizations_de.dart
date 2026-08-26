@@ -184,6 +184,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get previewTextSize => 'Vorschau-Textgröße';
 
   @override
+  String get commentaryTextSize => 'Kommentar-Textgröße';
+
+  @override
   String get lineSpacing => 'Zeilenabstand';
 
   @override

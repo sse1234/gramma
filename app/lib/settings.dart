@@ -56,6 +56,7 @@ class SettingsController extends ChangeNotifier {
         ToneTheme.paper;
     _footnoteScale = _prefs.getDouble('footnoteScale') ?? 1.0;
     _previewScale = _prefs.getDouble('previewScale') ?? 1.0;
+    _commentaryScale = _prefs.getDouble('commentaryScale') ?? 1.0;
     _columnAdvance = _prefs.getDouble('columnAdvance') ?? defaultColumnAdvance;
     _currentDeskId = _prefs.getString('currentDesk');
     _fontWeightLight =
@@ -111,6 +112,7 @@ class SettingsController extends ChangeNotifier {
   ToneTheme _tone = ToneTheme.paper;
   double _footnoteScale = 1.0;
   double _previewScale = 1.0;
+  double _commentaryScale = 1.0;
   double _columnAdvance = defaultColumnAdvance;
   String? _currentDeskId;
   double _fontWeightLight = 0;
@@ -216,6 +218,9 @@ class SettingsController extends ChangeNotifier {
   /// Text scale of passage preview popups.
   double get previewScale => _previewScale;
 
+  /// Text scale of the commentary view's typeset text (ADR 0018).
+  double get commentaryScale => _commentaryScale;
+
   /// Fraction of a column a swipe must naturally travel to turn to the
   /// next column ([minColumnAdvance] light … [maxColumnAdvance] firm).
   double get columnAdvance => _columnAdvance;
@@ -257,6 +262,12 @@ class SettingsController extends ChangeNotifier {
   void setPreviewScale(double value) {
     _previewScale = value.clamp(0.8, 1.6);
     _prefs.setDouble('previewScale', _previewScale);
+    notifyListeners();
+  }
+
+  void setCommentaryScale(double value) {
+    _commentaryScale = value.clamp(0.8, 1.6);
+    _prefs.setDouble('commentaryScale', _commentaryScale);
     notifyListeners();
   }
 

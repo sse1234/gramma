@@ -51,6 +51,7 @@
   "pxColumnLabel": "{px} px Spalte",
   "footnoteTextSize": "Fußnoten-Textgröße",
   "previewTextSize": "Vorschau-Textgröße",
+  "commentaryTextSize": "Kommentar-Textgröße",
   "lineSpacing": "Zeilenabstand",
   "lineSpacingLabel": "{v} × Schriftgröße",
   "columnTurnEffort": "Spaltenwechsel-Widerstand",

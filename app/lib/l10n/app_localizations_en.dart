@@ -183,6 +183,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get previewTextSize => 'Preview text size';
 
   @override
+  String get commentaryTextSize => 'Commentary text size';
+
+  @override
   String get lineSpacing => 'Line spacing';
 
   @override

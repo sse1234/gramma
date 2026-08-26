@@ -36,6 +36,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool dco_decode_bool(dynamic raw);
 
   @protected
+  int dco_decode_box_autoadd_u_32(dynamic raw);
+
+  @protected
   ChapterLayoutView dco_decode_chapter_layout_view(dynamic raw);
 
   @protected
@@ -43,6 +46,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ChapterView dco_decode_chapter_view(dynamic raw);
+
+  @protected
+  CommentLayoutView dco_decode_comment_layout_view(dynamic raw);
 
   @protected
   CommentView dco_decode_comment_view(dynamic raw);
@@ -61,6 +67,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ChapterRefView> dco_decode_list_chapter_ref_view(dynamic raw);
+
+  @protected
+  List<CommentLayoutView> dco_decode_list_comment_layout_view(dynamic raw);
 
   @protected
   List<CommentView> dco_decode_list_comment_view(dynamic raw);
@@ -105,6 +114,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
+  int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
+
+  @protected
   ParseOutcome dco_decode_parse_outcome(dynamic raw);
 
   @protected
@@ -135,6 +147,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
+  int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
   ChapterLayoutView sse_decode_chapter_layout_view(
     SseDeserializer deserializer,
   );
@@ -144,6 +159,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ChapterView sse_decode_chapter_view(SseDeserializer deserializer);
+
+  @protected
+  CommentLayoutView sse_decode_comment_layout_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   CommentView sse_decode_comment_view(SseDeserializer deserializer);
@@ -162,6 +182,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ChapterRefView> sse_decode_list_chapter_ref_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<CommentLayoutView> sse_decode_list_comment_layout_view(
     SseDeserializer deserializer,
   );
 
@@ -208,6 +233,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
+  int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
   ParseOutcome sse_decode_parse_outcome(SseDeserializer deserializer);
 
   @protected
@@ -244,6 +272,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
+
+  @protected
   void sse_encode_chapter_layout_view(
     ChapterLayoutView self,
     SseSerializer serializer,
@@ -257,6 +288,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_chapter_view(ChapterView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_comment_layout_view(
+    CommentLayoutView self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_comment_view(CommentView self, SseSerializer serializer);
@@ -276,6 +313,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_chapter_ref_view(
     List<ChapterRefView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_comment_layout_view(
+    List<CommentLayoutView> self,
     SseSerializer serializer,
   );
 
@@ -338,6 +381,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
 
   @protected
   void sse_encode_parse_outcome(ParseOutcome self, SseSerializer serializer);

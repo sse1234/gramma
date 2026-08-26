@@ -347,6 +347,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
+                title: Text(context.l10n.commentaryTextSize),
+                subtitle: Slider(
+                  key: const Key('commentary-scale'),
+                  min: 0.8,
+                  max: 1.6,
+                  divisions: 8,
+                  value: settings.commentaryScale,
+                  label: '${(settings.commentaryScale * 100).round()} %',
+                  onChanged: settings.setCommentaryScale,
+                ),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
                 title: Text(context.l10n.lineSpacing),
                 subtitle: Slider(
                   key: const Key('spacing-slider'),

@@ -11,6 +11,7 @@ typedef _RunKey = (
   int?,
   FontWeight?,
   FontStyle?,
+  TextDecoration?, // reference underlines (ADR 0018)
   double,
 );
 final Map<_RunKey, TextPainter> _painters = {};
@@ -24,6 +25,7 @@ TextPainter _layoutPainter(String text, TextStyle style, double strokeEm) {
     style.color?.toARGB32(),
     style.fontWeight,
     style.fontStyle,
+    style.decoration,
     strokeEm,
   );
   final cached = _painters.remove(key);
@@ -37,6 +39,8 @@ TextPainter _layoutPainter(String text, TextStyle style, double strokeEm) {
           fontSize: style.fontSize,
           fontWeight: style.fontWeight,
           fontStyle: style.fontStyle,
+          decoration: style.decoration,
+          decorationColor: style.decorationColor,
           foreground: Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = (style.fontSize ?? 14) * strokeEm

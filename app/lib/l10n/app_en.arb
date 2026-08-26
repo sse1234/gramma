@@ -59,6 +59,7 @@
   "@pxColumnLabel": {"placeholders": {"px": {"type": "int"}}},
   "footnoteTextSize": "Footnote text size",
   "previewTextSize": "Preview text size",
+  "commentaryTextSize": "Commentary text size",
   "lineSpacing": "Line spacing",
   "lineSpacingLabel": "{v} × font size",
   "@lineSpacingLabel": {"placeholders": {"v": {"type": "String"}}},
