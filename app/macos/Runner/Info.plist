@@ -24,6 +24,11 @@
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>$(PRODUCT_COPYRIGHT)</string>
+	<!-- Impeller (the macOS default since Flutter 3.4x) reliably segfaults
+	     in Canvas::SetupRenderPass during live window resizing
+	     (flutter/flutter#185394); Skia until that lands. -->
+	<key>FLTEnableImpeller</key>
+	<false/>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
