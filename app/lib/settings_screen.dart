@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 
 import 'dropbox_sync.dart';
@@ -9,6 +10,7 @@ import 'icloud.dart';
 import 'settings.dart';
 import 'sync_transport.dart';
 import 'src/rust/api/library.dart';
+import 'src/rust/api/typeset.dart';
 import 'src/rust/api/user.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -166,6 +168,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
       activeDropbox = null;
       messenger.showSnackBar(
           SnackBar(content: Text('Dropbox connection failed: $e')));
+    }
+  }
+
+  Future<void> _changeTypeface() async {
+    final settings = SettingsScope.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    var selection = settings.fontFamily;
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Change typeface?'),
+          content: RadioGroup<String>(
+            groupValue: selection,
+            onChanged: (v) => setDialogState(() => selection = v!),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'The typeface defines where every line of text breaks. '
+                  'Changing it re-typesets everything — the familiar visual '
+                  'shape of pages you have read will change.',
+                ),
+                const SizedBox(height: 8),
+                const RadioListTile<String>(
+                  key: Key('font-GentiumBookPlus'),
+                  title: Text('Gentium Book Plus'),
+                  subtitle: Text('the heavier cut — the default'),
+                  value: 'GentiumBookPlus',
+                ),
+                const RadioListTile<String>(
+                  key: Key('font-GentiumPlus'),
+                  title: Text('Gentium Plus'),
+                  subtitle: Text('the lighter companion cut'),
+                  value: 'GentiumPlus',
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              key: const Key('font-confirm'),
+              onPressed: () => Navigator.of(context).pop(selection),
+              child: const Text('Apply'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (chosen == null ||
+        !mounted ||
+        chosen == settings.fontFamily) {
+      return;
+    }
+    try {
+      final font =
+          await rootBundle.load(SettingsController.fontAssets[chosen]!);
+      setTypesetFont(fontData: font.buffer.asUint8List());
+      settings.setFontFamily(chosen, confirmed: true);
+    } catch (e) {
+      messenger.showSnackBar(
+          SnackBar(content: Text('Typeface change failed: $e')));
     }
   }
 
@@ -434,6 +502,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const Divider(height: 32),
               Text('Typesetting', style: theme.textTheme.titleMedium),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Typeface'),
+                subtitle: Text(
+                  SettingsController.fontDisplayNames[settings.fontFamily] ??
+                      settings.fontFamily,
+                ),
+                trailing: OutlinedButton(
+                  key: const Key('change-font'),
+                  onPressed: _changeTypeface,
+                  child: const Text('Change…'),
+                ),
+              ),
               const SizedBox(height: 8),
               ListTile(
                 contentPadding: EdgeInsets.zero,

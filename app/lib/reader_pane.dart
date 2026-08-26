@@ -125,6 +125,7 @@ class _ReaderPaneState extends State<ReaderPane> {
   double _lineSpacing = SettingsController.defaultLineSpacing;
   double _columnAdvance = SettingsController.defaultColumnAdvance;
   int? _measure;
+  String? _fontFamily;
 
   /// Keyboard focus for arrow-key column paging.
   final FocusNode _focus = FocusNode(debugLabel: 'reader-pane');
@@ -194,11 +195,16 @@ class _ReaderPaneState extends State<ReaderPane> {
     _lineSpacing = settings.lineSpacing;
     _columnAdvance = settings.columnAdvance;
     final measure = settings.measureEms;
+    final family = settings.fontFamily;
     if (_measure == null) {
       _measure = measure;
+      _fontFamily = family;
       _loadModule();
-    } else if (_measure != measure) {
+    } else if (_measure != measure || _fontFamily != family) {
+      // A typeface change moves every line break, exactly like a
+      // measure change.
       _measure = measure;
+      _fontFamily = family;
       WidgetsBinding.instance.addPostFrameCallback((_) => _remeasure());
     }
   }
@@ -896,7 +902,8 @@ class _ReaderPaneState extends State<ReaderPane> {
             child: Text(
               entry.heading,
               style: theme.textTheme.headlineSmall
-                  ?.copyWith(fontFamily: 'GentiumBookPlus'),
+                  ?.copyWith(
+                      fontFamily: SettingsScope.of(context).fontFamily),
             ),
           ),
           if (layout != null)

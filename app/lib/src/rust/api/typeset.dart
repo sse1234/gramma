@@ -7,8 +7,16 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+// These functions are ignored because they are not marked as `pub`: `activate_font`, `active_measure`
+
 void initTypesetting({required List<int> fontData}) =>
     RustLib.instance.api.crateApiTypesetInitTypesetting(fontData: fontData);
+
+/// Switch the typesetting face (the user's typeface setting): every
+/// later layout uses the new metrics, so callers re-measure and re-lay
+/// their modules just as after a measure change.
+void setTypesetFont({required List<int> fontData}) =>
+    RustLib.instance.api.crateApiTypesetSetTypesetFont(fontData: fontData);
 
 /// Async on purpose: runs on a worker thread so scrolling never blocks on
 /// shaping and breaking.

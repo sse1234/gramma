@@ -62,12 +62,29 @@ class SettingsController extends ChangeNotifier {
         _prefs.getDouble('fontWeightLight') ?? defaultFontWeight;
     _fontWeightDark =
         _prefs.getDouble('fontWeightDark') ?? defaultFontWeight;
+    final family = _prefs.getString('fontFamily');
+    if (family != null && fontAssets.containsKey(family)) {
+      _fontFamily = family;
+    }
     _themeMode = switch (_prefs.getString('themeMode')) {
       'light' => ThemeMode.light,
       'dark' => ThemeMode.dark,
       _ => ThemeMode.system,
     };
   }
+
+  /// The bundled typefaces: Flutter family name → font asset. Gentium
+  /// Book Plus is the heavier default, Gentium Plus its lighter
+  /// companion cut (both SIL OFL).
+  static const fontAssets = {
+    'GentiumBookPlus': 'fonts/GentiumBookPlus-Regular.ttf',
+    'GentiumPlus': 'fonts/GentiumPlus-Regular.ttf',
+  };
+
+  static const fontDisplayNames = {
+    'GentiumBookPlus': 'Gentium Book Plus',
+    'GentiumPlus': 'Gentium Plus',
+  };
 
   static const defaultColumnWidth = 400.0;
   static const defaultContrast = 0.85;
@@ -95,6 +112,25 @@ class SettingsController extends ChangeNotifier {
   String? _currentDeskId;
   double _fontWeightLight = 0;
   double _fontWeightDark = 0;
+  String _fontFamily = 'GentiumBookPlus';
+
+  /// The reading typeface. Like the measure, it defines where every
+  /// line breaks — the setter refuses to apply without an explicit,
+  /// confirmed user decision.
+  String get fontFamily => _fontFamily;
+
+  void setFontFamily(String family, {required bool confirmed}) {
+    if (!confirmed) {
+      throw StateError(
+        'the typeface re-typesets everything and must only be changed '
+        'after explicit user confirmation',
+      );
+    }
+    if (!fontAssets.containsKey(family)) return;
+    _fontFamily = family;
+    _prefs.setString('fontFamily', family);
+    notifyListeners();
+  }
 
   /// Extra stroke weight over the font's natural stems, in ems of the
   /// font size, separately per brightness: dim rooms with dim screens

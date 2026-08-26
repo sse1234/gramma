@@ -883,6 +883,37 @@ void main() {
         reason: 'the plan jump entered the desk history');
   });
 
+  testWidgets('switching the typeface re-typesets the reader',
+      (tester) async {
+    _freshUserStore();
+    _phoneViewport(tester);
+    final settings = SettingsController(prefs);
+    addTearDown(
+        () => settings.setFontFamily('GentiumBookPlus', confirmed: true));
+    await tester.pumpWidget(GrammaApp(settings: settings));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('open-settings')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+        find.byKey(const Key('change-font')), 300);
+    await tester.tap(find.byKey(const Key('change-font')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('font-GentiumPlus')));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await tester.tap(find.byKey(const Key('font-confirm')));
+      // The apply loads the font asset asynchronously.
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+    await tester.pumpAndSettle();
+    expect(settings.fontFamily, 'GentiumPlus');
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    // The reader re-measures with the new metrics and keeps reading.
+    await _settleLayouts(tester);
+    expect(find.text('1. Mose 1'), findsWidgets);
+  });
+
   testWidgets('corrupted pane weights restore to a usable desk',
       (tester) async {
     _freshUserStore();

@@ -22,8 +22,9 @@ class TypesetChapter extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final weightEm =
-        SettingsScope.of(context).fontWeightFor(theme.brightness);
+    final settings = SettingsScope.of(context);
+    final weightEm = settings.fontWeightFor(theme.brightness);
+    final family = settings.fontFamily;
     return LayoutBuilder(
       builder: (context, constraints) {
         final scale = constraints.maxWidth / layout.measureUnits;
@@ -41,6 +42,7 @@ class TypesetChapter extends StatelessWidget {
               textColor: scheme.onSurface,
               numberColor: scheme.primary,
               weightEm: weightEm,
+              family: family,
             ),
           ),
         );
@@ -58,6 +60,7 @@ class _ChapterPainter extends CustomPainter {
     required this.textColor,
     required this.numberColor,
     required this.weightEm,
+    required this.family,
   });
 
   final ChapterLayoutView layout;
@@ -70,15 +73,18 @@ class _ChapterPainter extends CustomPainter {
   /// Extra stroke weight (user setting) in ems of the font size.
   final double weightEm;
 
+  /// The reading typeface (user setting).
+  final String family;
+
   @override
   void paint(Canvas canvas, Size size) {
     final textStyle = TextStyle(
-      fontFamily: 'GentiumBookPlus',
+      fontFamily: family,
       fontSize: fontSize,
       color: textColor,
     );
     final numberStyle = TextStyle(
-      fontFamily: 'GentiumBookPlus',
+      fontFamily: family,
       fontSize: fontSize * layout.numberScale,
       color: numberColor,
     );
@@ -110,6 +116,7 @@ class _ChapterPainter extends CustomPainter {
         old.scale != scale ||
         old.textColor != textColor ||
         old.numberColor != numberColor ||
-        old.weightEm != weightEm;
+        old.weightEm != weightEm ||
+        old.family != family;
   }
 }
