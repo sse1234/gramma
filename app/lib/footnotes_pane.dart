@@ -1,9 +1,8 @@
-import 'dart:convert';
-
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'l10n.dart';
+import 'note_text.dart';
 import 'passage_preview.dart';
 import 'reader_pane.dart';
 import 'settings.dart';
@@ -208,11 +207,7 @@ class _FootnotesPaneState extends State<FootnotesPane> {
       color: theme.colorScheme.onSurface,
       fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) * scale,
     );
-    final refStyle = textStyle?.copyWith(
-      color: theme.colorScheme.primary,
-      decoration: TextDecoration.underline,
-      decorationColor: theme.colorScheme.primary.withValues(alpha: 0.5),
-    );
+    final refStyle = refStyleFor(theme, textStyle);
     return ListView.builder(
       key: const Key('footnotes-list'),
       itemCount: entries.length,
@@ -226,7 +221,8 @@ class _FootnotesPaneState extends State<FootnotesPane> {
           child: Text.rich(
             TextSpan(children: [
               TextSpan(text: '$prefix  ', style: numberStyle),
-              ..._noteSpans(entry.note, textStyle, refStyle),
+              ...noteSpans(entry.note, textStyle, refStyle, _openPreview,
+                  _recognizers),
             ]),
           ),
         );
@@ -239,42 +235,4 @@ class _FootnotesPaneState extends State<FootnotesPane> {
     return parts.length >= 3 ? int.tryParse(parts[2]) : null;
   }
 
-  /// The note text as spans, with scanned references tappable. Reference
-  /// offsets are byte positions in UTF-8, so slicing goes through utf8.
-  List<TextSpan> _noteSpans(
-    NoteView note,
-    TextStyle? textStyle,
-    TextStyle? refStyle,
-  ) {
-    if (note.refs.isEmpty) {
-      return [TextSpan(text: note.text, style: textStyle)];
-    }
-    final bytes = utf8.encode(note.text);
-    final spans = <TextSpan>[];
-    var cursor = 0;
-    for (final ref in note.refs) {
-      if (ref.start > cursor) {
-        spans.add(TextSpan(
-          text: utf8.decode(bytes.sublist(cursor, ref.start)),
-          style: textStyle,
-        ));
-      }
-      final recognizer = TapGestureRecognizer()
-        ..onTap = () => _openPreview(ref.osis);
-      _recognizers.add(recognizer);
-      spans.add(TextSpan(
-        text: utf8.decode(bytes.sublist(ref.start, ref.end)),
-        style: refStyle,
-        recognizer: recognizer,
-      ));
-      cursor = ref.end;
-    }
-    if (cursor < bytes.length) {
-      spans.add(TextSpan(
-        text: utf8.decode(bytes.sublist(cursor)),
-        style: textStyle,
-      ));
-    }
-    return spans;
-  }
 }

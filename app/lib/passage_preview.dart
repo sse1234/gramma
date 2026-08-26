@@ -4,15 +4,9 @@ import 'l10n.dart';
 import 'settings.dart';
 import 'src/rust/api/library.dart';
 
-/// Floating preview of a referenced passage: the target verse(s) with their
-/// chapter context, resolved against the default text. `onOpen` navigates
-/// the linked text view to the reference.
-Future<void> showPassagePreview(
-  BuildContext context, {
-  required String osis,
-  required String moduleCode,
-  VoidCallback? onOpen,
-}) {
+/// The parsed shape of a preview target: "Book.Ch[.V][-…[.V2]]".
+({String book, int chapter, int? verse, int? endVerse}) parsePreviewOsis(
+    String osis) {
   final parts = osis.split('-').first.split('.');
   final book = parts[0];
   final chapter = parts.length >= 2 ? int.tryParse(parts[1]) ?? 1 : 1;
@@ -23,42 +17,116 @@ Future<void> showPassagePreview(
     final tail = endParts[1].split('.');
     if (tail.length >= 3) endVerse = int.tryParse(tail[2]) ?? verse;
   }
-  List<VerseView> verses;
-  try {
-    verses = chapterVerses(
-      moduleCode: moduleCode,
-      bookOsis: book,
-      chapter: chapter,
+  return (book: book, chapter: chapter, verse: verse, endVerse: endVerse);
+}
+
+/// Display label of a preview target ("Gen 17,9-14 · GerNeUe").
+String previewTitle(String osis, String moduleCode) {
+  final t = parsePreviewOsis(osis);
+  return '${t.book} ${t.chapter}'
+      '${t.verse != null ? ',${t.verse}' : ''}'
+      '${t.endVerse != null && t.endVerse != t.verse ? '-${t.endVerse}' : ''}'
+      ' · $moduleCode';
+}
+
+/// The verses of a referenced passage with the target range highlighted,
+/// beginning one verse before the target so the passage reads naturally.
+/// Shared by the floating preview and the note popup (ADR 0016).
+class PassageList extends StatelessWidget {
+  const PassageList({super.key, required this.osis, required this.moduleCode});
+
+  final String osis;
+  final String moduleCode;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scale = SettingsScope.of(context).previewScale;
+    final family = SettingsScope.of(context).fontFamily;
+    final target = parsePreviewOsis(osis);
+    List<VerseView> verses;
+    try {
+      verses = chapterVerses(
+        moduleCode: moduleCode,
+        bookOsis: target.book,
+        chapter: target.chapter,
+      );
+    } catch (_) {
+      verses = const [];
+    }
+    final startIndex = target.verse == null
+        ? 0
+        : verses
+            .indexWhere((v) => v.verse >= target.verse! - 1)
+            .clamp(0, verses.length);
+    final visible =
+        verses.isEmpty ? const <VerseView>[] : verses.sublist(startIndex);
+    final numberStyle = theme.textTheme.labelSmall?.copyWith(
+      color: theme.colorScheme.primary,
+      fontFamily: family,
+      fontSize: (theme.textTheme.labelSmall?.fontSize ?? 11) * scale,
     );
-  } catch (_) {
-    verses = const [];
+    final textStyle = theme.textTheme.bodyMedium?.copyWith(
+      fontFamily: family,
+      height: 1.3,
+      color: theme.colorScheme.onSurface,
+      fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) * scale,
+    );
+    bool highlighted(int v) =>
+        target.verse != null &&
+        v >= target.verse! &&
+        v <= (target.endVerse ?? target.verse!);
+    if (visible.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          context.l10n.passageNotAvailable(moduleCode),
+          style: textStyle,
+        ),
+      );
+    }
+    return ListView.builder(
+      shrinkWrap: true,
+      itemCount: visible.length,
+      itemBuilder: (context, index) {
+        final v = visible[index];
+        final strong = highlighted(v.verse);
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Text.rich(
+            TextSpan(children: [
+              TextSpan(
+                text: '${v.verse}  ',
+                style: numberStyle?.copyWith(
+                  fontWeight: strong ? FontWeight.w800 : FontWeight.w400,
+                ),
+              ),
+              TextSpan(
+                text: v.text,
+                style: strong
+                    ? textStyle?.copyWith(fontWeight: FontWeight.w600)
+                    : textStyle,
+              ),
+            ]),
+          ),
+        );
+      },
+    );
   }
-  // Context: begin one verse before the target so the passage reads
-  // naturally; the popup scrolls for however much fits.
-  final startIndex = verse == null
-      ? 0
-      : verses.indexWhere((v) => v.verse >= verse - 1).clamp(0, verses.length);
-  final visible = verses.isEmpty ? const <VerseView>[] : verses.sublist(startIndex);
+}
+
+/// Floating preview of a referenced passage, resolved against the
+/// default text. `onOpen` navigates the linked text view.
+Future<void> showPassagePreview(
+  BuildContext context, {
+  required String osis,
+  required String moduleCode,
+  VoidCallback? onOpen,
+}) {
   return showDialog<void>(
     context: context,
     builder: (context) {
       final theme = Theme.of(context);
-      final settings = SettingsScope.of(context);
-      final scale = settings.previewScale;
-      final family = settings.fontFamily;
-      final numberStyle = theme.textTheme.labelSmall?.copyWith(
-        color: theme.colorScheme.primary,
-        fontFamily: family,
-        fontSize: (theme.textTheme.labelSmall?.fontSize ?? 11) * scale,
-      );
-      final textStyle = theme.textTheme.bodyMedium?.copyWith(
-        fontFamily: family,
-        height: 1.3,
-        color: theme.colorScheme.onSurface,
-        fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) * scale,
-      );
-      bool highlighted(int v) =>
-          verse != null && v >= verse && v <= (endVerse ?? verse);
       return Dialog(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420, maxHeight: 460),
@@ -72,10 +140,7 @@ Future<void> showPassagePreview(
                   children: [
                     Expanded(
                       child: Text(
-                        '$book $chapter'
-                        '${verse != null ? ',$verse' : ''}'
-                        '${endVerse != null && endVerse != verse ? '-$endVerse' : ''}'
-                        ' · $moduleCode',
+                        previewTitle(osis, moduleCode),
                         style: theme.textTheme.titleSmall,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -97,47 +162,7 @@ Future<void> showPassagePreview(
                   ],
                 ),
                 const SizedBox(height: 8),
-                Flexible(
-                  child: visible.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Text(
-                            context.l10n.passageNotAvailable(moduleCode),
-                            style: textStyle,
-                          ),
-                        )
-                      : ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: visible.length,
-                          itemBuilder: (context, index) {
-                            final v = visible[index];
-                            final strong = highlighted(v.verse);
-                            return Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 3),
-                              child: Text.rich(
-                                TextSpan(children: [
-                                  TextSpan(
-                                    text: '${v.verse}  ',
-                                    style: numberStyle?.copyWith(
-                                      fontWeight: strong
-                                          ? FontWeight.w800
-                                          : FontWeight.w400,
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text: v.text,
-                                    style: strong
-                                        ? textStyle?.copyWith(
-                                            fontWeight: FontWeight.w600)
-                                        : textStyle,
-                                  ),
-                                ]),
-                              ),
-                            );
-                          },
-                        ),
-                ),
+                Flexible(child: PassageList(osis: osis, moduleCode: moduleCode)),
               ],
             ),
           ),

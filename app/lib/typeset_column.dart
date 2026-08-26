@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'run_hit.dart';
 import 'run_paint.dart';
 import 'settings.dart';
 import 'src/rust/api/typeset.dart';
@@ -19,10 +20,13 @@ class HeadingRow extends ColumnRow {
 }
 
 class TextRow extends ColumnRow {
-  const TextRow(super.row, this.line, this.numberScale);
+  const TextRow(super.row, this.line, this.numberScale, this.chapter);
 
   final LineView line;
   final double numberScale;
+
+  /// Spine index of the chapter this line belongs to (for note lookup).
+  final int chapter;
 }
 
 /// Paints one column of the horizontal reader: a fixed window of global
@@ -35,7 +39,14 @@ class TypesetColumn extends StatelessWidget {
     required this.scale,
     required this.fontSize,
     required this.lineHeight,
+    this.onMarkerTap,
+    this.onPlainTap,
   });
+
+  /// A tap on an inline note marker (ADR 0016); other taps fall through
+  /// to [onPlainTap] (the reading-mode toggle).
+  final void Function(int chapter, RunView run)? onMarkerTap;
+  final VoidCallback? onPlainTap;
 
   final List<ColumnRow> rows;
   final int rowCount;
@@ -59,17 +70,38 @@ class TypesetColumn extends StatelessWidget {
         .join(' ');
     return Semantics(
       label: label,
-      child: CustomPaint(
-        size: Size.fromHeight(rowCount * lineHeight),
-        painter: _ColumnPainter(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapUp: (details) {
+          final index = details.localPosition.dy ~/ lineHeight;
+          final hit = rows
+              .whereType<TextRow>()
+              .where((r) => r.row == index)
+              .firstOrNull;
+          final run = hit == null
+              ? null
+              : runInLine(hit.line, scale, details.localPosition.dx, slop: 6);
+          if (hit != null &&
+              run != null &&
+              run.noteMarker &&
+              onMarkerTap != null) {
+            onMarkerTap!(hit.chapter, run);
+          } else {
+            onPlainTap?.call();
+          }
+        },
+        child: CustomPaint(
+          size: Size.fromHeight(rowCount * lineHeight),
+          painter: _ColumnPainter(
           rows: rows,
           scale: scale,
           fontSize: fontSize,
           lineHeight: lineHeight,
           textColor: scheme.onSurface,
           numberColor: scheme.primary,
-          weightEm: weightEm,
-          family: family,
+            weightEm: weightEm,
+            family: family,
+          ),
         ),
       ),
     );

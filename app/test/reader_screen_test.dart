@@ -9,6 +9,7 @@ import 'package:gramma/reader_pane.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gramma/desks.dart';
+import 'package:gramma/typeset_chapter.dart';
 import 'package:gramma/main.dart';
 import 'package:gramma/pane_model.dart';
 import 'package:gramma/settings.dart';
@@ -912,6 +913,102 @@ void main() {
     // The reader re-measures with the new metrics and keeps reading.
     await _settleLayouts(tester);
     expect(find.text('1. Mose 1'), findsWidgets);
+  });
+
+  /// Global tap point of the [nth] note marker of [chapter] inside the
+  /// matching visible TypesetChapter, from the deterministic layout.
+  Future<Offset> markerPoint(WidgetTester tester, int chapter,
+      {int nth = 0}) async {
+    final layout = await tester.runAsync(() => layoutChapter(
+        moduleCode: 'FixDe',
+        bookOsis: 'Gen',
+        chapter: chapter,
+        measureEms: 26));
+    final markers = <(int, RunView)>[];
+    for (var i = 0; i < layout!.lines.length; i++) {
+      for (final run in layout.lines[i].runs) {
+        if (run.noteMarker) markers.add((i, run));
+      }
+    }
+    final (lineIndex, run) = markers[nth];
+    // Pick the painted chapter whose height matches this layout.
+    for (final element in find.byType(TypesetChapter).evaluate()) {
+      final widget = element.widget as TypesetChapter;
+      if (widget.layout.lines.length != layout.lines.length) continue;
+      final rect = tester.getRect(
+          find.byWidget(widget, skipOffstage: false));
+      final scale = rect.width / layout.measureUnits;
+      final lineHeight = scale * layout.unitsPerEm * 1.5;
+      return rect.topLeft +
+          Offset((run.x + run.width / 2) * scale,
+              (lineIndex + 0.5) * lineHeight);
+    }
+    fail('chapter $chapter not painted');
+  }
+
+  testWidgets('note markers are active: popup, in-popup navigation, jump',
+      (tester) async {
+    _freshUserStore();
+    _phoneViewport(tester);
+    final settings = SettingsController(prefs);
+    await tester.pumpWidget(GrammaApp(settings: settings));
+    await _settleLayouts(tester);
+
+    // Tapping the marker opens the note; reading mode must not toggle.
+    await tester.tapAt(await markerPoint(tester, 1));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Anmerkung Alpha'), findsOneWidget);
+    expect(settings.readingMode, isFalse);
+    await tester.tap(find.byKey(const Key('note-close')));
+    await tester.pumpAndSettle();
+
+    // The Beta note carries a reference: navigate it inside the popup.
+    await _selectRef(tester, book: 'Gen', chapter: 3);
+    await _settleLayouts(tester);
+    await tester.tapAt(await markerPoint(tester, 3));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Anmerkung Beta'), findsOneWidget);
+
+    TapGestureRecognizer? recognizer;
+    for (final rich in tester.widgetList<RichText>(find.byType(RichText))) {
+      rich.text.visitChildren((span) {
+        if (span is TextSpan &&
+            span.text == 'Kap. 1,1' &&
+            span.recognizer is TapGestureRecognizer) {
+          recognizer = span.recognizer as TapGestureRecognizer;
+          return false;
+        }
+        return true;
+      });
+      if (recognizer != null) break;
+    }
+    recognizer!.onTap!();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Am Anfang schuf Gott'), findsOneWidget,
+        reason: 'the passage page shows inside the same popup');
+    await tester.tap(find.byKey(const Key('note-back')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Anmerkung Beta'), findsOneWidget,
+        reason: 'back returns to the note page');
+
+    // Open from the passage page jumps the reading view.
+    recognizer!.onTap!();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('note-open')));
+    await _settle(
+      tester,
+      () =>
+          tester
+              .widget<Text>(find.byKey(const Key('current-position')))
+              .data ==
+          '1. Mose 1',
+    );
+
+    // A plain word tap still toggles reading mode.
+    await tester.tapAt(await markerPoint(tester, 1) + const Offset(-40, 0));
+    await tester.pumpAndSettle();
+    expect(settings.readingMode, isTrue);
+    settings.setReadingMode(false);
   });
 
   testWidgets('wide screens get settings as a floating dialog',
