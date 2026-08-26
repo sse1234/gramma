@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'l10n.dart';
 import 'settings.dart';
 import 'src/rust/api/library.dart';
 
@@ -87,7 +88,7 @@ Future<void> showPassagePreview(
                           onOpen();
                         },
                         icon: const Icon(Icons.open_in_new, size: 16),
-                        label: const Text('Open'),
+                        label: Text(context.l10n.open),
                       ),
                     IconButton(
                       icon: const Icon(Icons.close, size: 18),
@@ -101,7 +102,7 @@ Future<void> showPassagePreview(
                       ? Padding(
                           padding: const EdgeInsets.all(16),
                           child: Text(
-                            'Passage not available in $moduleCode',
+                            context.l10n.passageNotAvailable(moduleCode),
                             style: textStyle,
                           ),
                         )

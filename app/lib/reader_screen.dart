@@ -2,6 +2,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import 'desks.dart';
+import 'l10n.dart';
 import 'footnotes_pane.dart';
 import 'reading_plan.dart';
 import 'sync_transport.dart';
@@ -86,7 +87,8 @@ class _ReaderScreenState extends State<ReaderScreen>
       // First run, or migration from the single-layout era: the legacy
       // 'layout' value becomes Desk 1.
       final id = newDeskId();
-      registry = DeskRegistry([DeskInfo(id: id, name: 'Desk 1')]);
+      registry = DeskRegistry(
+          [DeskInfo(id: id, name: '${context.l10n.deskDefaultPrefix} 1')]);
       final legacy = userGet(key: 'layout');
       if (legacy != null) {
         userSet(key: 'desk/$id', value: legacy);
@@ -173,7 +175,8 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   void _newDesk() {
     final id = newDeskId();
-    _registry.desks.add(DeskInfo(id: id, name: _registry.nextName()));
+    _registry.desks.add(DeskInfo(
+        id: id, name: _registry.nextName(context.l10n.deskDefaultPrefix)));
     userSet(key: 'desks', value: _registry.encode());
     userSet(key: 'desk/$id', value: _freshLayout().encode());
     _switchDesk(id);
@@ -186,7 +189,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Rename desk'),
+        title: Text(context.l10n.renameDeskTitle),
         content: TextField(
           key: const Key('desk-name-field'),
           controller: controller,
@@ -196,12 +199,12 @@ class _ReaderScreenState extends State<ReaderScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             key: const Key('desk-rename-confirm'),
             onPressed: () => Navigator.of(context).pop(controller.text),
-            child: const Text('Rename'),
+            child: Text(context.l10n.rename),
           ),
         ],
       ),
@@ -218,19 +221,17 @@ class _ReaderScreenState extends State<ReaderScreen>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Delete "${desk.name}"?'),
-        content: const Text(
-            'The desk and its view arrangement are removed on every '
-            'synced device. Your texts and reading history stay.'),
+        title: Text(context.l10n.deleteDeskTitle(desk.name)),
+        content: Text(context.l10n.deleteDeskBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Keep'),
+            child: Text(context.l10n.keep),
           ),
           TextButton(
             key: const Key('desk-delete-confirm'),
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
+            child: Text(context.l10n.delete),
           ),
         ],
       ),
@@ -387,14 +388,17 @@ class _ReaderScreenState extends State<ReaderScreen>
     );
     if (file == null || !mounted) return;
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     try {
       final imported = await importOsisFile(path: file.path);
       setState(() => _modules = modules());
       messenger.showSnackBar(SnackBar(
-        content: Text('Imported ${imported.title} (${imported.verses} verses)'),
+        content: Text(
+            l10n.importedModule(imported.title, imported.verses.toInt())),
       ));
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Import failed: $e')));
+      messenger.showSnackBar(
+          SnackBar(content: Text(l10n.importFailed('$e'))));
     }
   }
 
@@ -596,22 +600,22 @@ class _ReaderScreenState extends State<ReaderScreen>
         actions: [
           PopupMenuButton<VoidCallback>(
             key: const Key('tools-menu'),
-            tooltip: 'Tools',
+            tooltip: context.l10n.toolsTooltip,
             icon: const Icon(Icons.auto_stories_outlined),
             onSelected: (action) => action(),
             itemBuilder: (context) => [
               PopupMenuItem(
                 key: const Key('tool-plan'),
                 value: _openReadingPlan,
-                child: const Text('Reading plan · Bibelliga'),
+                child: Text(context.l10n.readingPlanBibelliga),
               ),
               // Search joins this menu once it lands.
             ],
           ),
           PopupMenuButton<VoidCallback>(
             key: const Key('desk-menu'),
-            tooltip:
-                'Desks — ${_registry.byId(_deskId)?.name ?? 'Desk 1'}',
+            tooltip: context.l10n
+                .desksTooltip(_registry.byId(_deskId)?.name ?? ''),
             icon: const Icon(Icons.desk_outlined),
             onSelected: (action) => action(),
             itemBuilder: (context) => [
@@ -626,40 +630,40 @@ class _ReaderScreenState extends State<ReaderScreen>
               PopupMenuItem(
                 key: const Key('desk-new'),
                 value: _newDesk,
-                child: const Text('New desk'),
+                child: Text(context.l10n.newDesk),
               ),
               PopupMenuItem(
                 key: const Key('desk-rename'),
                 value: _renameDesk,
-                child: const Text('Rename desk…'),
+                child: Text(context.l10n.renameDeskMenu),
               ),
               if (_registry.desks.length > 1)
                 PopupMenuItem(
                   key: const Key('desk-delete'),
                   value: _deleteDesk,
-                  child: const Text('Delete desk…'),
+                  child: Text(context.l10n.deleteDeskMenu),
                 ),
             ],
           ),
           PopupMenuButton<PaneKind>(
             key: const Key('add-view'),
-            tooltip: 'Add view',
+            tooltip: context.l10n.addViewTooltip,
             icon: const Icon(Icons.vertical_split_outlined),
             onSelected: _addPane,
-            itemBuilder: (context) => const [
+            itemBuilder: (context) => [
               PopupMenuItem(
                 value: PaneKind.text,
-                child: Text('Text view'),
+                child: Text(context.l10n.textView),
               ),
               PopupMenuItem(
                 value: PaneKind.footnotes,
-                child: Text('Footnotes view'),
+                child: Text(context.l10n.footnotesView),
               ),
             ],
           ),
           IconButton(
             key: const Key('open-settings'),
-            tooltip: 'Settings',
+            tooltip: context.l10n.settingsTooltip,
             icon: const Icon(Icons.settings_outlined),
             onPressed: () async {
               await Navigator.of(context).push(
@@ -671,7 +675,7 @@ class _ReaderScreenState extends State<ReaderScreen>
           ),
           IconButton(
             key: const Key('import-osis'),
-            tooltip: 'Import OSIS…',
+            tooltip: context.l10n.importOsisTooltip,
             icon: const Icon(Icons.library_add_outlined),
             onPressed: _importOsis,
           ),

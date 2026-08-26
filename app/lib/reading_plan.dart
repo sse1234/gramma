@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+import 'l10n.dart';
+
 /// Reading plans: 1..n references per day of the year. The bundled
 /// "Bibelliga" plan (366 days, three streams) is the first; a plan
 /// generator can produce more in the same schema.
@@ -118,7 +120,8 @@ class _PlanDialogState extends State<_PlanDialog> {
       title: Row(
         children: [
           Expanded(
-            child: Text('${widget.plan.name} — Tag $_day',
+            child: Text(
+                context.l10n.planDay(widget.plan.name, _day),
                 key: const Key('plan-title')),
           ),
           IconButton(
@@ -144,7 +147,7 @@ class _PlanDialogState extends State<_PlanDialog> {
           children: [
             Text(
               _day == _today
-                  ? 'Today\'s readings'
+                  ? context.l10n.todaysReadings
                   : widget.plan.source,
               style: theme.textTheme.bodySmall,
             ),
@@ -168,11 +171,11 @@ class _PlanDialogState extends State<_PlanDialog> {
           TextButton(
             key: const Key('plan-today'),
             onPressed: () => setState(() => _day = _today),
-            child: const Text('Today'),
+            child: Text(context.l10n.today),
           ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Close'),
+          child: Text(context.l10n.close),
         ),
       ],
     );

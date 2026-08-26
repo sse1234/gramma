@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dropbox_sync.dart';
+import 'l10n.dart';
 import 'src/rust/api/library.dart';
 import 'src/rust/api/typeset.dart';
 import 'src/rust/api/user.dart';
@@ -84,6 +85,9 @@ class GrammaApp extends StatelessWidget {
       listenable: settings,
       builder: (context, _) => MaterialApp(
         title: 'gramma',
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: settings.localeOverride,
         themeMode: settings.themeMode,
         theme: grammaTheme(Brightness.light, settings.contrast,
             tone: settings.tone),

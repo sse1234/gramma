@@ -872,7 +872,7 @@ void main() {
         tester, () => _found(find.byKey(const Key('plan-title'))));
     expect(
       tester.widget<Text>(find.byKey(const Key('plan-title'))).data,
-      startsWith('Bibelliga — Tag'),
+      startsWith('Bibelliga — Day'),
     );
     await tester.tap(find.byKey(const Key('plan-ref-0')));
     await tester.pumpAndSettle();

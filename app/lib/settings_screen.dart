@@ -6,6 +6,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 
 import 'dropbox_sync.dart';
+import 'l10n.dart';
 import 'icloud.dart';
 import 'settings.dart';
 import 'sync_transport.dart';
@@ -43,6 +44,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _applySyncFolder(String? path) async {
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     try {
       configureSync(dir: path);
       final changed = path == null ? const <String>[] : await pullSync();
@@ -50,12 +52,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() => _syncDir = path);
       messenger.showSnackBar(SnackBar(
         content: Text(path == null
-            ? 'Sync disabled'
-            : 'Sync enabled — ${changed.length} change(s) pulled'),
+            ? l10n.syncDisabled
+            : l10n.syncEnabledPulled(changed.length)),
       ));
     } catch (e) {
       messenger.showSnackBar(
-          SnackBar(content: Text('Folder not usable: $e')));
+          SnackBar(content: Text(l10n.folderNotUsable('$e'))));
     }
   }
 
@@ -68,10 +70,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (path == null) {
       messenger.showSnackBar(SnackBar(
         content: Text(Platform.isIOS
-            ? 'iCloud is not available — check that iCloud Drive is '
-                'enabled for this device'
-            : 'No gramma iCloud container yet — open gramma on your '
-                'iPhone or iPad once, then try again'),
+            ? context.l10n.icloudUnavailable
+            : context.l10n.icloudNoContainer),
       ));
       return;
     }
@@ -97,7 +97,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final path = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Synced folder path'),
+        title: Text(context.l10n.syncPathTitle),
         content: TextField(
           key: const Key('sync-path-field'),
           controller: controller,
@@ -107,12 +107,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text(context.l10n.cancel),
           ),
           TextButton(
             key: const Key('sync-path-confirm'),
             onPressed: () => Navigator.of(context).pop(controller.text),
-            child: const Text('Use folder'),
+            child: Text(context.l10n.useFolder),
           ),
         ],
       ),
@@ -124,11 +124,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _syncNowPressed() async {
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     final changed = await pullSync();
     messenger.showSnackBar(SnackBar(
       content: Text(changed.isEmpty
-          ? 'Already up to date'
-          : '${changed.length} change(s) pulled'),
+          ? l10n.alreadyUpToDate
+          : l10n.changesPulled(changed.length)),
     ));
   }
 
@@ -166,8 +167,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await _applySyncFolder(mirror);
     } catch (e) {
       activeDropbox = null;
+      if (!mounted) return;
       messenger.showSnackBar(
-          SnackBar(content: Text('Dropbox connection failed: $e')));
+          SnackBar(content: Text(context.l10n.dropboxConnectionFailed('$e'))));
     }
   }
 
@@ -179,36 +181,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Change typeface?'),
+          title: Text(context.l10n.typefaceDialogTitle),
           content: RadioGroup<String>(
             groupValue: selection,
             onChanged: (v) => setDialogState(() => selection = v!),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'The typeface defines where every line of text breaks. '
-                  'Changing it re-typesets everything — the familiar visual '
-                  'shape of pages you have read will change.',
-                ),
+                Text(context.l10n.typefaceDialogBody),
                 const SizedBox(height: 8),
-                const RadioListTile<String>(
-                  key: Key('font-GentiumBookPlus'),
-                  title: Text('Gentium Book Plus'),
-                  subtitle: Text('the heavier cut — the default'),
+                RadioListTile<String>(
+                  key: const Key('font-GentiumBookPlus'),
+                  title: const Text('Gentium Book Plus'),
+                  subtitle: Text(context.l10n.fontBookSubtitle),
                   value: 'GentiumBookPlus',
                 ),
-                const RadioListTile<String>(
-                  key: Key('font-GentiumPlus'),
-                  title: Text('Gentium Plus'),
-                  subtitle: Text('the lighter companion cut'),
+                RadioListTile<String>(
+                  key: const Key('font-GentiumPlus'),
+                  title: const Text('Gentium Plus'),
+                  subtitle: Text(context.l10n.fontPlusSubtitle),
                   value: 'GentiumPlus',
                 ),
-                const RadioListTile<String>(
-                  key: Key('font-Literata'),
-                  title: Text('Literata'),
-                  subtitle:
-                      Text('designed for e-reading — larger x-height'),
+                RadioListTile<String>(
+                  key: const Key('font-Literata'),
+                  title: const Text('Literata'),
+                  subtitle: Text(context.l10n.fontLiterataSubtitle),
                   value: 'Literata',
                 ),
               ],
@@ -217,12 +214,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: Text(context.l10n.cancel),
             ),
             FilledButton(
               key: const Key('font-confirm'),
               onPressed: () => Navigator.of(context).pop(selection),
-              child: const Text('Apply'),
+              child: Text(context.l10n.apply),
             ),
           ],
         ),
@@ -239,8 +236,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setTypesetFont(fontData: font.buffer.asUint8List());
       settings.setFontFamily(chosen, confirmed: true);
     } catch (e) {
+      if (!mounted) return;
       messenger.showSnackBar(
-          SnackBar(content: Text('Typeface change failed: $e')));
+          SnackBar(content: Text(context.l10n.typefaceChangeFailed('$e'))));
     }
   }
 
@@ -248,23 +246,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Change line width?'),
-        content: const Text(
-          'The line width determines where every line of text breaks. '
-          'Changing it re-typesets everything — the familiar visual shape '
-          'of pages you have read will change. This setting is meant to be '
-          'chosen once and kept.',
-        ),
+        title: Text(context.l10n.measureDialogTitle),
+        content: Text(context.l10n.measureDialogBody),
         actions: [
           TextButton(
             key: const Key('measure-cancel'),
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Keep current'),
+            child: Text(context.l10n.keepCurrent),
           ),
           FilledButton(
             key: const Key('measure-confirm'),
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('I understand, change it'),
+            child: Text(context.l10n.understandChange),
           ),
         ],
       ),
@@ -279,31 +272,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final settings = SettingsScope.of(context);
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text(context.l10n.settingsTitle)),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 560),
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              Text('Reading', style: theme.textTheme.titleMedium),
+              Text(context.l10n.sectionReading,
+                  style: theme.textTheme.titleMedium),
               const SizedBox(height: 8),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Text size'),
+                title: Text(context.l10n.textSize),
                 subtitle: Slider(
                   key: const Key('zoom-slider'),
                   min: 320,
                   max: 520,
                   divisions: 20,
                   value: settings.columnWidth,
-                  label: '${settings.columnWidth.round()} px column',
+                  label: context.l10n
+                      .pxColumnLabel(settings.columnWidth.round()),
                   onChanged: settings.setColumnWidth,
                 ),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Footnote text size'),
+                title: Text(context.l10n.footnoteTextSize),
                 subtitle: Slider(
                   key: const Key('footnote-scale'),
                   min: 0.8,
@@ -316,7 +311,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Preview text size'),
+                title: Text(context.l10n.previewTextSize),
                 subtitle: Slider(
                   key: const Key('preview-scale'),
                   min: 0.8,
@@ -329,20 +324,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Line spacing'),
+                title: Text(context.l10n.lineSpacing),
                 subtitle: Slider(
                   key: const Key('spacing-slider'),
                   min: 1.2,
                   max: 2.6,
                   divisions: 14,
                   value: settings.lineSpacing,
-                  label: '${settings.lineSpacing.toStringAsFixed(1)} × font size',
+                  label: context.l10n.lineSpacingLabel(
+                      settings.lineSpacing.toStringAsFixed(1)),
                   onChanged: settings.setLineSpacing,
                 ),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Column turn effort'),
+                title: Text(context.l10n.columnTurnEffort),
                 subtitle: Slider(
                   key: const Key('advance-slider'),
                   // Left = a light swipe already turns the column,
@@ -351,25 +347,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   max: SettingsController.maxColumnAdvance,
                   divisions: 9,
                   value: settings.columnAdvance,
-                  label:
-                      '${(settings.columnAdvance * 100).round()}% of a column',
+                  label: context.l10n.columnAdvanceLabel(
+                      (settings.columnAdvance * 100).round()),
                   onChanged: settings.setColumnAdvance,
                 ),
               ),
               if (_modules.isNotEmpty)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Default text'),
-                  subtitle: const Text(
-                    'Used to resolve references in previews.',
-                  ),
+                  title: Text(context.l10n.defaultText),
+                  subtitle: Text(context.l10n.defaultTextSubtitle),
                   trailing: DropdownButton<String>(
                     key: const Key('default-module'),
                     value: _modules.any(
                             (m) => m.code == settings.defaultModule)
                         ? settings.defaultModule
                         : null,
-                    hint: const Text('First module'),
+                    hint: Text(context.l10n.firstModule),
                     items: [
                       for (final m in _modules)
                         DropdownMenuItem(
@@ -379,25 +373,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               const SizedBox(height: 16),
-              Text('Appearance', style: theme.textTheme.titleMedium),
+              Text(context.l10n.sectionAppearance,
+                  style: theme.textTheme.titleMedium),
               const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(context.l10n.language),
+                trailing: DropdownButton<String>(
+                  key: const Key('language-select'),
+                  value: settings.localeCode ?? 'system',
+                  underline: const SizedBox.shrink(),
+                  items: [
+                    DropdownMenuItem(
+                        value: 'system',
+                        child: Text(context.l10n.themeSystem)),
+                    const DropdownMenuItem(
+                        value: 'en', child: Text('English')),
+                    const DropdownMenuItem(
+                        value: 'de', child: Text('Deutsch')),
+                  ],
+                  onChanged: (v) => settings
+                      .setLocaleCode(v == 'system' ? null : v),
+                ),
+              ),
               SegmentedButton<ThemeMode>(
                 key: const Key('theme-select'),
-                segments: const [
+                segments: [
                   ButtonSegment(
                     value: ThemeMode.system,
-                    label: Text('System'),
-                    icon: Icon(Icons.brightness_auto_outlined),
+                    label: Text(context.l10n.themeSystem),
+                    icon: const Icon(Icons.brightness_auto_outlined),
                   ),
                   ButtonSegment(
                     value: ThemeMode.light,
-                    label: Text('Light'),
-                    icon: Icon(Icons.light_mode_outlined),
+                    label: Text(context.l10n.themeLight),
+                    icon: const Icon(Icons.light_mode_outlined),
                   ),
                   ButtonSegment(
                     value: ThemeMode.dark,
-                    label: Text('Dark'),
-                    icon: Icon(Icons.dark_mode_outlined),
+                    label: Text(context.l10n.themeDark),
+                    icon: const Icon(Icons.dark_mode_outlined),
                   ),
                 ],
                 selected: {settings.themeMode},
@@ -406,7 +421,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Tone'),
+                title: Text(context.l10n.tone),
                 subtitle: Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Row(
@@ -455,7 +470,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Font weight · light mode'),
+                title: Text(context.l10n.fontWeightLightMode),
                 subtitle: Slider(
                   key: const Key('weight-light'),
                   min: 0,
@@ -470,7 +485,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Font weight · dark mode'),
+                title: Text(context.l10n.fontWeightDarkMode),
                 subtitle: Slider(
                   key: const Key('weight-dark'),
                   min: 0,
@@ -486,17 +501,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               SwitchListTile(
                 key: const Key('true-black'),
                 contentPadding: EdgeInsets.zero,
-                title: const Text('True black in dark mode'),
-                subtitle: const Text(
-                  'Keep the background fully black; contrast dims only '
-                  'the text.',
-                ),
+                title: Text(context.l10n.trueBlack),
+                subtitle: Text(context.l10n.trueBlackSubtitle),
                 value: settings.trueBlackDark,
                 onChanged: settings.setTrueBlackDark,
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Contrast'),
+                title: Text(context.l10n.contrast),
                 subtitle: Slider(
                   key: const Key('contrast-slider'),
                   min: SettingsController.minContrast,
@@ -508,10 +520,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               const Divider(height: 32),
-              Text('Typesetting', style: theme.textTheme.titleMedium),
+              Text(context.l10n.sectionTypesetting,
+                  style: theme.textTheme.titleMedium),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Typeface'),
+                title: Text(context.l10n.typeface),
                 subtitle: Text(
                   SettingsController.fontDisplayNames[settings.fontFamily] ??
                       settings.fontFamily,
@@ -519,25 +532,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 trailing: OutlinedButton(
                   key: const Key('change-font'),
                   onPressed: _changeTypeface,
-                  child: const Text('Change…'),
+                  child: Text(context.l10n.changeEllipsis),
                 ),
               ),
               const SizedBox(height: 8),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Line width'),
-                subtitle: Text(
-                  '${settings.measureEms} em — about '
-                  '${(settings.measureEms * 2.1).round()} characters per '
-                  'line. Fixed so the visual shape of the text stays '
-                  'familiar on every page and device.',
-                ),
+                title: Text(context.l10n.lineWidth),
+                subtitle: Text(context.l10n.lineWidthSubtitle(
+                    settings.measureEms,
+                    (settings.measureEms * 2.1).round())),
                 trailing: _measureUnlocked
                     ? null
                     : OutlinedButton(
                         key: const Key('change-measure'),
                         onPressed: _confirmMeasureChange,
-                        child: const Text('Change…'),
+                        child: Text(context.l10n.changeEllipsis),
                       ),
               ),
               if (_measureUnlocked)
@@ -557,21 +567,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
               const SizedBox(height: 16),
-              Text('Sync', style: theme.textTheme.titleMedium),
+              Text(context.l10n.sectionSync,
+                  style: theme.textTheme.titleMedium),
               const SizedBox(height: 4),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Synced folder'),
+                title: Text(context.l10n.syncedFolder),
                 subtitle: Text(
                   settings.dropboxRefreshToken != null
-                      ? 'Dropbox — direct connection, no local client. '
-                          'Op-logs live under Apps in your Dropbox.'
-                      : _syncDir ??
-                          'Off — point gramma at a folder your cloud '
-                              'provider or sync agent keeps in sync, or '
-                              'connect Dropbox directly (ADR 0014). Desks '
-                              'and reading positions flow between your '
-                              'devices; texts never leave this device.',
+                      ? context.l10n.syncDropboxSubtitle
+                      : _syncDir ?? context.l10n.syncOffSubtitle,
                 ),
               ),
               Wrap(
@@ -581,14 +586,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     FilledButton.tonal(
                       key: const Key('sync-dropbox'),
                       onPressed: _connectDropbox,
-                      child: const Text('Connect Dropbox…'),
+                      child: Text(context.l10n.connectDropbox),
                     ),
                   if (icloudTransportEnabled &&
                       (Platform.isIOS || Platform.isMacOS))
                     FilledButton.tonal(
                       key: const Key('sync-icloud'),
                       onPressed: _useICloud,
-                      child: const Text('Use iCloud Drive'),
+                      child: Text(context.l10n.useICloud),
                     ),
                   if (Platform.isMacOS ||
                       Platform.isLinux ||
@@ -596,18 +601,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     FilledButton.tonal(
                       key: const Key('sync-choose'),
                       onPressed: _chooseSyncFolder,
-                      child: const Text('Choose folder…'),
+                      child: Text(context.l10n.chooseFolder),
                     ),
                   OutlinedButton(
                     key: const Key('sync-enter'),
                     onPressed: _enterSyncFolder,
-                    child: const Text('Enter path…'),
+                    child: Text(context.l10n.enterPath),
                   ),
                   if (_syncDir != null) ...[
                     OutlinedButton(
                       key: const Key('sync-now'),
                       onPressed: _syncNowPressed,
-                      child: const Text('Sync now'),
+                      child: Text(context.l10n.syncNow),
                     ),
                     TextButton(
                       key: const Key('sync-disable'),
@@ -615,7 +620,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         _clearDropbox(settings);
                         _applySyncFolder(null);
                       },
-                      child: const Text('Disable'),
+                      child: Text(context.l10n.disable),
                     ),
                   ],
                 ],
@@ -679,28 +684,27 @@ class _DropboxConnectDialogState extends State<DropboxConnectDialog> {
     final theme = Theme.of(context);
     final key = _appKey.text.trim();
     return AlertDialog(
-      title: const Text('Connect Dropbox'),
+      title: Text(context.l10n.dropboxConnectTitle),
       content: SizedBox(
         width: 440,
         child: ListView(
           shrinkWrap: true,
           children: [
             Text(
-              'Create a free "Scoped access" app with "App folder" access '
-              'at dropbox.com/developers/apps and paste its app key. '
-              'gramma will only ever see its own app folder.',
+              context.l10n.dropboxIntro,
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
             TextField(
               key: const Key('dropbox-key'),
               controller: _appKey,
-              decoration: const InputDecoration(labelText: 'App key'),
+              decoration:
+                  InputDecoration(labelText: context.l10n.appKey),
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 12),
             if (key.isNotEmpty) ...[
-              Text('1. Open this link in a browser and allow access:',
+              Text(context.l10n.dropboxStep1,
                   style: theme.textTheme.bodySmall),
               SelectableText(
                 _auth.authorizeUrl(key).toString(),
@@ -709,12 +713,13 @@ class _DropboxConnectDialogState extends State<DropboxConnectDialog> {
                     ?.copyWith(color: theme.colorScheme.primary),
               ),
               const SizedBox(height: 8),
-              Text('2. Paste the code Dropbox shows:',
+              Text(context.l10n.dropboxStep2,
                   style: theme.textTheme.bodySmall),
               TextField(
                 key: const Key('dropbox-code'),
                 controller: _code,
-                decoration: const InputDecoration(labelText: 'Access code'),
+                decoration:
+                    InputDecoration(labelText: context.l10n.accessCode),
                 onSubmitted: (_) => _connect(),
               ),
             ],
@@ -738,7 +743,8 @@ class _DropboxConnectDialogState extends State<DropboxConnectDialog> {
           onPressed: _busy || key.isEmpty || _code.text.isEmpty
               ? null
               : _connect,
-          child: Text(_busy ? 'Connecting…' : 'Connect'),
+          child:
+              Text(_busy ? context.l10n.connecting : context.l10n.connect),
         ),
       ],
     );

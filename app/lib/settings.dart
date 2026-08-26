@@ -66,6 +66,7 @@ class SettingsController extends ChangeNotifier {
     if (family != null && fontAssets.containsKey(family)) {
       _fontFamily = family;
     }
+    _localeCode = _prefs.getString('locale');
     _themeMode = switch (_prefs.getString('themeMode')) {
       'light' => ThemeMode.light,
       'dark' => ThemeMode.dark,
@@ -115,6 +116,23 @@ class SettingsController extends ChangeNotifier {
   double _fontWeightLight = 0;
   double _fontWeightDark = 0;
   String _fontFamily = 'GentiumBookPlus';
+  String? _localeCode;
+
+  /// UI language override; null follows the system locale (ADR 0015).
+  Locale? get localeOverride =>
+      _localeCode == null ? null : Locale(_localeCode!);
+
+  String? get localeCode => _localeCode;
+
+  void setLocaleCode(String? code) {
+    _localeCode = code;
+    if (code == null) {
+      _prefs.remove('locale');
+    } else {
+      _prefs.setString('locale', code);
+    }
+    notifyListeners();
+  }
 
   /// The reading typeface. Like the measure, it defines where every
   /// line breaks — the setter refuses to apply without an explicit,
