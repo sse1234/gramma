@@ -347,8 +347,13 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   void _closePane(String id) {
     setState(() => _layout.removePane(id));
+    _snapPending = true;
     _save();
   }
+
+  /// Set when the tiling changed structurally; the next desk build snaps
+  /// all column boundaries to the grid.
+  bool _snapPending = false;
 
   void _addPane(PaneKind kind) {
     if (!_layout.hasFreeBadge) return;
@@ -385,6 +390,7 @@ class _ReaderScreenState extends State<ReaderScreen>
       }
       _layout.ensureBadges();
     });
+    _snapPending = true;
     _save();
   }
 
@@ -457,6 +463,11 @@ class _ReaderScreenState extends State<ReaderScreen>
   /// Vertical tiling only makes sense at whole column-width multiples
   /// (constant zoom): snap the divider there on release.
   void _snapColumns(int left, double contentWidth) {
+    setState(() => _applySnap(left, contentWidth));
+    _save();
+  }
+
+  void _applySnap(int left, double contentWidth) {
     final columns = _layout.columns;
     final sum = columns.fold(0.0, (a, c) => a + c.weight);
     final leftWidth = columns[left].weight / sum * contentWidth;
@@ -465,9 +476,19 @@ class _ReaderScreenState extends State<ReaderScreen>
     final columnWidth = SettingsScope.of(context).columnWidth;
     final target = snapToColumns(leftWidth, columnWidth, _gutter, available);
     final dw = (target - leftWidth) / contentWidth * sum;
+    columns[left].weight += dw;
+    columns[left + 1].weight -= dw;
+  }
+
+  /// A structural tiling change (new pane, drag, close) lands on the
+  /// column grid immediately — the same snap a divider release applies —
+  /// instead of waiting for the first manual drag of a fresh 50 % split.
+  void _snapAllColumns(double contentWidth) {
+    if (_layout.columns.length < 2) return;
     setState(() {
-      _layout.columns[left].weight += dw;
-      _layout.columns[left + 1].weight -= dw;
+      for (var left = 0; left < _layout.columns.length - 1; left++) {
+        _applySnap(left, contentWidth);
+      }
     });
     _save();
   }
@@ -524,11 +545,13 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   void _dropIntoStack(PaneColumn column, int index, String id) {
     setState(() => _layout.moveIntoStack(id, column, index));
+    _snapPending = true;
     _save();
   }
 
   void _dropAsNewColumn(PaneColumn? after, String id) {
     setState(() => _layout.moveToNewColumn(id, after: after));
+    _snapPending = true;
     _save();
   }
 
@@ -731,6 +754,14 @@ class _ReaderScreenState extends State<ReaderScreen>
             final columns = _layout.columns;
             final contentWidth = constraints.maxWidth -
                 (columns.length - 1) * _gripThickness;
+            if (_snapPending) {
+              _snapPending = false;
+              if (columns.length > 1) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) _snapAllColumns(contentWidth);
+                });
+              }
+            }
             final sum = columns.fold(0.0, (a, c) => a + c.weight);
             return Stack(
               children: [

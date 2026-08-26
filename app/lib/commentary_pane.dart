@@ -173,9 +173,16 @@ class _CommentaryPaneState extends State<CommentaryPane> {
     final settings = SettingsScope.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final fontSize = (theme.textTheme.bodyMedium?.fontSize ?? 14) *
-            settings.commentaryScale;
         final width = constraints.maxWidth;
+        // The Bible text's own glyph size — a canonical column's em,
+        // min(pane width, column width) / measure — so reader and
+        // commentary set the same face at the same size and leading;
+        // the commentary scale multiplies from that parity point. Only
+        // the measure stays free: it reflows with the pane (ADR 0018).
+        final effWidth =
+            width < settings.columnWidth ? width : settings.columnWidth;
+        final fontSize =
+            effWidth / settings.measureEms * settings.commentaryScale;
         if (width <= 0 || fontSize <= 0) return const SizedBox.shrink();
         final ems = width / fontSize;
         final signature =
@@ -228,6 +235,7 @@ class _CommentaryPaneState extends State<CommentaryPane> {
               child: TypesetProse(
                 layout: entry,
                 fontSize: fontSize,
+                lineHeightEm: settings.lineSpacing,
                 onLinkTap: _openPreview,
                 onPlainTap: widget.onToggleMode,
               ),

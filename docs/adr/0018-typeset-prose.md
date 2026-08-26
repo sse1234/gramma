@@ -28,11 +28,17 @@ doctrine to protect for secondary literature.
   interactivity is now a property a layout can assign to any run, and
   the pure hit-testing resolves it with zero new machinery. Dictionaries
   will attach lookups the same way.
-- The commentary pane typesets at its own measure: pane width divided by
-  the commentary text size (a plain settings slider, like the footnote
-  and preview scales, but feeding the engine instead of a text style).
-  The measure reflows freely with pane width and setting — deliberately
-  unprotected.
+- The commentary renders with the Bible text's exact properties minus
+  the fixed measure: its glyph size is the reader's own em —
+  min(pane width, column width) / measure — times the commentary scale
+  (default 1.0 = pixel-identical twins), with the same line spacing
+  setting, typeface, and weight stroke. Only the measure stays free: it
+  reflows with the pane — deliberately unprotected. The same rule will
+  apply to secondary literature later.
+- A structural tiling change (new pane, drag into or out of a column,
+  close) snaps all column boundaries to whole Bible-column multiples
+  immediately — the same snap a divider release applies — so a fresh
+  50 % split never sits off the grid.
 - One painting path: `paintRun` with the per-brightness weight stroke,
   so commentary text carries the user's font weight exactly like the
   reader. References paint underlined in the accent color; labels use
