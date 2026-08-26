@@ -26,7 +26,7 @@ void main() {
       DeskInfo(id: 'a', name: 'Desk 1'),
       DeskInfo(id: 'b', name: 'Desk 3'),
     ]);
-    expect(registry.nextName(), 'Desk 4',
+    expect(registry.nextName('Desk'), 'Desk 4',
         reason: 'skips past any existing Desk n');
   });
 

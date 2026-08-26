@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gramma/l10n.dart';
 import 'package:gramma/settings.dart';
 import 'package:gramma/settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,6 +14,9 @@ Widget _harness(SettingsController controller) {
   return ListenableBuilder(
     listenable: controller,
     builder: (context, _) => MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      locale: controller.localeOverride,
       themeMode: controller.themeMode,
       theme: grammaTheme(Brightness.light, controller.contrast,
           tone: controller.tone),
@@ -143,6 +147,23 @@ void main() {
     expect(dark.scaffoldBackgroundColor, isNot(const Color(0xFF0D0D0F)));
   });
 
+  testWidgets('the language override renders the German UI', (tester) async {
+    tester.view.physicalSize = const Size(800, 1900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = await _controller();
+    controller.setLocaleCode('de');
+    await tester.pumpWidget(_harness(controller));
+    expect(find.text('Einstellungen'), findsOneWidget);
+    expect(find.text('Erscheinungsbild'), findsOneWidget);
+    expect(find.text('Zeilenbreite'), findsOneWidget);
+    controller.setLocaleCode(null);
+    await tester.pumpAndSettle();
+    expect(find.text('Settings'), findsOneWidget,
+        reason: 'system locale (en in tests) returns');
+  });
+
   testWidgets('theme mode selection applies', (tester) async {
     // Tall viewport: the settings page has grown past the default 600px.
     tester.view.physicalSize = const Size(800, 1800);
@@ -160,7 +181,7 @@ void main() {
 
   testWidgets('measure slider is locked behind a confirmation dialog',
       (tester) async {
-    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.physicalSize = const Size(800, 1900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);

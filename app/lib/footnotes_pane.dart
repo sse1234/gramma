@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import 'l10n.dart';
 import 'passage_preview.dart';
 import 'reader_pane.dart';
 import 'settings.dart';
@@ -120,7 +121,7 @@ class _FootnotesPaneState extends State<FootnotesPane> {
       children: [
         if (!widget.readingMode) ...[
           PaneHeader(
-            title: 'Footnotes',
+            title: context.l10n.footnotesTitle,
             badge: widget.badge,
             dragHandle: widget.dragHandle,
             followValue: widget.followValue,
@@ -148,7 +149,7 @@ class _FootnotesPaneState extends State<FootnotesPane> {
     if (anchor == null || module == null) {
       return Center(
         child: Text(
-          'Link this view to a text view to see its footnotes',
+          context.l10n.linkFootnotesHint,
           style: theme.textTheme.bodyMedium,
           textAlign: TextAlign.center,
         ),
@@ -187,7 +188,7 @@ class _FootnotesPaneState extends State<FootnotesPane> {
     if (entries.isEmpty) {
       return Center(
         child: Text(
-          'No footnotes in view',
+          context.l10n.noFootnotes,
           key: const Key('no-footnotes'),
           style: theme.textTheme.bodyMedium,
         ),

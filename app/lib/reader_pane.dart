@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'column_plan.dart';
+import 'l10n.dart';
 import 'column_snap_physics.dart';
 import 'pane_badge.dart';
 import 'pane_model.dart';
@@ -596,7 +597,7 @@ class _ReaderPaneState extends State<ReaderPane> {
           position: position == null
               ? null
               : Tooltip(
-                  message: 'Select book, chapter, verse',
+                  message: context.l10n.selectorTooltip,
                   child: InkWell(
                     key: const Key('open-selector'),
                     borderRadius: BorderRadius.circular(14),
@@ -658,7 +659,7 @@ class _ReaderPaneState extends State<ReaderPane> {
             child: _spine.isEmpty
               ? Center(
                   child: Text(
-                    'Import an OSIS module to begin reading',
+                    context.l10n.importToBegin,
                     style: theme.textTheme.bodyLarge,
                   ),
                 )
@@ -984,12 +985,12 @@ class PaneHeader extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) =>
           constraints.maxWidth < compactBelow
-              ? _compact(theme)
-              : _wide(theme),
+              ? _compact(context, theme)
+              : _wide(context, theme),
     );
   }
 
-  Widget _wide(ThemeData theme) {
+  Widget _wide(BuildContext context, ThemeData theme) {
     return Row(
       children: [
         if (badge != null) ...[badge!, const SizedBox(width: 8)],
@@ -1016,17 +1017,17 @@ class PaneHeader extends StatelessWidget {
         ],
         if (onBack != null) ...[
           const SizedBox(width: 4),
-          _backForward(),
-          _historyButton(theme),
+          _backForward(context),
+          _historyButton(context, theme),
         ],
         const SizedBox(width: 8),
         DropdownButton<String>(
           key: const Key('link-select'),
           underline: const SizedBox.shrink(),
           value: followValue,
-          hint: const Text('Unlinked'),
+          hint: Text(context.l10n.unlinked),
           items: [
-            const DropdownMenuItem<String>(child: Text('Unlinked')),
+            DropdownMenuItem<String>(child: Text(context.l10n.unlinked)),
             for (final option in followOptions)
               DropdownMenuItem(
                 value: option.id,
@@ -1039,7 +1040,7 @@ class PaneHeader extends StatelessWidget {
           IconButton(
             key: const Key('close-pane'),
             icon: const Icon(Icons.close, size: 18),
-            tooltip: 'Close view',
+            tooltip: context.l10n.closeView,
             onPressed: onClose,
           ),
         ?dragHandle,
@@ -1047,7 +1048,7 @@ class PaneHeader extends StatelessWidget {
     );
   }
 
-  Widget _compact(ThemeData theme) {
+  Widget _compact(BuildContext context, ThemeData theme) {
     return Row(
       children: [
         if (badge != null) ...[badge!, const SizedBox(width: 6)],
@@ -1059,20 +1060,20 @@ class PaneHeader extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
         ),
-        if (onBack != null) _backForward(),
-        _overflowMenu(theme),
+        if (onBack != null) _backForward(context),
+        _overflowMenu(context),
         ?dragHandle,
       ],
     );
   }
 
-  Widget _backForward() {
+  Widget _backForward(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
           key: const Key('nav-back'),
-          tooltip: 'Back',
+          tooltip: context.l10n.back,
           visualDensity: VisualDensity.compact,
           iconSize: 16,
           icon: const Icon(Icons.arrow_back),
@@ -1080,7 +1081,7 @@ class PaneHeader extends StatelessWidget {
         ),
         IconButton(
           key: const Key('nav-forward'),
-          tooltip: 'Forward',
+          tooltip: context.l10n.forward,
           visualDensity: VisualDensity.compact,
           iconSize: 16,
           icon: const Icon(Icons.arrow_forward),
@@ -1090,10 +1091,10 @@ class PaneHeader extends StatelessWidget {
     );
   }
 
-  Widget _historyButton(ThemeData theme) {
+  Widget _historyButton(BuildContext context, ThemeData theme) {
     return PopupMenuButton<int>(
       key: const Key('nav-history'),
-      tooltip: 'History',
+      tooltip: context.l10n.history,
       enabled: historyItems.isNotEmpty,
       icon: Icon(
         Icons.history,
@@ -1145,7 +1146,7 @@ class PaneHeader extends StatelessWidget {
 
   /// Everything that has no room in the compact row, as one menu whose
   /// items carry their own action.
-  Widget _overflowMenu(ThemeData theme) {
+  Widget _overflowMenu(BuildContext context) {
     final entries = <PopupMenuEntry<VoidCallback>>[];
     if (onModule != null) {
       for (final m in modules) {
@@ -1171,7 +1172,7 @@ class PaneHeader extends StatelessWidget {
       key: const Key('menu-unlinked'),
       checked: followValue == null,
       value: () => onFollow(null),
-      child: const Text('Unlinked'),
+      child: Text(context.l10n.unlinked),
     ));
     for (final option in followOptions) {
       entries.add(CheckedPopupMenuItem(
@@ -1186,12 +1187,12 @@ class PaneHeader extends StatelessWidget {
       entries.add(PopupMenuItem(
         key: const Key('menu-close'),
         value: onClose,
-        child: const Text('Close view'),
+        child: Text(context.l10n.closeView),
       ));
     }
     return PopupMenuButton<VoidCallback>(
       key: const Key('pane-menu'),
-      tooltip: 'View menu',
+      tooltip: context.l10n.viewMenuTooltip,
       icon: const Icon(Icons.more_vert, size: 18),
       onSelected: (action) => action(),
       itemBuilder: (context) => entries,

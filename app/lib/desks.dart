@@ -46,13 +46,14 @@ class DeskRegistry {
     }
   }
 
-  /// A name for the next new desk that does not collide.
-  String nextName() {
+  /// A name for the next new desk that does not collide; [prefix] is the
+  /// localized word for a desk.
+  String nextName(String prefix) {
     var n = desks.length + 1;
-    while (desks.any((d) => d.name == 'Desk $n')) {
+    while (desks.any((d) => d.name == '$prefix $n')) {
       n++;
     }
-    return 'Desk $n';
+    return '$prefix $n';
   }
 }
 

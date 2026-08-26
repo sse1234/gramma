@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gramma/l10n.dart';
 import 'package:gramma/reading_plan.dart';
 
 void main() {
@@ -51,6 +52,8 @@ void main() {
     ]);
     String? opened;
     await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: Builder(
         builder: (context) => TextButton(
           onPressed: () => showReadingPlan(
@@ -65,18 +68,18 @@ void main() {
     ));
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
-    expect(find.text('Test — Tag 2'), findsOneWidget);
+    expect(find.text('Test — Day 2'), findsOneWidget);
     expect(find.text('Zweiter B'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('plan-prev')));
     await tester.pumpAndSettle();
-    expect(find.text('Test — Tag 1'), findsOneWidget);
+    expect(find.text('Test — Day 1'), findsOneWidget);
     expect(find.byKey(const Key('plan-prev')),
         findsOneWidget); // disabled at day 1 but present
     await tester.tap(find.byKey(const Key('plan-ref-0')));
     await tester.pumpAndSettle();
     expect(opened, 'Gen.1');
-    expect(find.text('Test — Tag 1'), findsNothing,
+    expect(find.text('Test — Day 1'), findsNothing,
         reason: 'opening a reading closes the popup');
   });
 }
