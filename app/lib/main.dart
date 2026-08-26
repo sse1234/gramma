@@ -49,10 +49,11 @@ Future<void> main() async {
   await _migrateFromMacSandbox(Directory(support.path));
   openLibrary(path: '${support.path}/library.db');
   openUserStore(path: '${support.path}/user.db');
-  final font = await rootBundle.load('fonts/GentiumBookPlus-Regular.ttf');
-  initTypesetting(fontData: font.buffer.asUint8List());
   final prefs = await SharedPreferences.getInstance();
   final settings = SettingsController(prefs);
+  final font = await rootBundle
+      .load(SettingsController.fontAssets[settings.fontFamily]!);
+  initTypesetting(fontData: font.buffer.asUint8List());
   // Reconnect the direct Dropbox transport when configured (ADR 0014).
   final dropboxKey = settings.dropboxAppKey;
   final dropboxToken = settings.dropboxRefreshToken;

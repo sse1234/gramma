@@ -1,4 +1,7 @@
-use std::sync::OnceLock;
+use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::sync::{Mutex, OnceLock, RwLock};
 
 use anyhow::anyhow;
 use gramma_core::reference::book_by_osis;
@@ -8,8 +11,40 @@ use hyphenation::{Language, Load, Standard};
 
 use super::library::with_library;
 
-static MEASURE: OnceLock<FontMeasure<'static>> = OnceLock::new();
+/// The active face. Every parsed face is kept for the process lifetime
+/// (a handful at most — the user's typeface choices), so switching back
+/// and forth re-uses the parsed face and its word-width cache.
+static MEASURE: RwLock<Option<&'static FontMeasure<'static>>> = RwLock::new(None);
+static FACES: Mutex<Option<HashMap<u64, &'static FontMeasure<'static>>>> = Mutex::new(None);
 static GERMAN: OnceLock<Standard> = OnceLock::new();
+
+fn activate_font(font_data: Vec<u8>) -> anyhow::Result<()> {
+    let mut hasher = DefaultHasher::new();
+    font_data.hash(&mut hasher);
+    let key = hasher.finish();
+    let mut guard = FACES.lock().unwrap();
+    let faces = guard.get_or_insert_with(HashMap::new);
+    let measure = match faces.get(&key) {
+        Some(measure) => *measure,
+        None => {
+            let data: &'static [u8] = Box::leak(font_data.into_boxed_slice());
+            let measure: &'static FontMeasure<'static> = Box::leak(Box::new(
+                FontMeasure::new(data).ok_or_else(|| anyhow!("cannot parse font"))?,
+            ));
+            faces.insert(key, measure);
+            measure
+        }
+    };
+    *MEASURE.write().unwrap() = Some(measure);
+    Ok(())
+}
+
+fn active_measure() -> anyhow::Result<&'static FontMeasure<'static>> {
+    MEASURE
+        .read()
+        .unwrap()
+        .ok_or_else(|| anyhow!("typesetting not initialized"))
+}
 
 pub struct RunView {
     pub text: String,
@@ -43,15 +78,18 @@ pub struct ChapterLayoutView {
 
 #[flutter_rust_bridge::frb(sync)]
 pub fn init_typesetting(font_data: Vec<u8>) -> anyhow::Result<()> {
-    if MEASURE.get().is_some() {
+    if MEASURE.read().unwrap().is_some() {
         return Ok(());
     }
-    // The face is parsed once and kept for the process lifetime; leaking the
-    // buffer gives it the 'static lifetime it needs.
-    let data: &'static [u8] = Box::leak(font_data.into_boxed_slice());
-    let measure = FontMeasure::new(data).ok_or_else(|| anyhow!("cannot parse font"))?;
-    let _ = MEASURE.set(measure);
-    Ok(())
+    activate_font(font_data)
+}
+
+/// Switch the typesetting face (the user's typeface setting): every
+/// later layout uses the new metrics, so callers re-measure and re-lay
+/// their modules just as after a measure change.
+#[flutter_rust_bridge::frb(sync)]
+pub fn set_typeset_font(font_data: Vec<u8>) -> anyhow::Result<()> {
+    activate_font(font_data)
 }
 
 /// Async on purpose: runs on a worker thread so scrolling never blocks on
@@ -62,9 +100,7 @@ pub fn layout_chapter(
     chapter: u16,
     measure_ems: u16,
 ) -> anyhow::Result<ChapterLayoutView> {
-    let measure = MEASURE
-        .get()
-        .ok_or_else(|| anyhow!("typesetting not initialized"))?;
+    let measure = active_measure()?;
     let book = book_by_osis(&book_osis).ok_or_else(|| anyhow!("unknown book: {book_osis}"))?;
     let (verses, notes, headings, german) = with_library(|library| {
         let verses = library.chapter(&module_code, book, chapter)?;
@@ -132,9 +168,7 @@ pub fn layout_chapter(
 /// multi-column reader chunks into viewport-sized columns — layout itself
 /// never depends on the viewport.
 pub fn module_line_counts(module_code: String, measure_ems: u16) -> anyhow::Result<Vec<u32>> {
-    let measure = MEASURE
-        .get()
-        .ok_or_else(|| anyhow!("typesetting not initialized"))?;
+    let measure = active_measure()?;
     let (contents, german) = with_library(|library| {
         let contents = library.contents(&module_code)?;
         let german = library

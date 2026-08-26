@@ -42,14 +42,16 @@ Future<void> showPassagePreview(
     context: context,
     builder: (context) {
       final theme = Theme.of(context);
-      final scale = SettingsScope.of(context).previewScale;
+      final settings = SettingsScope.of(context);
+      final scale = settings.previewScale;
+      final family = settings.fontFamily;
       final numberStyle = theme.textTheme.labelSmall?.copyWith(
         color: theme.colorScheme.primary,
-        fontFamily: 'GentiumBookPlus',
+        fontFamily: family,
         fontSize: (theme.textTheme.labelSmall?.fontSize ?? 11) * scale,
       );
       final textStyle = theme.textTheme.bodyMedium?.copyWith(
-        fontFamily: 'GentiumBookPlus',
+        fontFamily: family,
         height: 1.3,
         color: theme.colorScheme.onSurface,
         fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) * scale,

@@ -205,6 +205,22 @@ void main() {
     expect(reloaded.columnAdvance, 0.3);
   });
 
+  test('the typeface is protected like the measure', () async {
+    final controller = await _controller();
+    expect(controller.fontFamily, 'GentiumBookPlus');
+    expect(
+      () => controller.setFontFamily('GentiumPlus', confirmed: false),
+      throwsStateError,
+    );
+    controller.setFontFamily('NoSuchFont', confirmed: true);
+    expect(controller.fontFamily, 'GentiumBookPlus',
+        reason: 'unknown families are refused');
+    controller.setFontFamily('GentiumPlus', confirmed: true);
+    final reloaded =
+        SettingsController(await SharedPreferences.getInstance());
+    expect(reloaded.fontFamily, 'GentiumPlus');
+  });
+
   test('font weight is separate per brightness and persists', () async {
     final controller = await _controller();
     expect(controller.fontWeightLight, SettingsController.defaultFontWeight);

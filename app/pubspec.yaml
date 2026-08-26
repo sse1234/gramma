@@ -73,6 +73,9 @@ flutter:
     - assets/plans/
 
   fonts:
+    - family: GentiumPlus
+      fonts:
+        - asset: fonts/GentiumPlus-Regular.ttf
     - family: GentiumBookPlus
       fonts:
         - asset: fonts/GentiumBookPlus-Regular.ttf
