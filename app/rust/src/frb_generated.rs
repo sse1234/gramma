@@ -1399,6 +1399,7 @@ impl SseDecode for crate::api::library::ModuleView {
         let mut var_verses = <u32>::sse_decode(deserializer);
         let mut var_notes = <u32>::sse_decode(deserializer);
         let mut var_kind = <String>::sse_decode(deserializer);
+        let mut var_strongs = <bool>::sse_decode(deserializer);
         return crate::api::library::ModuleView {
             code: var_code,
             title: var_title,
@@ -1406,6 +1407,7 @@ impl SseDecode for crate::api::library::ModuleView {
             verses: var_verses,
             notes: var_notes,
             kind: var_kind,
+            strongs: var_strongs,
         };
     }
 }
@@ -1852,6 +1854,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::library::ModuleView {
             self.verses.into_into_dart().into_dart(),
             self.notes.into_into_dart().into_dart(),
             self.kind.into_into_dart().into_dart(),
+            self.strongs.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -2285,6 +2288,7 @@ impl SseEncode for crate::api::library::ModuleView {
         <u32>::sse_encode(self.verses, serializer);
         <u32>::sse_encode(self.notes, serializer);
         <String>::sse_encode(self.kind, serializer);
+        <bool>::sse_encode(self.strongs, serializer);
     }
 }
 

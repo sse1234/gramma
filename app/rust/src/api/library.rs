@@ -30,6 +30,8 @@ pub struct ModuleView {
     pub notes: u32,
     /// "bible" or "commentary" (ADR 0017).
     pub kind: String,
+    /// Whether the module carries Strong's word links (ADR 0020).
+    pub strongs: bool,
 }
 
 /// One commentary section (ADR 0017): a verse range of one chapter, with
@@ -105,6 +107,7 @@ pub fn import_osis_file(path: String) -> anyhow::Result<ModuleView> {
         verses: info.verses,
         notes: info.notes,
         kind: info.kind,
+        strongs: info.strongs,
     })
 }
 
@@ -129,6 +132,7 @@ pub fn import_sword_file(path: String) -> anyhow::Result<ModuleView> {
         verses: info.verses,
         notes: info.notes,
         kind: info.kind,
+        strongs: info.strongs,
     })
 }
 
@@ -276,6 +280,7 @@ pub fn modules() -> anyhow::Result<Vec<ModuleView>> {
             verses: m.verses,
             notes: m.notes,
             kind: m.kind,
+            strongs: m.strongs,
         })
         .collect())
 }

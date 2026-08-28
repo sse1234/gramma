@@ -28,6 +28,8 @@ pub struct ModuleInfo {
     pub notes: u32,
     /// "bible" or "commentary".
     pub kind: String,
+    /// Whether the module carries Strong's word links (ADR 0020).
+    pub strongs: bool,
 }
 
 /// One commentary section (ADR 0017), covering verses
@@ -296,6 +298,7 @@ impl Library {
             verses,
             notes: doc.notes.len() as u32,
             kind: "bible".to_string(),
+            strongs: false,
         })
     }
 
@@ -361,6 +364,7 @@ impl Library {
             verses: entries,
             notes: 0,
             kind: "commentary".to_string(),
+            strongs: false,
         })
     }
 
@@ -434,6 +438,7 @@ impl Library {
             verses,
             notes: doc.notes.len() as u32,
             kind: "bible".to_string(),
+            strongs: doc.verses.iter().any(|v| !v.links.is_empty()),
         })
     }
 
@@ -587,6 +592,7 @@ impl Library {
             verses: entries,
             notes: 0,
             kind: "dictionary".to_string(),
+            strongs: false,
         })
     }
 
@@ -734,7 +740,8 @@ impl Library {
                     + (SELECT COUNT(*) FROM comment c WHERE c.module_id = m.id)
                     + (SELECT COUNT(*) FROM dict_entry d WHERE d.module_id = m.id),
                     (SELECT COUNT(*) FROM note n WHERE n.module_id = m.id),
-                    kind
+                    kind,
+                    EXISTS (SELECT 1 FROM word_link w WHERE w.module_id = m.id)
              FROM module m ORDER BY code",
         )?;
         let modules = stmt
@@ -746,6 +753,7 @@ impl Library {
                     verses: row.get(3)?,
                     notes: row.get(4)?,
                     kind: row.get(5)?,
+                    strongs: row.get(6)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;

@@ -140,7 +140,7 @@ class _CommentaryPaneState extends State<CommentaryPane> {
             moduleCode: widget.module,
             modules: [
               for (final m in widget.modules)
-                (code: m.code, title: m.title),
+                (code: m.code, title: m.title, strongs: m.strongs),
             ],
             onModule: widget.modules.isEmpty ? null : widget.onModule,
             followValue: widget.followValue,

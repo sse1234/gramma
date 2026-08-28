@@ -392,6 +392,12 @@ abstract class AppLocalizations {
   /// **'No matches'**
   String get noDictionaryResults;
 
+  /// No description provided for @strongsTagged.
+  ///
+  /// In en, this message translates to:
+  /// **'Strong\'s numbers'**
+  String get strongsTagged;
+
   /// No description provided for @noConcordanceSource.
   ///
   /// In en, this message translates to:

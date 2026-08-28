@@ -898,10 +898,16 @@ void main() {
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await _settleLayouts(tester);
 
+    expect(find.byKey(const Key('strongs-badge')), findsNothing,
+        reason: 'the untagged text carries no badge');
     await tester.tap(find.byKey(const Key('module-select')).first);
     await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.tag), findsWidgets,
+        reason: 'the chooser marks Strong-tagged texts');
     await tester.tap(find.text('Testbibel mit Strongs').last);
     await _settleLayouts(tester);
+    expect(find.byKey(const Key('strongs-badge')), findsOneWidget,
+        reason: 'the pane chrome shows the tagged badge');
 
     await tester
         .longPressAt(await wordPoint(tester, 1, 'heaven', module: 'KjvTest'));

@@ -574,4 +574,12 @@ fn bible_imports_with_concordance_and_word_resolution() {
         library.strongs_module().unwrap().as_deref(),
         Some("KjvTest")
     );
+    assert!(info.strongs);
+    let m = library
+        .modules()
+        .unwrap()
+        .into_iter()
+        .find(|m| m.code == "KjvTest")
+        .unwrap();
+    assert!(m.strongs, "the tagged text is flagged in the module list");
 }

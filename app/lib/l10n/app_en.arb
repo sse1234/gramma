@@ -54,6 +54,7 @@
   "searchDictionaryHint": "Search by Strong's number or word — or long-press a word in the text",
   "dictionarySearchLabel": "Number or word",
   "noDictionaryResults": "No matches",
+  "strongsTagged": "Strong's numbers",
   "noConcordanceSource": "Import a Strong's-tagged Bible (e.g. the KJV) to see occurrences",
   "@importedCommentary": {"placeholders": {"title": {"type": "String"}, "entries": {"type": "int"}}},
   "importToBegin": "Import an OSIS module to begin reading",
