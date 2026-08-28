@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `display_key`, `with_library`
+// These functions are ignored because they are not marked as `pub`: `display_key`, `invalidate_search_indexes`, `with_library`
 
 void openLibrary({required String path}) =>
     RustLib.instance.api.crateApiLibraryOpenLibrary(path: path);
@@ -100,6 +100,19 @@ ChapterView chapter({required String moduleCode, required String reference}) =>
       moduleCode: moduleCode,
       reference: reference,
     );
+
+/// Search a Bible module's verses lexically (Tier 0 of ADR 0022: the
+/// bibelsuche BM25 parity port). Async: the first call per module
+/// builds the index over all its verses.
+Future<List<SearchHitView>> searchVerses({
+  required String moduleCode,
+  required String query,
+  required int limit,
+}) => RustLib.instance.api.crateApiLibrarySearchVerses(
+  moduleCode: moduleCode,
+  query: query,
+  limit: limit,
+);
 
 /// One table-of-contents row of a general book (ADR 0021).
 class BookTocView {
@@ -431,6 +444,42 @@ class OccurrenceView {
           start == other.start &&
           end == other.end &&
           text == other.text;
+}
+
+/// One lexical search hit (ADR 0022, Tier 0).
+class SearchHitView {
+  final String bookOsis;
+  final int chapter;
+  final int verse;
+  final String text;
+  final double score;
+
+  const SearchHitView({
+    required this.bookOsis,
+    required this.chapter,
+    required this.verse,
+    required this.text,
+    required this.score,
+  });
+
+  @override
+  int get hashCode =>
+      bookOsis.hashCode ^
+      chapter.hashCode ^
+      verse.hashCode ^
+      text.hashCode ^
+      score.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SearchHitView &&
+          runtimeType == other.runtimeType &&
+          bookOsis == other.bookOsis &&
+          chapter == other.chapter &&
+          verse == other.verse &&
+          text == other.text &&
+          score == other.score;
 }
 
 class VerseView {

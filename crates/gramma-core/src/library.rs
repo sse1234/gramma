@@ -1006,6 +1006,36 @@ impl Library {
         Ok(notes)
     }
 
+    /// Every verse of a module in canon order, for search indexing
+    /// (ADR 0022).
+    pub fn all_verses(
+        &self,
+        module_code: &str,
+    ) -> Result<Vec<(BookId, u16, u16, String)>, LibraryError> {
+        let module_id = self.module_id(module_code)?;
+        let mut stmt = self.conn.prepare(
+            "SELECT book, chapter, verse, text FROM verse
+             WHERE module_id = ?1 ORDER BY book, chapter, verse",
+        )?;
+        let rows = stmt
+            .query_map([module_id], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, u16>(1)?,
+                    row.get::<_, u16>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })?
+            .filter_map(|row| {
+                row.map(|(book, chapter, verse, text)| {
+                    BookId::from_index(book as usize).map(|b| (b, chapter, verse, text))
+                })
+                .transpose()
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
     /// The ordered chapter spine of a module: every chapter that has content,
     /// in canonical order. This is the backbone of the endless-scrolling
     /// reader.

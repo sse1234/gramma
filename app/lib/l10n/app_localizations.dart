@@ -446,6 +446,36 @@ abstract class AppLocalizations {
   /// **'No matches'**
   String get noDictionaryResults;
 
+  /// No description provided for @searchTool.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get searchTool;
+
+  /// No description provided for @searchQueryHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search the text…'**
+  String get searchQueryHint;
+
+  /// No description provided for @goodHit.
+  ///
+  /// In en, this message translates to:
+  /// **'Good hit — save as training example'**
+  String get goodHit;
+
+  /// No description provided for @noGoodHit.
+  ///
+  /// In en, this message translates to:
+  /// **'No good hit'**
+  String get noGoodHit;
+
+  /// No description provided for @labelRecorded.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved as training example'**
+  String get labelRecorded;
+
   /// No description provided for @strongsTagged.
   ///
   /// In en, this message translates to:

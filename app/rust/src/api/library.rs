@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
@@ -99,6 +100,7 @@ pub fn import_osis_file(path: String) -> anyhow::Result<ModuleView> {
     let library = guard
         .as_mut()
         .ok_or_else(|| anyhow!("library not opened"))?;
+    invalidate_search_indexes();
     let info = library.import_osis(source)?;
     Ok(ModuleView {
         code: info.code,
@@ -120,6 +122,7 @@ pub fn import_sword_file(path: String) -> anyhow::Result<ModuleView> {
     let library = guard
         .as_mut()
         .ok_or_else(|| anyhow!("library not opened"))?;
+    invalidate_search_indexes();
     let info = match module {
         gramma_core::sword::SwordModule::Commentary(doc) => library.import_commentary(&doc)?,
         gramma_core::sword::SwordModule::Dictionary(doc) => library.import_dictionary(&doc)?,
@@ -193,6 +196,15 @@ pub fn book_toc(module_code: String) -> anyhow::Result<Vec<BookTocView>> {
             })
             .collect()
     })
+}
+
+/// One lexical search hit (ADR 0022, Tier 0).
+pub struct SearchHitView {
+    pub book_osis: String,
+    pub chapter: u16,
+    pub verse: u16,
+    pub text: String,
+    pub score: f64,
 }
 
 /// One concordance occurrence (ADR 0020): a verse whose byte range
@@ -424,4 +436,56 @@ pub fn chapter(module_code: String, reference: String) -> anyhow::Result<Chapter
         .to_string(),
         verses,
     })
+}
+
+/// One indexed row: book OSIS, chapter, verse, text.
+type SearchRow = (String, u16, u16, String);
+type SearchIndex = (gramma_core::search::Bm25Index, Vec<SearchRow>);
+
+/// Per-module BM25 indexes, built lazily and dropped when a module is
+/// re-imported (ADR 0022).
+#[flutter_rust_bridge::frb(ignore)]
+static SEARCH_INDEXES: Mutex<Option<HashMap<String, SearchIndex>>> = Mutex::new(None);
+
+#[flutter_rust_bridge::frb(ignore)]
+pub(crate) fn invalidate_search_indexes() {
+    *SEARCH_INDEXES.lock().unwrap() = None;
+}
+
+/// Search a Bible module's verses lexically (Tier 0 of ADR 0022: the
+/// bibelsuche BM25 parity port). Async: the first call per module
+/// builds the index over all its verses.
+pub fn search_verses(
+    module_code: String,
+    query: String,
+    limit: u32,
+) -> anyhow::Result<Vec<SearchHitView>> {
+    let mut guard = SEARCH_INDEXES.lock().unwrap();
+    let indexes = guard.get_or_insert_with(HashMap::new);
+    if !indexes.contains_key(&module_code) {
+        let verses = with_library(|library| library.all_verses(&module_code))?;
+        let rows: Vec<(String, u16, u16, String)> = verses
+            .into_iter()
+            .map(|(book, chapter, verse, text)| {
+                (book.info().osis.to_string(), chapter, verse, text)
+            })
+            .collect();
+        let index = gramma_core::search::Bm25Index::new(rows.iter().map(|r| r.3.clone()));
+        indexes.insert(module_code.clone(), (index, rows));
+    }
+    let (index, rows) = indexes.get(&module_code).expect("just inserted");
+    Ok(index
+        .top_hits(&query, limit as usize)
+        .into_iter()
+        .map(|(row, score)| {
+            let (book_osis, chapter, verse, text) = rows[row].clone();
+            SearchHitView {
+                book_osis,
+                chapter,
+                verse,
+                text,
+                score,
+            }
+        })
+        .collect())
 }

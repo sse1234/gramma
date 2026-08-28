@@ -1043,6 +1043,61 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('search tool: hits, jump, and training labels',
+      (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+
+    await tester.tap(find.byKey(const Key('tools-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tool-search')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+        find.byKey(const Key('search-query')), 'Schlange listiger');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await _settle(
+        tester, () => _found(find.byKey(const Key('search-results'))));
+    expect(find.textContaining('Und die Schlange war listiger'),
+        findsOneWidget);
+
+    // The thumb records a positive training label into the synced store.
+    await tester.tap(find.byKey(const Key('search-good-0')));
+    await tester.pump();
+    var labels = userKeys(prefix: 'label/');
+    expect(labels.length, 1);
+    final positive = userGet(key: labels.first)!;
+    expect(positive, contains('"query":"Schlange listiger"'));
+    expect(positive, contains('"label":"good_hit"'));
+    expect(positive, contains('"osis":"Gen.3.1"'));
+
+    // The red row records a negative for the query.
+    await tester.tap(find.byKey(const Key('search-no-good-hit')));
+    await tester.pump();
+    labels = userKeys(prefix: 'label/');
+    expect(labels.length, 2);
+    expect(
+      labels.map((k) => userGet(key: k)!).where(
+          (v) => v.contains('"label":"no_good_hit"')),
+      hasLength(1),
+    );
+
+    // Tapping the hit jumps the reading view.
+    await tester.tap(find.byKey(const Key('search-hit-0')));
+    await tester.pumpAndSettle();
+    await _settleLayouts(tester);
+    await tester.pumpAndSettle();
+    final position = tester.widget<Text>(
+      find.byKey(const Key('current-position')).first,
+    );
+    expect(position.data, '1. Mose 3');
+  });
+
   testWidgets('desk history: back, forward, and the dropdown', (tester) async {
     _freshUserStore();
     _phoneViewport(tester);

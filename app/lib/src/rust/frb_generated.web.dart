@@ -132,6 +132,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<RunView> dco_decode_list_run_view(dynamic raw);
 
   @protected
+  List<SearchHitView> dco_decode_list_search_hit_view(dynamic raw);
+
+  @protected
   List<VerseView> dco_decode_list_verse_view(dynamic raw);
 
   @protected
@@ -163,6 +166,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RunView dco_decode_run_view(dynamic raw);
+
+  @protected
+  SearchHitView dco_decode_search_hit_view(dynamic raw);
 
   @protected
   int dco_decode_u_16(dynamic raw);
@@ -301,6 +307,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<RunView> sse_decode_list_run_view(SseDeserializer deserializer);
 
   @protected
+  List<SearchHitView> sse_decode_list_search_hit_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<VerseView> sse_decode_list_verse_view(SseDeserializer deserializer);
 
   @protected
@@ -336,6 +347,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RunView sse_decode_run_view(SseDeserializer deserializer);
+
+  @protected
+  SearchHitView sse_decode_search_hit_view(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_16(SseDeserializer deserializer);
@@ -521,6 +535,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_run_view(List<RunView> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_search_hit_view(
+    List<SearchHitView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_verse_view(
     List<VerseView> self,
     SseSerializer serializer,
@@ -564,6 +584,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_run_view(RunView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_search_hit_view(SearchHitView self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_16(int self, SseSerializer serializer);

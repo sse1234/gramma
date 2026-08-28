@@ -75,6 +75,19 @@ impl UserStore {
             .optional()?)
     }
 
+    /// Keys starting with `prefix`, in order — e.g. the collected
+    /// search labels (ADR 0022).
+    pub fn keys_with_prefix(&self, prefix: &str) -> Result<Vec<String>, UserStoreError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT key FROM kv WHERE key >= ?1 AND key < ?2 ORDER BY key")?;
+        let upper = format!("{prefix}\u{10FFFF}");
+        let keys = stmt
+            .query_map([prefix, upper.as_str()], |row| row.get(0))?
+            .collect::<Result<Vec<String>, _>>()?;
+        Ok(keys)
+    }
+
     fn meta_get(&self, key: &str) -> Result<Option<String>, UserStoreError> {
         Ok(self
             .conn

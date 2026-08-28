@@ -9,6 +9,7 @@ import 'desks.dart';
 import 'l10n.dart';
 import 'footnotes_pane.dart';
 import 'reading_plan.dart';
+import 'search_tool.dart';
 import 'sync_transport.dart';
 import 'pane_badge.dart';
 import 'pane_model.dart';
@@ -306,6 +307,16 @@ class _ReaderScreenState extends State<ReaderScreen>
       _commands[targetId] = (epoch: ++_commandEpoch, osis: osis);
     });
     _save();
+  }
+
+  Future<void> _openSearch() async {
+    final settings = SettingsScope.of(context);
+    await showSearchTool(
+      context,
+      modules: _bibleModules,
+      initialModule: settings.defaultModule,
+      onOpen: _openOsis,
+    );
   }
 
   Future<void> _openReadingPlan() async {
@@ -737,11 +748,15 @@ class _ReaderScreenState extends State<ReaderScreen>
             onSelected: (action) => action(),
             itemBuilder: (context) => [
               PopupMenuItem(
+                key: const Key('tool-search'),
+                value: _openSearch,
+                child: Text(context.l10n.searchTool),
+              ),
+              PopupMenuItem(
                 key: const Key('tool-plan'),
                 value: _openReadingPlan,
                 child: Text(context.l10n.readingPlanBibelliga),
               ),
-              // Search joins this menu once it lands.
             ],
           ),
           PopupMenuButton<VoidCallback>(
