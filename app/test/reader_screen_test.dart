@@ -906,8 +906,18 @@ void main() {
         reason: 'the chooser marks Strong-tagged texts');
     await tester.tap(find.text('Testbibel mit Strongs').last);
     await _settleLayouts(tester);
+    expect(find.byIcon(Icons.tag), findsWidgets,
+        reason: 'the wide chrome shows the tag via the selected chooser row');
+    expect(find.byKey(const Key('strongs-badge')), findsNothing,
+        reason: 'no redundant standalone badge next to the chooser');
+
+    // Compact chrome hides the chooser; the badge is the only hint.
+    tester.view.physicalSize = const Size(440, 800);
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('strongs-badge')), findsOneWidget,
-        reason: 'the pane chrome shows the tagged badge');
+        reason: 'compact chrome carries the tagged badge');
+    tester.view.physicalSize = const Size(700, 800);
+    await tester.pumpAndSettle();
 
     await tester
         .longPressAt(await wordPoint(tester, 1, 'heaven', module: 'KjvTest'));
