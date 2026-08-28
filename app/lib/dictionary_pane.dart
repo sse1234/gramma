@@ -139,6 +139,7 @@ class _DictionaryPaneState extends State<DictionaryPane> {
   }
 
   void _submit(String raw) {
+    FocusManager.instance.primaryFocus?.unfocus();
     final input = raw.trim();
     if (input.isEmpty) return;
     final sort = dictAnchorSort(input);
@@ -217,6 +218,7 @@ class _DictionaryPaneState extends State<DictionaryPane> {
               child: TextField(
                 key: const Key('dict-search'),
                 controller: _search,
+                textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
                   isDense: true,
                   prefixIcon: const Icon(Icons.search, size: 18),
@@ -275,6 +277,7 @@ class _DictionaryPaneState extends State<DictionaryPane> {
     final family = SettingsScope.of(context).fontFamily;
     return ListView.builder(
       key: const Key('dict-results'),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       itemCount: hits.length,
       itemBuilder: (context, index) {
         final hit = hits[index];
@@ -289,7 +292,10 @@ class _DictionaryPaneState extends State<DictionaryPane> {
           ),
           title: Text(hit.headword, style: TextStyle(fontFamily: family)),
           subtitle: hit.pron.isEmpty ? null : Text(hit.pron),
-          onTap: () => widget.onAnchor('G${hit.sort}'),
+          onTap: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            widget.onAnchor('G${hit.sort}');
+          },
         );
       },
     );
@@ -333,7 +339,7 @@ class _DictionaryPaneState extends State<DictionaryPane> {
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Text(
-            '$strong · ${result.hits.length}',
+            '$strong · ${result.hits.length} · ${result.module}',
             key: const Key('concordance-count'),
             style: theme.textTheme.titleSmall,
           ),
@@ -341,6 +347,8 @@ class _DictionaryPaneState extends State<DictionaryPane> {
         Expanded(
           child: ListView.builder(
             key: const Key('concordance-list'),
+            keyboardDismissBehavior:
+                ScrollViewKeyboardDismissBehavior.onDrag,
             itemCount: result.hits.length,
             itemBuilder: (context, index) {
               final hit = result.hits[index];
@@ -413,6 +421,8 @@ class _DictionaryPaneState extends State<DictionaryPane> {
         }
         return SingleChildScrollView(
           key: Key('dict-entry-${entry.sort}'),
+          keyboardDismissBehavior:
+              ScrollViewKeyboardDismissBehavior.onDrag,
           child: Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 12),
             child: TypesetProse(

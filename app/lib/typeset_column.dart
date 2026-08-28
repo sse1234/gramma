@@ -215,8 +215,8 @@ class _ColumnPainter extends CustomPainter {
       for (final (start, end) in coveredSpans(row.line, covers)) {
         canvas.drawRRect(
           RRect.fromRectAndRadius(
-            Rect.fromLTRB(start * scale - 2, y - fontSize * 0.06,
-                end * scale + 2, y + fontSize * 1.12),
+            Rect.fromLTRB(start * scale - 2, y + fontSize * 0.08,
+                end * scale + 2, y + fontSize * 1.26),
             const Radius.circular(3),
           ),
           Paint()..color = color,
@@ -236,6 +236,12 @@ class _ColumnPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Washes first, text second (see the chapter painter).
+    for (final row in rows) {
+      if (row is TextRow) {
+        _paintWashes(canvas, row, row.row * lineHeight);
+      }
+    }
     final textStyle = TextStyle(
       fontFamily: family,
       fontSize: fontSize,
@@ -254,7 +260,6 @@ class _ColumnPainter extends CustomPainter {
           paintRun(canvas, text, headingStyle, Offset(0, y + lineHeight * 0.3),
               extraWeightEm: weightEm);
         case TextRow(:final line, :final numberScale):
-          _paintWashes(canvas, row, y);
           final numberStyle = TextStyle(
             fontFamily: family,
             fontSize: fontSize * numberScale,

@@ -124,6 +124,7 @@ class _SearchDialogState extends State<_SearchDialog> {
   }
 
   Future<void> _search(String raw) async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final module = _module;
     final query = raw.trim();
     if (module == null || query.isEmpty || _busy) return;
@@ -208,6 +209,7 @@ class _SearchDialogState extends State<_SearchDialog> {
                 key: const Key('search-query'),
                 controller: _query,
                 autofocus: true,
+                textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
                   isDense: true,
                   prefixIcon: const Icon(Icons.search, size: 18),
@@ -232,6 +234,8 @@ class _SearchDialogState extends State<_SearchDialog> {
                           )
                         : ListView.builder(
                             key: const Key('search-results'),
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
                             shrinkWrap: true,
                             itemCount: _hits.length + 1,
                             itemBuilder: (context, index) {

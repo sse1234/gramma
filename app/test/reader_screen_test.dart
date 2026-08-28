@@ -804,7 +804,7 @@ void main() {
       tester
           .widget<Text>(find.byKey(const Key('concordance-count')))
           .data,
-      'G2 · 1',
+      'G2 · 1 · KjvTest',
     );
     expect(find.textContaining('Love'), findsWidgets,
         reason: 'the occurrence shows its verse with the word bold');

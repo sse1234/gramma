@@ -727,6 +727,7 @@ class _ReaderPaneState extends State<ReaderPane> {
     final chapterIndex = _selectionChapter!;
     return Material(
       key: const Key('selection-bar'),
+      elevation: 6,
       color: theme.colorScheme.surfaceContainerHigh,
       child: SafeArea(
         top: false,
@@ -898,17 +899,33 @@ class _ReaderPaneState extends State<ReaderPane> {
                     _vLineHeightPx =
                         effWidth / (_measure ?? 26) * _lineSpacing;
                     final columns = _columnsFor(constraints.maxWidth);
+                    final Widget reader;
                     if (columns >= 2 && _linePlan() != null) {
-                      return _horizontalReader(constraints, columns);
+                      reader = _horizontalReader(constraints, columns);
+                    } else {
+                      _hPlan = null;
+                      _hParams = null;
+                      reader = _verticalReader();
                     }
-                    _hPlan = null;
-                    _hParams = null;
-                    return _verticalReader();
+                    // The selection bar floats over the content: adding
+                    // it to the layout would change the column height
+                    // mid-gesture and shift the text under the finger.
+                    return Stack(
+                      children: [
+                        reader,
+                        if (_selection != null)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: _selectionBar(theme),
+                          ),
+                      ],
+                    );
                   },
                 ),
           ),
         ),
-        if (_selection != null) _selectionBar(theme),
       ],
     );
   }
