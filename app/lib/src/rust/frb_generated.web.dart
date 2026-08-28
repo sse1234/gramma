@@ -33,7 +33,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String dco_decode_String(dynamic raw);
 
   @protected
+  BookLayoutView dco_decode_book_layout_view(dynamic raw);
+
+  @protected
+  BookTocView dco_decode_book_toc_view(dynamic raw);
+
+  @protected
   bool dco_decode_bool(dynamic raw);
+
+  @protected
+  BookLayoutView dco_decode_box_autoadd_book_layout_view(dynamic raw);
 
   @protected
   DictLayoutView dco_decode_box_autoadd_dict_layout_view(dynamic raw);
@@ -78,6 +87,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
+  List<BookTocView> dco_decode_list_book_toc_view(dynamic raw);
+
+  @protected
   List<ChapterRefView> dco_decode_list_chapter_ref_view(dynamic raw);
 
   @protected
@@ -88,6 +100,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<DictHitView> dco_decode_list_dict_hit_view(dynamic raw);
+
+  @protected
+  List<DictLayoutView> dco_decode_list_dict_layout_view(dynamic raw);
 
   @protected
   List<LineView> dco_decode_list_line_view(dynamic raw);
@@ -135,6 +150,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
+  BookLayoutView? dco_decode_opt_box_autoadd_book_layout_view(dynamic raw);
+
+  @protected
   DictLayoutView? dco_decode_opt_box_autoadd_dict_layout_view(dynamic raw);
 
   @protected
@@ -168,7 +186,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String sse_decode_String(SseDeserializer deserializer);
 
   @protected
+  BookLayoutView sse_decode_book_layout_view(SseDeserializer deserializer);
+
+  @protected
+  BookTocView sse_decode_book_toc_view(SseDeserializer deserializer);
+
+  @protected
   bool sse_decode_bool(SseDeserializer deserializer);
+
+  @protected
+  BookLayoutView sse_decode_box_autoadd_book_layout_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   DictLayoutView sse_decode_box_autoadd_dict_layout_view(
@@ -219,6 +248,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String> sse_decode_list_String(SseDeserializer deserializer);
 
   @protected
+  List<BookTocView> sse_decode_list_book_toc_view(SseDeserializer deserializer);
+
+  @protected
   List<ChapterRefView> sse_decode_list_chapter_ref_view(
     SseDeserializer deserializer,
   );
@@ -233,6 +265,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<DictHitView> sse_decode_list_dict_hit_view(SseDeserializer deserializer);
+
+  @protected
+  List<DictLayoutView> sse_decode_list_dict_layout_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<LineView> sse_decode_list_line_view(SseDeserializer deserializer);
@@ -282,6 +319,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
+  BookLayoutView? sse_decode_opt_box_autoadd_book_layout_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   DictLayoutView? sse_decode_opt_box_autoadd_dict_layout_view(
     SseDeserializer deserializer,
   );
@@ -323,7 +365,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_String(String self, SseSerializer serializer);
 
   @protected
+  void sse_encode_book_layout_view(
+    BookLayoutView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_book_toc_view(BookTocView self, SseSerializer serializer);
+
+  @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_book_layout_view(
+    BookLayoutView self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_dict_layout_view(
@@ -386,6 +443,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_book_toc_view(
+    List<BookTocView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_chapter_ref_view(
     List<ChapterRefView> self,
     SseSerializer serializer,
@@ -406,6 +469,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_dict_hit_view(
     List<DictHitView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_dict_layout_view(
+    List<DictLayoutView> self,
     SseSerializer serializer,
   );
 
@@ -474,6 +543,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_book_layout_view(
+    BookLayoutView? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_dict_layout_view(

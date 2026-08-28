@@ -9,7 +9,8 @@ use flate2::write::ZlibEncoder;
 use gramma_core::library::Library;
 use gramma_core::reference::BookId;
 use gramma_core::sword::{
-    SwordModule, Testament, parse_zcom, parse_zld, parse_ztext, read_sword_zip, read_zcom_zip,
+    SwordModule, Testament, parse_genbook, parse_zcom, parse_zld, parse_ztext, read_sword_zip,
+    read_zcom_zip,
 };
 
 const CONF: &str = "\
@@ -211,6 +212,16 @@ fn reads_a_real_package_when_provided() {
                 doc.code,
                 doc.entries.len(),
                 with_pron
+            );
+        }
+        SwordModule::Book(doc) => {
+            assert!(!doc.sections.is_empty());
+            let with_text = doc.sections.iter().filter(|s| !s.text.is_empty()).count();
+            println!(
+                "{}: {} book sections, {} with text",
+                doc.code,
+                doc.sections.len(),
+                with_text
             );
         }
         SwordModule::Bible(doc) => {
@@ -582,4 +593,215 @@ fn bible_imports_with_concordance_and_word_resolution() {
         .find(|m| m.code == "KjvTest")
         .unwrap();
     assert!(m.strongs, "the tagged text is flagged in the module list");
+}
+
+// ---- RawGenBook general books and zLD devotionals (ADR 0021) ----
+
+const BOOK_CONF: &str = "\
+[BuchTest]
+Description=Testbuch Predigten
+DataPath=./modules/genbook/rawgenbook/buchtest/buchtest
+ModDrv=RawGenBook
+SourceType=OSIS
+Encoding=UTF-8
+Lang=de
+";
+
+/// Build a small TreeKey book:
+/// root -> "Teil 1" (with intro text) -> ["Erste Predigt", "Zweite Predigt"].
+fn genbook_files() -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    let bodies = [
+        "<title>Teil 1</title><p>Einleitung des Teils.</p>",
+        "<p>Erster Absatz der Predigt, vgl. Joh 3,16.</p><p>Zweiter   Absatz.</p>",
+        "<p>Inhalt der zweiten Predigt.</p>",
+    ];
+    let mut bdt = Vec::new();
+    let mut spans = Vec::new();
+    for b in bodies {
+        spans.push((bdt.len() as u32, b.len() as u32));
+        bdt.extend_from_slice(b.as_bytes());
+    }
+    // idx slot offsets: root=0, part=4, s1=8, s2=12.
+    const NONE: u32 = u32::MAX;
+    type Node<'a> = (u32, u32, u32, &'a str, Option<(u32, u32)>);
+    let nodes: [Node; 4] = [
+        (NONE, NONE, 4, "", None),
+        (0, NONE, 8, "Teil 1", Some(spans[0])),
+        (4, 12, NONE, "Erste Predigt", Some(spans[1])),
+        (4, NONE, NONE, "Zweite Predigt", Some(spans[2])),
+    ];
+    let mut idx = Vec::new();
+    let mut dat = Vec::new();
+    for (parent, next, child, name, payload) in nodes {
+        idx.extend_from_slice(&(dat.len() as u32).to_le_bytes());
+        dat.extend_from_slice(&parent.to_le_bytes());
+        dat.extend_from_slice(&next.to_le_bytes());
+        dat.extend_from_slice(&child.to_le_bytes());
+        dat.extend_from_slice(name.as_bytes());
+        dat.push(0);
+        match payload {
+            Some((off, size)) => {
+                dat.extend_from_slice(&8u16.to_le_bytes());
+                dat.extend_from_slice(&off.to_le_bytes());
+                dat.extend_from_slice(&size.to_le_bytes());
+            }
+            None => {
+                dat.extend_from_slice(&8u16.to_le_bytes());
+                dat.extend_from_slice(&0u32.to_le_bytes());
+                dat.extend_from_slice(&0u32.to_le_bytes());
+            }
+        }
+    }
+    (idx, dat, bdt)
+}
+
+#[test]
+fn parses_a_synthetic_genbook() {
+    let (idx, dat, bdt) = genbook_files();
+    let doc = parse_genbook(BOOK_CONF, &idx, &dat, &bdt).unwrap();
+    assert_eq!(doc.code, "BuchTest");
+    assert_eq!(doc.sections.len(), 3, "depth-first reading order");
+    let part = &doc.sections[0];
+    assert_eq!(
+        (part.ordinal, part.level, part.name.as_str()),
+        (1, 1, "Teil 1")
+    );
+    assert_eq!(part.heading.as_deref(), Some("Teil 1"));
+    assert_eq!(part.text, "Einleitung des Teils.");
+    let s1 = &doc.sections[1];
+    assert_eq!(
+        (s1.ordinal, s1.level, s1.name.as_str()),
+        (2, 2, "Erste Predigt")
+    );
+    assert_eq!(
+        s1.text, "Erster Absatz der Predigt, vgl. Joh 3,16.\n\nZweiter Absatz.",
+        "p elements become paragraphs"
+    );
+    assert_eq!(doc.sections[2].ordinal, 3);
+}
+
+const DEVO_CONF: &str = "\
+[AndachtTest]
+Description=Testandachten
+DataPath=./modules/lexdict/zld/devotionals/andachttest/dict
+ModDrv=zLD
+SourceType=OSIS
+Encoding=UTF-8
+CompressType=ZIP
+Feature=DailyDevotion
+Lang=de
+";
+
+const DEVO_0101: &str = concat!(
+    r#"<div type="entry" osisID="01.01">"#,
+    r#"<div type="section" osisID="01.01.am"><title>Morgen, 1. Januar</title>"#,
+    r#"<p><hi type="italic">Ein Wort am Morgen.</hi><lb/>"#,
+    r#"<reference osisRef="Bible:Josh.5.12">Josua 5,12</reference></p>"#,
+    "<p>Betrachtung des Morgens.</p></div>",
+    r#"<div type="section" osisID="01.01.pm"><title>Abend, 1. Januar</title>"#,
+    "<p>Betrachtung des Abends.</p></div></div>",
+);
+const DEVO_0102: &str = concat!(
+    r#"<div type="entry" osisID="01.02">"#,
+    r#"<div type="section" osisID="01.02.am"><title>Morgen, 2. Januar</title>"#,
+    "<p>Nur ein Morgen.</p></div></div>",
+);
+
+fn devo_files() -> (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>) {
+    fn block(entries: &[&str]) -> Vec<u8> {
+        let mut header = Vec::new();
+        header.extend_from_slice(&(entries.len() as u32).to_le_bytes());
+        let mut body = Vec::new();
+        let base = 4 + entries.len() * 8;
+        for e in entries {
+            header.extend_from_slice(&((base + body.len()) as u32).to_le_bytes());
+            header.extend_from_slice(&(e.len() as u32).to_le_bytes());
+            body.extend_from_slice(e.as_bytes());
+        }
+        header.extend_from_slice(&body);
+        header
+    }
+    let raw = block(&[DEVO_0101, DEVO_0102]);
+    let mut z = ZlibEncoder::new(Vec::new(), Compression::default());
+    z.write_all(&raw).unwrap();
+    let compressed = z.finish().unwrap();
+    let mut zdx = Vec::new();
+    zdx.extend_from_slice(&0u32.to_le_bytes());
+    zdx.extend_from_slice(&(compressed.len() as u32).to_le_bytes());
+    let mut idx = Vec::new();
+    let mut dat = Vec::new();
+    for (key, entry_no) in [("01.01", 0u32), ("01.02", 1)] {
+        idx.extend_from_slice(&(dat.len() as u32).to_le_bytes());
+        idx.extend_from_slice(&15u32.to_le_bytes());
+        dat.extend_from_slice(key.as_bytes());
+        dat.extend_from_slice(b"\r\n");
+        dat.extend_from_slice(&0u32.to_le_bytes());
+        dat.extend_from_slice(&entry_no.to_le_bytes());
+    }
+    (idx, dat, zdx, compressed)
+}
+
+#[test]
+fn parses_a_synthetic_devotional() {
+    let (idx, dat, zdx, zdt) = devo_files();
+    let doc = parse_zld(DEVO_CONF, &idx, &dat, &zdx, &zdt).unwrap();
+    assert!(doc.devotional, "Feature=DailyDevotion marks the module");
+    assert_eq!(doc.entries.len(), 3, "one entry per section (am/pm)");
+    let am = &doc.entries[0];
+    assert_eq!((am.sort, am.key.as_str()), (1010, "01.01"));
+    assert_eq!(am.headword, "Morgen, 1. Januar");
+    assert_eq!(
+        am.text,
+        "Ein Wort am Morgen. Josua 5,12\n\nBetrachtung des Morgens."
+    );
+    let pm = &doc.entries[1];
+    assert_eq!((pm.sort, pm.headword.as_str()), (1011, "Abend, 1. Januar"));
+    assert_eq!(doc.entries[2].sort, 1020);
+}
+
+#[test]
+fn book_and_devotional_import_and_query() {
+    let (idx, dat, bdt) = genbook_files();
+    let book = parse_genbook(BOOK_CONF, &idx, &dat, &bdt).unwrap();
+    let mut library = Library::open_in_memory().unwrap();
+    let info = library.import_book(&book).unwrap();
+    assert_eq!((info.kind.as_str(), info.verses), ("book", 3));
+
+    let toc = library.book_toc("BuchTest").unwrap();
+    assert_eq!(toc.len(), 3);
+    assert_eq!(
+        (toc[0].ordinal, toc[0].level, toc[0].name.as_str()),
+        (1, 1, "Teil 1")
+    );
+    let (section, prev, next) = library.book_section("BuchTest", 2).unwrap().unwrap();
+    assert_eq!(section.name, "Erste Predigt");
+    assert_eq!((prev, next), (Some(1), Some(3)));
+    assert!(library.book_section("BuchTest", 9).unwrap().is_none());
+
+    let (didx, ddat, dzdx, dzdt) = devo_files();
+    let devo = parse_zld(DEVO_CONF, &didx, &ddat, &dzdx, &dzdt).unwrap();
+    let info = library.import_dictionary(&devo).unwrap();
+    assert_eq!(info.kind, "devotional");
+    // The stored row must agree with the returned info — the app reads
+    // the module list from the database.
+    let stored = library
+        .modules()
+        .unwrap()
+        .into_iter()
+        .find(|m| m.code == "AndachtTest")
+        .unwrap();
+    assert_eq!(stored.kind, "devotional");
+    // A day's readings: every section whose sort lies in the day range.
+    let day = library
+        .dict_entries_between("AndachtTest", 1010, 1019)
+        .unwrap();
+    assert_eq!(day.len(), 2);
+    assert_eq!(day[0].headword, "Morgen, 1. Januar");
+    assert_eq!(day[1].headword, "Abend, 1. Januar");
+    assert!(
+        library
+            .dict_entries_between("AndachtTest", 1030, 1039)
+            .unwrap()
+            .is_empty()
+    );
 }

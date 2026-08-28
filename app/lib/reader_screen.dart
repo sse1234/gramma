@@ -1,7 +1,9 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
+import 'book_pane.dart';
 import 'commentary_pane.dart';
+import 'devotional_pane.dart';
 import 'dictionary_pane.dart';
 import 'desks.dart';
 import 'l10n.dart';
@@ -147,6 +149,12 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   List<ModuleView> get _dictionaryModules =>
       [for (final m in _modules) if (m.kind == 'dictionary') m];
+
+  List<ModuleView> get _bookModules =>
+      [for (final m in _modules) if (m.kind == 'book') m];
+
+  List<ModuleView> get _devotionalModules =>
+      [for (final m in _modules) if (m.kind == 'devotional') m];
 
   void _save() {
     userSet(key: 'desk/$_deskId', value: _layout.encode());
@@ -377,6 +385,8 @@ class _ReaderScreenState extends State<ReaderScreen>
         case PaneKind.footnotes:
         case PaneKind.commentary:
         case PaneKind.dictionary:
+        case PaneKind.book:
+        case PaneKind.devotional:
           final source = _layout.allPanes
               .where((p) => p.kind == PaneKind.text)
               .firstOrNull;
@@ -385,9 +395,13 @@ class _ReaderScreenState extends State<ReaderScreen>
             module: switch (kind) {
               PaneKind.commentary => _commentaryModules.firstOrNull?.code,
               PaneKind.dictionary => _dictionaryModules.firstOrNull?.code,
+              PaneKind.book => _bookModules.firstOrNull?.code,
+              PaneKind.devotional => _devotionalModules.firstOrNull?.code,
               _ => null,
             },
-            follow: kind == PaneKind.dictionary ? null : source?.id,
+            follow: kind == PaneKind.footnotes || kind == PaneKind.commentary
+                ? source?.id
+                : null,
             weight: 0.5,
           );
           created = pane;
@@ -481,6 +495,10 @@ class _ReaderScreenState extends State<ReaderScreen>
             l10n.importedCommentary(imported.title, imported.verses.toInt()),
           'dictionary' =>
             l10n.importedDictionary(imported.title, imported.verses.toInt()),
+          'book' =>
+            l10n.importedBook(imported.title, imported.verses.toInt()),
+          'devotional' =>
+            l10n.importedDevotional(imported.title, imported.verses.toInt()),
           _ => l10n.importedModule(imported.title, imported.verses.toInt()),
         }),
       ));
@@ -591,6 +609,8 @@ class _ReaderScreenState extends State<ReaderScreen>
                 PaneKind.footnotes => Icons.notes_outlined,
                 PaneKind.commentary => Icons.comment_outlined,
                 PaneKind.dictionary => Icons.translate_outlined,
+                PaneKind.book => Icons.auto_stories_outlined,
+                PaneKind.devotional => Icons.today_outlined,
                 PaneKind.text => Icons.menu_book_outlined,
               },
               size: 20,
@@ -781,6 +801,16 @@ class _ReaderScreenState extends State<ReaderScreen>
                 value: PaneKind.dictionary,
                 child: Text(context.l10n.dictionaryView),
               ),
+              PopupMenuItem(
+                key: const Key('add-book'),
+                value: PaneKind.book,
+                child: Text(context.l10n.bookView),
+              ),
+              PopupMenuItem(
+                key: const Key('add-devotional'),
+                value: PaneKind.devotional,
+                child: Text(context.l10n.devotionalView),
+              ),
             ],
           ),
           IconButton(
@@ -965,6 +995,42 @@ class _ReaderScreenState extends State<ReaderScreen>
           onToggleMode: toggleMode,
           badge: badge,
           onOpenReference: (osis) => _openReference(spec, osis),
+          dragHandle: _dragHandle(spec),
+          onClose: closable ? () => _closePane(spec.id) : null,
+        );
+      case PaneKind.book:
+        return BookPane(
+          key: ValueKey('pane-${spec.id}'),
+          module: spec.module,
+          modules: _bookModules,
+          onModule: (code) => _setModule(spec.id, code),
+          anchor: spec.anchor,
+          onAnchor: (anchor) => _setAnchor(spec.id, anchor),
+          previewModule:
+              settings.defaultModule ?? _bibleModules.firstOrNull?.code,
+          readingMode: settings.readingMode,
+          onToggleMode: toggleMode,
+          badge: badge,
+          onOpenReference: (osis) => _openReference(spec, osis),
+          onWordLookup: _lookupWord,
+          dragHandle: _dragHandle(spec),
+          onClose: closable ? () => _closePane(spec.id) : null,
+        );
+      case PaneKind.devotional:
+        return DevotionalPane(
+          key: ValueKey('pane-${spec.id}'),
+          module: spec.module,
+          modules: _devotionalModules,
+          onModule: (code) => _setModule(spec.id, code),
+          anchor: spec.anchor,
+          onAnchor: (anchor) => _setAnchor(spec.id, anchor),
+          previewModule:
+              settings.defaultModule ?? _bibleModules.firstOrNull?.code,
+          readingMode: settings.readingMode,
+          onToggleMode: toggleMode,
+          badge: badge,
+          onOpenReference: (osis) => _openReference(spec, osis),
+          onWordLookup: _lookupWord,
           dragHandle: _dragHandle(spec),
           onClose: closable ? () => _closePane(spec.id) : null,
         );

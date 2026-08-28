@@ -87,6 +87,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dictionaryView => 'Dictionary view';
 
   @override
+  String get bookView => 'Book view';
+
+  @override
+  String get devotionalView => 'Devotional view';
+
+  @override
   String get settingsTooltip => 'Settings';
 
   @override
@@ -130,6 +136,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dictionaryTitle => 'Dictionary';
 
   @override
+  String get bookTitle => 'Book';
+
+  @override
+  String get devotionalTitle => 'Devotional';
+
+  @override
   String get selectorTooltip => 'Select book, chapter, verse';
 
   @override
@@ -158,6 +170,27 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String importedDictionary(String title, int entries) {
     return 'Imported $title ($entries entries)';
+  }
+
+  @override
+  String get noBookModules =>
+      'Import a book (a SWORD zip package) to use this view';
+
+  @override
+  String get noDevotionalModules =>
+      'Import a daily devotional (a SWORD zip package) to use this view';
+
+  @override
+  String get tableOfContents => 'Table of contents';
+
+  @override
+  String importedBook(String title, int entries) {
+    return 'Imported $title ($entries sections)';
+  }
+
+  @override
+  String importedDevotional(String title, int entries) {
+    return 'Imported $title ($entries readings)';
   }
 
   @override

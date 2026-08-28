@@ -202,3 +202,133 @@ def bible() -> None:
 
 
 bible()
+
+
+BOOK_CONF = """\
+[BuchTest]
+Description=Testbuch Predigten
+DataPath=./modules/genbook/rawgenbook/buchtest/buchtest
+ModDrv=RawGenBook
+SourceType=OSIS
+Encoding=UTF-8
+Lang=de
+"""
+
+
+def genbook() -> None:
+    bodies = [
+        "<title>Teil 1</title><p>Einleitung des Teils.</p>",
+        "<p>Erster Absatz der Predigt, vgl. 1. Mose 1,2.</p><p>Zweiter Absatz.</p>",
+        "<p>Inhalt der zweiten Predigt.</p>",
+    ]
+    bdt = b""
+    spans = []
+    for b in bodies:
+        raw = b.encode()
+        spans.append((len(bdt), len(raw)))
+        bdt += raw
+    NONE = 0xFFFFFFFF
+    nodes = [
+        (NONE, NONE, 4, "", None),
+        (0, NONE, 8, "Teil 1", spans[0]),
+        (4, 12, NONE, "Erste Predigt", spans[1]),
+        (4, NONE, NONE, "Zweite Predigt", spans[2]),
+    ]
+    idx = b""
+    dat = b""
+    for parent, nxt, child, name, payload in nodes:
+        idx += struct.pack("<I", len(dat))
+        dat += struct.pack("<III", parent, nxt, child)
+        dat += name.encode() + b"\x00"
+        off, size = payload if payload else (0, 0)
+        dat += struct.pack("<HII", 8, off, size)
+
+    out = Path(__file__).resolve().parent.parent / "app/test/fixtures/book.sword.zip"
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        stamp = (2026, 1, 1, 0, 0, 0)
+
+        def add(name: str, data: bytes) -> None:
+            z.writestr(zipfile.ZipInfo(name, date_time=stamp), data)
+
+        add("mods.d/buchtest.conf", BOOK_CONF.encode())
+        add("modules/genbook/rawgenbook/buchtest/buchtest.idx", idx)
+        add("modules/genbook/rawgenbook/buchtest/buchtest.dat", dat)
+        add("modules/genbook/rawgenbook/buchtest/buchtest.bdt", bdt)
+    print(f"wrote {out}")
+
+
+DEVOTIONAL_CONF = """\
+[AndachtTest]
+Description=Testandachten
+DataPath=./modules/lexdict/zld/devotionals/andachttest/dict
+ModDrv=zLD
+SourceType=OSIS
+Encoding=UTF-8
+CompressType=ZIP
+Feature=DailyDevotion
+Lang=de
+"""
+
+
+def devotional() -> None:
+    import calendar
+
+    entries = []
+    for month in range(1, 13):
+        for day in range(1, calendar.monthrange(2024, month)[1] + 1):
+            key = f"{month:02d}.{day:02d}"
+            entries.append(
+                (
+                    key,
+                    f'<div type="entry" osisID="{key}">'
+                    f'<div type="section" osisID="{key}.am">'
+                    f"<title>Morgen, {day}. im Monat {month}</title>"
+                    f"<p>Andacht {key} zum Tag.</p></div></div>",
+                )
+            )
+
+    def block(chunk):
+        header = struct.pack("<I", len(chunk))
+        pairs = b""
+        body = b""
+        base = 4 + len(chunk) * 8
+        for _, e in chunk:
+            raw = e.encode()
+            pairs += struct.pack("<II", base + len(body), len(raw))
+            body += raw
+        return header + pairs + body
+
+    zdx = b""
+    zdt = b""
+    placements = []
+    for block_no in range(0, len(entries), 100):
+        chunk = entries[block_no:block_no + 100]
+        raw = block(chunk)
+        compressed = zlib.compress(raw, 6)
+        zdx += struct.pack("<II", len(zdt), len(compressed))
+        zdt += compressed
+        for i, (key, _) in enumerate(chunk):
+            placements.append((key, block_no // 100, i))
+    idx = b""
+    dat = b""
+    for key, block_no, entry_no in placements:
+        idx += struct.pack("<II", len(dat), 15)
+        dat += key.encode() + b"\r\n" + struct.pack("<II", block_no, entry_no)
+
+    out = Path(__file__).resolve().parent.parent / "app/test/fixtures/devotional.sword.zip"
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        stamp = (2026, 1, 1, 0, 0, 0)
+
+        def add(name: str, data: bytes) -> None:
+            z.writestr(zipfile.ZipInfo(name, date_time=stamp), data)
+
+        add("mods.d/andachttest.conf", DEVOTIONAL_CONF.encode())
+        add("modules/lexdict/zld/devotionals/andachttest/dict.idx", idx)
+        add("modules/lexdict/zld/devotionals/andachttest/dict.dat", dat)
+        add("modules/lexdict/zld/devotionals/andachttest/dict.zdx", zdx)
+        add("modules/lexdict/zld/devotionals/andachttest/dict.zdt", zdt)
+    print(f"wrote {out}")
+
+
+genbook()
+devotional()

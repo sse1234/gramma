@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `activate_font`, `active_measure`, `prose_paragraphs`
+// These functions are ignored because they are not marked as `pub`: `activate_font`, `active_measure`, `entry_layout`, `prose_paragraphs`, `view_lines`
 
 void initTypesetting({required List<int> fontData}) =>
     RustLib.instance.api.crateApiTypesetInitTypesetting(fontData: fontData);
@@ -60,6 +60,31 @@ Future<DictLayoutView?> layoutDictEntry({
   measureEms: measureEms,
 );
 
+/// Typeset a devotional day's readings (ADR 0021): every section whose
+/// sort lies in the day's range, in order. Async.
+Future<List<DictLayoutView>> layoutDevotionalDay({
+  required String moduleCode,
+  required int month,
+  required int day,
+  required double measureEms,
+}) => RustLib.instance.api.crateApiTypesetLayoutDevotionalDay(
+  moduleCode: moduleCode,
+  month: month,
+  day: day,
+  measureEms: measureEms,
+);
+
+/// Typeset one section of a general book at `measure_ems` ems. Async.
+Future<BookLayoutView?> layoutBookSection({
+  required String moduleCode,
+  required int ordinal,
+  required double measureEms,
+}) => RustLib.instance.api.crateApiTypesetLayoutBookSection(
+  moduleCode: moduleCode,
+  ordinal: ordinal,
+  measureEms: measureEms,
+);
+
 /// Text-line count of every chapter in the module's spine order, at the
 /// canonical measure. This makes global line numbering possible, which the
 /// multi-column reader chunks into viewport-sized columns — layout itself
@@ -71,6 +96,68 @@ Future<Uint32List> moduleLineCounts({
   moduleCode: moduleCode,
   measureEms: measureEms,
 );
+
+/// One book section, typeset (ADR 0021).
+class BookLayoutView {
+  final int ordinal;
+  final int level;
+  final String name;
+  final List<LineView> lines;
+
+  /// OSIS targets by `RunView.link` index.
+  final List<String> refs;
+  final int? prevOrdinal;
+  final int? nextOrdinal;
+  final int unitsPerEm;
+  final PlatformInt64 measureUnits;
+  final double numberScale;
+  final String plainText;
+
+  const BookLayoutView({
+    required this.ordinal,
+    required this.level,
+    required this.name,
+    required this.lines,
+    required this.refs,
+    this.prevOrdinal,
+    this.nextOrdinal,
+    required this.unitsPerEm,
+    required this.measureUnits,
+    required this.numberScale,
+    required this.plainText,
+  });
+
+  @override
+  int get hashCode =>
+      ordinal.hashCode ^
+      level.hashCode ^
+      name.hashCode ^
+      lines.hashCode ^
+      refs.hashCode ^
+      prevOrdinal.hashCode ^
+      nextOrdinal.hashCode ^
+      unitsPerEm.hashCode ^
+      measureUnits.hashCode ^
+      numberScale.hashCode ^
+      plainText.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BookLayoutView &&
+          runtimeType == other.runtimeType &&
+          ordinal == other.ordinal &&
+          level == other.level &&
+          name == other.name &&
+          lines == other.lines &&
+          refs == other.refs &&
+          prevOrdinal == other.prevOrdinal &&
+          nextOrdinal == other.nextOrdinal &&
+          unitsPerEm == other.unitsPerEm &&
+          measureUnits == other.measureUnits &&
+          numberScale == other.numberScale &&
+          plainText == other.plainText;
+}
 
 class ChapterLayoutView {
   final List<LineView> lines;

@@ -113,6 +113,8 @@ void main() {
     await importSwordFile(path: 'test/fixtures/commentary.sword.zip');
     await importSwordFile(path: 'test/fixtures/dictionary.sword.zip');
     await importSwordFile(path: 'test/fixtures/bible.sword.zip');
+    await importSwordFile(path: 'test/fixtures/book.sword.zip');
+    await importSwordFile(path: 'test/fixtures/devotional.sword.zip');
     _freshUserStore();
   });
 
@@ -925,6 +927,119 @@ void main() {
         tester, () => _found(find.byKey(const Key('dict-entry-3'))));
     expect(find.bySemanticsLabel(RegExp('οὐρανός')), findsOneWidget,
         reason: 'the tagged word opened its lexicon entry directly');
+    semantics.dispose();
+  });
+
+  testWidgets('book view: sections, contents, and references',
+      (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-book')));
+    await tester.pumpAndSettle();
+    await _settle(
+        tester, () => _found(find.byKey(const Key('book-section-1'))));
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsLabel(RegExp('Einleitung des Teils')),
+        findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('book-next')));
+    await _settle(
+        tester, () => _found(find.byKey(const Key('book-section-2'))));
+    expect(find.bySemanticsLabel(RegExp('Erster Absatz der Predigt')),
+        findsOneWidget);
+
+    // The table of contents jumps anywhere, indented by level.
+    await tester.tap(find.byKey(const Key('book-toc-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('toc-3')));
+    await _settle(
+        tester, () => _found(find.byKey(const Key('book-section-3'))));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel(RegExp('zweiten Predigt')), findsOneWidget);
+
+    // A reference in section 2 previews its passage.
+    await tester.tap(find.byKey(const Key('book-prev')));
+    await _settle(
+        tester, () => _found(find.byKey(const Key('book-section-2'))));
+    final paneWidth =
+        tester.getSize(find.byKey(const Key('book-section-2'))).width;
+    final fontSize = (paneWidth < 400.0 ? paneWidth : 400.0) / 26.0;
+    late BookLayoutView? section;
+    await tester.runAsync(() async {
+      section = await layoutBookSection(
+        moduleCode: 'BuchTest',
+        ordinal: 2,
+        measureEms: paneWidth / fontSize,
+      );
+    });
+    RunView? linkRun;
+    var lineIndex = 0;
+    for (var i = 0; i < section!.lines.length && linkRun == null; i++) {
+      for (final run in section!.lines[i].runs) {
+        if (run.link != null) {
+          linkRun = run;
+          lineIndex = i;
+          break;
+        }
+      }
+    }
+    expect(linkRun, isNotNull);
+    final runScale = fontSize / section!.unitsPerEm;
+    final lineHeight = fontSize * 1.5;
+    final origin = tester.getTopLeft(find.descendant(
+      of: find.byKey(const Key('book-section-2')),
+      matching: find.byType(CustomPaint),
+    ));
+    await tester.tapAt(origin +
+        Offset((linkRun!.x + linkRun.width / 2) * runScale,
+            lineIndex * lineHeight + lineHeight * 0.4));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Und die Erde war wüst'), findsWidgets);
+    semantics.dispose();
+  });
+
+  testWidgets('devotional view: today, day walking', (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-devotional')));
+    await tester.pumpAndSettle();
+
+    String dayKey(DateTime d) =>
+        '${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}';
+    final today = DateTime.now();
+    await _settle(tester,
+        () => _found(find.bySemanticsLabel(RegExp('Andacht ${dayKey(today)}'))));
+
+    // Walk one day back, then return to today.
+    final yesterday = DateTime(2024, today.month, today.day)
+        .subtract(const Duration(days: 1));
+    await tester.tap(find.byKey(const Key('devo-prev')));
+    await _settle(
+        tester,
+        () =>
+            _found(find.bySemanticsLabel(RegExp('Andacht ${dayKey(yesterday)}'))));
+    await tester.tap(find.byKey(const Key('devo-today')));
+    await _settle(tester,
+        () => _found(find.bySemanticsLabel(RegExp('Andacht ${dayKey(today)}'))));
     semantics.dispose();
   });
 

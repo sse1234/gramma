@@ -148,6 +148,15 @@ CREATE TABLE IF NOT EXISTS word_link(
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS word_link_strong
   ON word_link(module_id, strong);
+CREATE TABLE IF NOT EXISTS book_section(
+  module_id INTEGER NOT NULL REFERENCES module(id) ON DELETE CASCADE,
+  ordinal INTEGER NOT NULL,
+  level INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  heading TEXT,
+  text TEXT NOT NULL,
+  PRIMARY KEY(module_id, ordinal)
+) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS comment_ref(
   module_id INTEGER NOT NULL REFERENCES module(id) ON DELETE CASCADE,
   book INTEGER NOT NULL,
@@ -181,6 +190,25 @@ pub struct Occurrence {
     pub verse: u16,
     pub start: u32,
     pub end: u32,
+    pub text: String,
+}
+
+/// One table-of-contents row of a general book (ADR 0021).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BookTocRow {
+    pub ordinal: u32,
+    pub level: u8,
+    pub name: String,
+}
+
+/// One section of a general book.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BookSectionRow {
+    pub ordinal: u32,
+    pub level: u8,
+    pub name: String,
+    pub heading: Option<String>,
+    /// Paragraphs separated by "\n\n".
     pub text: String,
 }
 
@@ -561,12 +589,17 @@ impl Library {
         &mut self,
         doc: &crate::sword::SwordDictionary,
     ) -> Result<ModuleInfo, LibraryError> {
+        let kind = if doc.devotional {
+            "devotional"
+        } else {
+            "dictionary"
+        };
         let tx = self.conn.transaction()?;
         tx.execute("DELETE FROM module WHERE code = ?1", [&doc.code])?;
         tx.execute(
             "INSERT INTO module(code, title, language, kind)
-             VALUES (?1, ?2, ?3, 'dictionary')",
-            (&doc.code, &doc.title, &doc.language),
+             VALUES (?1, ?2, ?3, ?4)",
+            (&doc.code, &doc.title, &doc.language, kind),
         )?;
         let module_id = tx.last_insert_rowid();
         {
@@ -591,9 +624,146 @@ impl Library {
             language: doc.language.clone(),
             verses: entries,
             notes: 0,
-            kind: "dictionary".to_string(),
+            kind: kind.to_string(),
             strongs: false,
         })
+    }
+
+    /// Import a general book (RawGenBook, ADR 0021), replacing any
+    /// module with the same code.
+    pub fn import_book(
+        &mut self,
+        doc: &crate::sword::SwordBook,
+    ) -> Result<ModuleInfo, LibraryError> {
+        let tx = self.conn.transaction()?;
+        tx.execute("DELETE FROM module WHERE code = ?1", [&doc.code])?;
+        tx.execute(
+            "INSERT INTO module(code, title, language, kind)
+             VALUES (?1, ?2, ?3, 'book')",
+            (&doc.code, &doc.title, &doc.language),
+        )?;
+        let module_id = tx.last_insert_rowid();
+        {
+            let mut insert = tx.prepare(
+                "INSERT OR REPLACE INTO book_section
+                   (module_id, ordinal, level, name, heading, text)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            )?;
+            for section in &doc.sections {
+                insert.execute((
+                    module_id,
+                    section.ordinal,
+                    section.level,
+                    &section.name,
+                    &section.heading,
+                    &section.text,
+                ))?;
+            }
+        }
+        tx.commit()?;
+        let sections: u32 = self.conn.query_row(
+            "SELECT COUNT(*) FROM book_section WHERE module_id = ?1",
+            [module_id],
+            |row| row.get(0),
+        )?;
+        Ok(ModuleInfo {
+            code: doc.code.clone(),
+            title: doc.title.clone(),
+            language: doc.language.clone(),
+            verses: sections,
+            notes: 0,
+            kind: "book".to_string(),
+            strongs: false,
+        })
+    }
+
+    /// The table of contents of a general book, in reading order.
+    pub fn book_toc(&self, module_code: &str) -> Result<Vec<BookTocRow>, LibraryError> {
+        let module_id = self.module_id(module_code)?;
+        let mut stmt = self.conn.prepare(
+            "SELECT ordinal, level, name FROM book_section
+             WHERE module_id = ?1 ORDER BY ordinal",
+        )?;
+        let rows = stmt
+            .query_map([module_id], |row| {
+                Ok(BookTocRow {
+                    ordinal: row.get(0)?,
+                    level: row.get(1)?,
+                    name: row.get(2)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    /// One book section with its reading-order neighbors.
+    #[allow(clippy::type_complexity)]
+    pub fn book_section(
+        &self,
+        module_code: &str,
+        ordinal: u32,
+    ) -> Result<Option<(BookSectionRow, Option<u32>, Option<u32>)>, LibraryError> {
+        let module_id = self.module_id(module_code)?;
+        let section = self
+            .conn
+            .query_row(
+                "SELECT ordinal, level, name, heading, text FROM book_section
+                 WHERE module_id = ?1 AND ordinal = ?2",
+                (module_id, ordinal),
+                |row| {
+                    Ok(BookSectionRow {
+                        ordinal: row.get(0)?,
+                        level: row.get(1)?,
+                        name: row.get(2)?,
+                        heading: row.get(3)?,
+                        text: row.get(4)?,
+                    })
+                },
+            )
+            .optional()?;
+        let Some(section) = section else {
+            return Ok(None);
+        };
+        let prev: Option<u32> = self.conn.query_row(
+            "SELECT MAX(ordinal) FROM book_section
+             WHERE module_id = ?1 AND ordinal < ?2",
+            (module_id, ordinal),
+            |row| row.get(0),
+        )?;
+        let next: Option<u32> = self.conn.query_row(
+            "SELECT MIN(ordinal) FROM book_section
+             WHERE module_id = ?1 AND ordinal > ?2",
+            (module_id, ordinal),
+            |row| row.get(0),
+        )?;
+        Ok(Some((section, prev, next)))
+    }
+
+    /// Dictionary entries whose sort lies in [lo, hi] — a devotional
+    /// day's readings (ADR 0021).
+    pub fn dict_entries_between(
+        &self,
+        module_code: &str,
+        lo: u32,
+        hi: u32,
+    ) -> Result<Vec<DictEntryRow>, LibraryError> {
+        let module_id = self.module_id(module_code)?;
+        let mut stmt = self.conn.prepare(
+            "SELECT sort, key, headword, pron, text FROM dict_entry
+             WHERE module_id = ?1 AND sort BETWEEN ?2 AND ?3 ORDER BY sort",
+        )?;
+        let rows = stmt
+            .query_map((module_id, lo, hi), |row| {
+                Ok(DictEntryRow {
+                    sort: row.get(0)?,
+                    key: row.get(1)?,
+                    headword: row.get(2)?,
+                    pron: row.get(3)?,
+                    text: row.get(4)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
     }
 
     /// One dictionary entry by sort key, with its neighbors for
@@ -738,7 +908,8 @@ impl Library {
             "SELECT code, title, language,
                     (SELECT COUNT(*) FROM verse v WHERE v.module_id = m.id)
                     + (SELECT COUNT(*) FROM comment c WHERE c.module_id = m.id)
-                    + (SELECT COUNT(*) FROM dict_entry d WHERE d.module_id = m.id),
+                    + (SELECT COUNT(*) FROM dict_entry d WHERE d.module_id = m.id)
+                    + (SELECT COUNT(*) FROM book_section b WHERE b.module_id = m.id),
                     (SELECT COUNT(*) FROM note n WHERE n.module_id = m.id),
                     kind,
                     EXISTS (SELECT 1 FROM word_link w WHERE w.module_id = m.id)
