@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dropbox_sync.dart';
 import 'l10n.dart';
 import 'icloud.dart';
+import 'reader_pane.dart' show StrongsBadge;
 import 'settings.dart';
 import 'sync_transport.dart';
 import 'src/rust/api/library.dart';
@@ -403,7 +404,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     items: [
                       for (final m in _modules)
                         DropdownMenuItem(
-                            value: m.code, child: Text(m.code)),
+                          value: m.code,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(m.code),
+                              if (m.strongs) ...[
+                                const SizedBox(width: 4),
+                                const StrongsBadge(),
+                              ],
+                            ],
+                          ),
+                        ),
                     ],
                     onChanged: settings.setDefaultModule,
                   ),

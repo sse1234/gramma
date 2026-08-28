@@ -185,7 +185,7 @@ class _DictionaryPaneState extends State<DictionaryPane> {
             moduleCode: widget.module,
             modules: [
               for (final m in widget.modules)
-                (code: m.code, title: m.title),
+                (code: m.code, title: m.title, strongs: m.strongs),
             ],
             onModule: widget.modules.isEmpty ? null : widget.onModule,
             followValue: null,

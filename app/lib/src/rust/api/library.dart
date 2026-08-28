@@ -268,6 +268,9 @@ class ModuleView {
   /// "bible" or "commentary" (ADR 0017).
   final String kind;
 
+  /// Whether the module carries Strong's word links (ADR 0020).
+  final bool strongs;
+
   const ModuleView({
     required this.code,
     required this.title,
@@ -275,6 +278,7 @@ class ModuleView {
     required this.verses,
     required this.notes,
     required this.kind,
+    required this.strongs,
   });
 
   @override
@@ -284,7 +288,8 @@ class ModuleView {
       language.hashCode ^
       verses.hashCode ^
       notes.hashCode ^
-      kind.hashCode;
+      kind.hashCode ^
+      strongs.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -296,7 +301,8 @@ class ModuleView {
           language == other.language &&
           verses == other.verses &&
           notes == other.notes &&
-          kind == other.kind;
+          kind == other.kind &&
+          strongs == other.strongs;
 }
 
 class NoteRefView {

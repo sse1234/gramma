@@ -1240,8 +1240,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ModuleView dco_decode_module_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return ModuleView(
       code: dco_decode_String(arr[0]),
       title: dco_decode_String(arr[1]),
@@ -1249,6 +1249,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       verses: dco_decode_u_32(arr[3]),
       notes: dco_decode_u_32(arr[4]),
       kind: dco_decode_String(arr[5]),
+      strongs: dco_decode_bool(arr[6]),
     );
   }
 
@@ -1762,6 +1763,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_verses = sse_decode_u_32(deserializer);
     var var_notes = sse_decode_u_32(deserializer);
     var var_kind = sse_decode_String(deserializer);
+    var var_strongs = sse_decode_bool(deserializer);
     return ModuleView(
       code: var_code,
       title: var_title,
@@ -1769,6 +1771,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       verses: var_verses,
       notes: var_notes,
       kind: var_kind,
+      strongs: var_strongs,
     );
   }
 
@@ -2251,6 +2254,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_32(self.verses, serializer);
     sse_encode_u_32(self.notes, serializer);
     sse_encode_String(self.kind, serializer);
+    sse_encode_bool(self.strongs, serializer);
   }
 
   @protected

@@ -175,6 +175,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get noDictionaryResults => 'Keine Treffer';
 
   @override
+  String get strongsTagged => 'Strong-Nummern';
+
+  @override
   String get noConcordanceSource =>
       'Importiere eine Bibel mit Strong-Nummern (z. B. die KJV), um Vorkommen zu sehen';
 

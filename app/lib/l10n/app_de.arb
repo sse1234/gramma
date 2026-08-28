@@ -49,6 +49,7 @@
   "searchDictionaryHint": "Suche nach Strong-Nummer oder Wort – oder halte ein Wort im Text gedrückt",
   "dictionarySearchLabel": "Nummer oder Wort",
   "noDictionaryResults": "Keine Treffer",
+  "strongsTagged": "Strong-Nummern",
   "noConcordanceSource": "Importiere eine Bibel mit Strong-Nummern (z. B. die KJV), um Vorkommen zu sehen",
   "importToBegin": "Importiere ein OSIS-Modul, um mit dem Lesen zu beginnen",
   "passageNotAvailable": "Textstelle in {module} nicht verfügbar",

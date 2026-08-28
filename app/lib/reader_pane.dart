@@ -688,7 +688,8 @@ class _ReaderPaneState extends State<ReaderPane> {
                 ),
           moduleCode: _active?.code,
           modules: [
-            for (final m in widget.modules) (code: m.code, title: m.title),
+            for (final m in widget.modules)
+              (code: m.code, title: m.title, strongs: m.strongs),
           ],
           onModule: widget.onModule,
           canGoBack: widget.canGoBack,
@@ -986,7 +987,24 @@ class _ReaderPaneState extends State<ReaderPane> {
   }
 }
 
-typedef ModuleOption = ({String code, String title});
+typedef ModuleOption = ({String code, String title, bool strongs});
+
+/// The small chrome badge of a Strong's-tagged text (ADR 0020).
+class StrongsBadge extends StatelessWidget {
+  const StrongsBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: context.l10n.strongsTagged,
+      child: Icon(
+        Icons.tag,
+        size: 14,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+    );
+  }
+}
 
 /// A word lookup request (ADR 0019/0020): the stripped word, and — when
 /// coming from a Bible text — the verse it was pressed in.
@@ -1080,7 +1098,22 @@ class PaneHeader extends StatelessWidget {
                   value: moduleCode,
                   items: [
                     for (final m in modules)
-                      DropdownMenuItem(value: m.code, child: Text(m.title)),
+                      DropdownMenuItem(
+                        value: m.code,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(m.title,
+                                  overflow: TextOverflow.ellipsis),
+                            ),
+                            if (m.strongs) ...[
+                              const SizedBox(width: 4),
+                              const StrongsBadge(),
+                            ],
+                          ],
+                        ),
+                      ),
                   ],
                   onChanged: (code) {
                     if (code != null) onModule!(code);
@@ -1088,6 +1121,11 @@ class PaneHeader extends StatelessWidget {
                 )
               : Text(title ?? '', style: theme.textTheme.titleMedium),
         ),
+        if (modules
+            .any((m) => m.code == moduleCode && m.strongs)) ...[
+          const SizedBox(width: 2),
+          const StrongsBadge(key: Key('strongs-badge')),
+        ],
         if (position != null) ...[
           const SizedBox(width: 8),
           Flexible(child: position!),
@@ -1233,7 +1271,18 @@ class PaneHeader extends StatelessWidget {
           key: Key('menu-module-${m.code}'),
           checked: m.code == moduleCode,
           value: () => onModule!(m.code),
-          child: Text(m.title, overflow: TextOverflow.ellipsis),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(m.title, overflow: TextOverflow.ellipsis),
+              ),
+              if (m.strongs) ...[
+                const SizedBox(width: 4),
+                const StrongsBadge(),
+              ],
+            ],
+          ),
         ));
       }
     }
