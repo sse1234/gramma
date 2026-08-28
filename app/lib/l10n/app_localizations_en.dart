@@ -223,6 +223,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get labelRecorded => 'Saved as training example';
 
   @override
+  String get exportLabels => 'Export training labels…';
+
+  @override
+  String get noLabelsYet => 'No training labels collected yet';
+
+  @override
   String get strongsTagged => 'Strong\'s numbers';
 
   @override

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 
@@ -6,6 +7,8 @@ import 'l10n.dart';
 import 'settings.dart';
 import 'src/rust/api/library.dart';
 import 'src/rust/api/references.dart';
+import 'package:share_plus/share_plus.dart';
+
 import 'src/rust/api/user.dart';
 
 /// The search tool (ADR 0022, Tier 0): lexical BM25 search over a Bible
@@ -28,6 +31,34 @@ Future<void> showSearchTool(
       onOpen: onOpen,
     ),
   );
+}
+
+/// All collected labels as JSONL, one bibelsuche-compatible record per
+/// line — the export payload (ADR 0022).
+String labelExportJsonl() {
+  final keys = userKeys(prefix: 'label/');
+  final lines = <String>[];
+  for (final key in keys) {
+    final value = userGet(key: key);
+    if (value != null && value.isNotEmpty) lines.add(value);
+  }
+  return lines.isEmpty ? '' : '${lines.join('\n')}\n';
+}
+
+/// Write the labels to a file and hand it to the platform share sheet
+/// (AirDrop, Files, mail, …). Returns the number of labels, 0 when
+/// there is nothing to export.
+Future<int> exportLabels(String directory) async {
+  final jsonl = labelExportJsonl();
+  if (jsonl.isEmpty) return 0;
+  final count = '\n'.allMatches(jsonl).length;
+  final stamp = DateTime.now().toIso8601String().split('T').first;
+  final file = File('$directory/gramma-labels-$stamp.jsonl');
+  await file.writeAsString(jsonl);
+  await SharePlus.instance.share(
+    ShareParams(files: [XFile(file.path, mimeType: 'application/json')]),
+  );
+  return count;
 }
 
 /// One training label, schema-compatible with bibelsuche's collector.

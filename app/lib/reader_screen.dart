@@ -9,6 +9,8 @@ import 'desks.dart';
 import 'l10n.dart';
 import 'footnotes_pane.dart';
 import 'reading_plan.dart';
+import 'package:path_provider/path_provider.dart';
+
 import 'search_tool.dart';
 import 'sync_transport.dart';
 import 'pane_badge.dart';
@@ -317,6 +319,17 @@ class _ReaderScreenState extends State<ReaderScreen>
       initialModule: settings.defaultModule,
       onOpen: _openOsis,
     );
+  }
+
+  Future<void> _exportLabels() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
+    if (labelExportJsonl().isEmpty) {
+      messenger.showSnackBar(SnackBar(content: Text(l10n.noLabelsYet)));
+      return;
+    }
+    final directory = await getTemporaryDirectory();
+    await exportLabels(directory.path);
   }
 
   Future<void> _openReadingPlan() async {
@@ -756,6 +769,11 @@ class _ReaderScreenState extends State<ReaderScreen>
                 key: const Key('tool-plan'),
                 value: _openReadingPlan,
                 child: Text(context.l10n.readingPlanBibelliga),
+              ),
+              PopupMenuItem(
+                key: const Key('tool-export-labels'),
+                value: _exportLabels,
+                child: Text(context.l10n.exportLabels),
               ),
             ],
           ),
