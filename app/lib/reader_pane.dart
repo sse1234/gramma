@@ -1121,11 +1121,7 @@ class PaneHeader extends StatelessWidget {
                 )
               : Text(title ?? '', style: theme.textTheme.titleMedium),
         ),
-        if (modules
-            .any((m) => m.code == moduleCode && m.strongs)) ...[
-          const SizedBox(width: 2),
-          const StrongsBadge(key: Key('strongs-badge')),
-        ],
+
         if (position != null) ...[
           const SizedBox(width: 8),
           Flexible(child: position!),
@@ -1177,6 +1173,10 @@ class PaneHeader extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
         ),
+        // The module chooser hides in the overflow menu here, so the
+        // tagged badge is the only visible hint (ADR 0020).
+        if (modules.any((m) => m.code == moduleCode && m.strongs))
+          const StrongsBadge(key: Key('strongs-badge')),
         if (onBack != null) _backForward(context),
         _overflowMenu(context),
         ?dragHandle,
