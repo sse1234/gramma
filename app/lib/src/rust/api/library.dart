@@ -30,6 +30,10 @@ List<DictHitView> dictSearch({
   query: query,
 );
 
+/// The table of contents of a general book, in reading order.
+List<BookTocView> bookToc({required String moduleCode}) =>
+    RustLib.instance.api.crateApiLibraryBookToc(moduleCode: moduleCode);
+
 /// Every occurrence of a Strong number ("G26") in the first tagged
 /// Bible module — the concordance.
 ConcordanceResult concordanceOf({required String strong, required int limit}) =>
@@ -96,6 +100,31 @@ ChapterView chapter({required String moduleCode, required String reference}) =>
       moduleCode: moduleCode,
       reference: reference,
     );
+
+/// One table-of-contents row of a general book (ADR 0021).
+class BookTocView {
+  final int ordinal;
+  final int level;
+  final String name;
+
+  const BookTocView({
+    required this.ordinal,
+    required this.level,
+    required this.name,
+  });
+
+  @override
+  int get hashCode => ordinal.hashCode ^ level.hashCode ^ name.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BookTocView &&
+          runtimeType == other.runtimeType &&
+          ordinal == other.ordinal &&
+          level == other.level &&
+          name == other.name;
+}
 
 /// One entry of a module's chapter spine, with a heading localized to the
 /// module's language (German book names for `de` modules, English otherwise).

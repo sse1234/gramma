@@ -124,6 +124,7 @@ pub fn import_sword_file(path: String) -> anyhow::Result<ModuleView> {
         gramma_core::sword::SwordModule::Commentary(doc) => library.import_commentary(&doc)?,
         gramma_core::sword::SwordModule::Dictionary(doc) => library.import_dictionary(&doc)?,
         gramma_core::sword::SwordModule::Bible(doc) => library.import_bible(&doc)?,
+        gramma_core::sword::SwordModule::Book(doc) => library.import_book(&doc)?,
     };
     Ok(ModuleView {
         code: info.code,
@@ -168,6 +169,27 @@ pub fn dict_search(module_code: String, query: String) -> anyhow::Result<Vec<Dic
                 display_key: display_key(&h.key, h.sort),
                 headword: h.headword,
                 pron: h.pron,
+            })
+            .collect()
+    })
+}
+
+/// One table-of-contents row of a general book (ADR 0021).
+pub struct BookTocView {
+    pub ordinal: u32,
+    pub level: u8,
+    pub name: String,
+}
+
+/// The table of contents of a general book, in reading order.
+#[flutter_rust_bridge::frb(sync)]
+pub fn book_toc(module_code: String) -> anyhow::Result<Vec<BookTocView>> {
+    with_library(|library| library.book_toc(&module_code)).map(|rows| {
+        rows.into_iter()
+            .map(|r| BookTocView {
+                ordinal: r.ordinal,
+                level: r.level,
+                name: r.name,
             })
             .collect()
     })

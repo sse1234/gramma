@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -2114337611;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -396979714;
 
 // Section: executor
 
@@ -46,6 +46,38 @@ flutter_rust_bridge::frb_generated_default_handler!();
 
 // Section: wire_funcs
 
+fn wire__crate__api__library__book_toc_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "book_toc",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_module_code = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok = crate::api::library::book_toc(api_module_code)?;
+                    Ok(output_ok)
+                })(),
+            )
+        },
+    )
+}
 fn wire__crate__api__library__chapter_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -521,6 +553,47 @@ fn wire__crate__api__typeset__init_typesetting_impl(
         },
     )
 }
+fn wire__crate__api__typeset__layout_book_section_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "layout_book_section",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_module_code = <String>::sse_decode(&mut deserializer);
+            let api_ordinal = <u32>::sse_decode(&mut deserializer);
+            let api_measure_ems = <f64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::typeset::layout_book_section(
+                            api_module_code,
+                            api_ordinal,
+                            api_measure_ems,
+                        )?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__typeset__layout_chapter_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -598,6 +671,49 @@ fn wire__crate__api__typeset__layout_comments_impl(
                             api_module_code,
                             api_book_osis,
                             api_chapter,
+                            api_measure_ems,
+                        )?;
+                        Ok(output_ok)
+                    })(),
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__typeset__layout_devotional_day_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "layout_devotional_day",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_module_code = <String>::sse_decode(&mut deserializer);
+            let api_month = <u16>::sse_decode(&mut deserializer);
+            let api_day = <u16>::sse_decode(&mut deserializer);
+            let api_measure_ems = <f64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::typeset::layout_devotional_day(
+                            api_module_code,
+                            api_month,
+                            api_day,
                             api_measure_ems,
                         )?;
                         Ok(output_ok)
@@ -1033,6 +1149,50 @@ impl SseDecode for String {
     }
 }
 
+impl SseDecode for crate::api::typeset::BookLayoutView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_ordinal = <u32>::sse_decode(deserializer);
+        let mut var_level = <u8>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_lines = <Vec<crate::api::typeset::LineView>>::sse_decode(deserializer);
+        let mut var_refs = <Vec<String>>::sse_decode(deserializer);
+        let mut var_prevOrdinal = <Option<u32>>::sse_decode(deserializer);
+        let mut var_nextOrdinal = <Option<u32>>::sse_decode(deserializer);
+        let mut var_unitsPerEm = <u16>::sse_decode(deserializer);
+        let mut var_measureUnits = <i64>::sse_decode(deserializer);
+        let mut var_numberScale = <f64>::sse_decode(deserializer);
+        let mut var_plainText = <String>::sse_decode(deserializer);
+        return crate::api::typeset::BookLayoutView {
+            ordinal: var_ordinal,
+            level: var_level,
+            name: var_name,
+            lines: var_lines,
+            refs: var_refs,
+            prev_ordinal: var_prevOrdinal,
+            next_ordinal: var_nextOrdinal,
+            units_per_em: var_unitsPerEm,
+            measure_units: var_measureUnits,
+            number_scale: var_numberScale,
+            plain_text: var_plainText,
+        };
+    }
+}
+
+impl SseDecode for crate::api::library::BookTocView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_ordinal = <u32>::sse_decode(deserializer);
+        let mut var_level = <u8>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        return crate::api::library::BookTocView {
+            ordinal: var_ordinal,
+            level: var_level,
+            name: var_name,
+        };
+    }
+}
+
 impl SseDecode for bool {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1228,6 +1388,18 @@ impl SseDecode for Vec<String> {
     }
 }
 
+impl SseDecode for Vec<crate::api::library::BookTocView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::library::BookTocView>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::library::ChapterRefView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1275,6 +1447,20 @@ impl SseDecode for Vec<crate::api::library::DictHitView> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::library::DictHitView>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::typeset::DictLayoutView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::typeset::DictLayoutView>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -1473,6 +1659,19 @@ impl SseDecode for Option<String> {
     }
 }
 
+impl SseDecode for Option<crate::api::typeset::BookLayoutView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::typeset::BookLayoutView>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::typeset::DictLayoutView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1587,13 +1786,19 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        11 => wire__crate__api__library__import_osis_file_impl(port, ptr, rust_vec_len, data_len),
-        12 => wire__crate__api__library__import_sword_file_impl(port, ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__references__init_app_impl(port, ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__typeset__layout_chapter_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__typeset__layout_comments_impl(port, ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__typeset__layout_dict_entry_impl(port, ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__typeset__module_line_counts_impl(port, ptr, rust_vec_len, data_len),
+        12 => wire__crate__api__library__import_osis_file_impl(port, ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__library__import_sword_file_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__references__init_app_impl(port, ptr, rust_vec_len, data_len),
+        16 => {
+            wire__crate__api__typeset__layout_book_section_impl(port, ptr, rust_vec_len, data_len)
+        }
+        17 => wire__crate__api__typeset__layout_chapter_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__typeset__layout_comments_impl(port, ptr, rust_vec_len, data_len),
+        19 => {
+            wire__crate__api__typeset__layout_devotional_day_impl(port, ptr, rust_vec_len, data_len)
+        }
+        20 => wire__crate__api__typeset__layout_dict_entry_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__typeset__module_line_counts_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1606,33 +1811,86 @@ fn pde_ffi_dispatcher_sync_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        1 => wire__crate__api__library__chapter_impl(ptr, rust_vec_len, data_len),
-        2 => wire__crate__api__library__chapter_comments_impl(ptr, rust_vec_len, data_len),
-        3 => wire__crate__api__library__chapter_notes_impl(ptr, rust_vec_len, data_len),
-        4 => wire__crate__api__library__chapter_verses_impl(ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__library__concordance_of_impl(ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__user__configure_sync_impl(ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__library__contents_impl(ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__user__device_id_impl(ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__library__dict_search_impl(ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__references__format_reference_impl(ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__typeset__init_typesetting_impl(ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__library__modules_impl(ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__library__open_library_impl(ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__user__open_user_store_impl(ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__references__parse_reference_impl(ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__typeset__set_typeset_font_impl(ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__library__strongs_for_impl(ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__user__sync_dir_impl(ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__user__sync_now_impl(ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__user__user_get_impl(ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__user__user_set_impl(ptr, rust_vec_len, data_len),
+        1 => wire__crate__api__library__book_toc_impl(ptr, rust_vec_len, data_len),
+        2 => wire__crate__api__library__chapter_impl(ptr, rust_vec_len, data_len),
+        3 => wire__crate__api__library__chapter_comments_impl(ptr, rust_vec_len, data_len),
+        4 => wire__crate__api__library__chapter_notes_impl(ptr, rust_vec_len, data_len),
+        5 => wire__crate__api__library__chapter_verses_impl(ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__library__concordance_of_impl(ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__user__configure_sync_impl(ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__library__contents_impl(ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__user__device_id_impl(ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__library__dict_search_impl(ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__references__format_reference_impl(ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__typeset__init_typesetting_impl(ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__library__modules_impl(ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__library__open_library_impl(ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__user__open_user_store_impl(ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__references__parse_reference_impl(ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__typeset__set_typeset_font_impl(ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__library__strongs_for_impl(ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__user__sync_dir_impl(ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__user__sync_now_impl(ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__user__user_get_impl(ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__user__user_set_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
 
 // Section: rust2dart
 
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::typeset::BookLayoutView {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.ordinal.into_into_dart().into_dart(),
+            self.level.into_into_dart().into_dart(),
+            self.name.into_into_dart().into_dart(),
+            self.lines.into_into_dart().into_dart(),
+            self.refs.into_into_dart().into_dart(),
+            self.prev_ordinal.into_into_dart().into_dart(),
+            self.next_ordinal.into_into_dart().into_dart(),
+            self.units_per_em.into_into_dart().into_dart(),
+            self.measure_units.into_into_dart().into_dart(),
+            self.number_scale.into_into_dart().into_dart(),
+            self.plain_text.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::typeset::BookLayoutView
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::typeset::BookLayoutView>
+    for crate::api::typeset::BookLayoutView
+{
+    fn into_into_dart(self) -> crate::api::typeset::BookLayoutView {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::library::BookTocView {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.ordinal.into_into_dart().into_dart(),
+            self.level.into_into_dart().into_dart(),
+            self.name.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::library::BookTocView
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::library::BookTocView>
+    for crate::api::library::BookTocView
+{
+    fn into_into_dart(self) -> crate::api::library::BookTocView {
+        self
+    }
+}
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::typeset::ChapterLayoutView {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
@@ -2018,6 +2276,32 @@ impl SseEncode for String {
     }
 }
 
+impl SseEncode for crate::api::typeset::BookLayoutView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.ordinal, serializer);
+        <u8>::sse_encode(self.level, serializer);
+        <String>::sse_encode(self.name, serializer);
+        <Vec<crate::api::typeset::LineView>>::sse_encode(self.lines, serializer);
+        <Vec<String>>::sse_encode(self.refs, serializer);
+        <Option<u32>>::sse_encode(self.prev_ordinal, serializer);
+        <Option<u32>>::sse_encode(self.next_ordinal, serializer);
+        <u16>::sse_encode(self.units_per_em, serializer);
+        <i64>::sse_encode(self.measure_units, serializer);
+        <f64>::sse_encode(self.number_scale, serializer);
+        <String>::sse_encode(self.plain_text, serializer);
+    }
+}
+
+impl SseEncode for crate::api::library::BookTocView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.ordinal, serializer);
+        <u8>::sse_encode(self.level, serializer);
+        <String>::sse_encode(self.name, serializer);
+    }
+}
+
 impl SseEncode for bool {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -2149,6 +2433,16 @@ impl SseEncode for Vec<String> {
     }
 }
 
+impl SseEncode for Vec<crate::api::library::BookTocView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::library::BookTocView>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::library::ChapterRefView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -2185,6 +2479,16 @@ impl SseEncode for Vec<crate::api::library::DictHitView> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::library::DictHitView>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::typeset::DictLayoutView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::typeset::DictLayoutView>::sse_encode(item, serializer);
         }
     }
 }
@@ -2329,6 +2633,16 @@ impl SseEncode for Option<String> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <String>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::typeset::BookLayoutView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::typeset::BookLayoutView>::sse_encode(value, serializer);
         }
     }
 }

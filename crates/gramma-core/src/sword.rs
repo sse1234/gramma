@@ -62,13 +62,17 @@ pub enum SwordModule {
     Commentary(SwordCommentary),
     Dictionary(SwordDictionary),
     Bible(SwordBible),
+    Book(SwordBook),
 }
 
 /// A lexicon/dictionary (zLD, ADR 0019): keyed entries in sort order.
+/// With `Feature=DailyDevotion` (ADR 0021) the entries are the sections
+/// of daily readings, sorted by `(month·100+day)·10 + section`.
 pub struct SwordDictionary {
     pub code: String,
     pub title: String,
     pub language: String,
+    pub devotional: bool,
     pub entries: Vec<DictEntry>,
 }
 
@@ -115,10 +119,12 @@ struct Conf {
     compress: String,
     source: String,
     encoding: String,
+    features: Vec<String>,
 }
 
 fn parse_conf(conf: &str) -> Result<Conf, SwordError> {
     let mut code = None;
+    let mut features: Vec<String> = Vec::new();
     let mut values: HashMap<&str, &str> = HashMap::new();
     for line in conf.lines() {
         let line = line.trim();
@@ -128,6 +134,9 @@ fn parse_conf(conf: &str) -> Result<Conf, SwordError> {
         if let Some(name) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
             code.get_or_insert(name.to_string());
         } else if let Some((key, value)) = line.split_once('=') {
+            if key.trim() == "Feature" {
+                features.push(value.trim().to_string());
+            }
             values.entry(key.trim()).or_insert(value.trim());
         }
     }
@@ -148,6 +157,7 @@ fn parse_conf(conf: &str) -> Result<Conf, SwordError> {
             .map(|s| s.trim_start_matches("./").trim_end_matches('/'))
             .unwrap_or("")
             .to_string(),
+        features,
         code,
     })
 }
@@ -191,8 +201,27 @@ pub fn read_sword_zip(path: &Path) -> Result<SwordModule, SwordError> {
             Err(e) => Err(e.into()),
         }
     };
+    if conf.mod_drv.eq_ignore_ascii_case("RawGenBook") {
+        // Raw (uncompressed) driver: no CompressType to check.
+        for (name, got, want) in [
+            ("SourceType", &conf.source, "OSIS"),
+            ("Encoding", &conf.encoding, "UTF-8"),
+        ] {
+            if !got.eq_ignore_ascii_case(want) {
+                return Err(SwordError::Unsupported(format!("{name}={got}")));
+            }
+        }
+        let mut file = |ext: &str| -> Result<Vec<u8>, SwordError> {
+            read(format!("{}.{ext}", conf.data_path))?
+                .ok_or_else(|| SwordError::Corrupt(format!("missing {ext} file")))
+        };
+        let (idx, dat, bdt) = (file("idx")?, file("dat")?, file("bdt")?);
+        return Ok(SwordModule::Book(parse_genbook_parsed(
+            conf, &idx, &dat, &bdt,
+        )?));
+    }
     if conf.mod_drv.eq_ignore_ascii_case("zLD") {
-        ensure(&conf, "zLD", "TEI")?;
+        ensure_zld(&conf)?;
         let mut file = |ext: &str| -> Result<Vec<u8>, SwordError> {
             read(format!("{}.{ext}", conf.data_path))?
                 .ok_or_else(|| SwordError::Corrupt(format!("missing {ext} file")))
@@ -510,8 +539,18 @@ pub fn parse_zld(
     zdt: &[u8],
 ) -> Result<SwordDictionary, SwordError> {
     let conf = parse_conf(conf)?;
-    ensure(&conf, "zLD", "TEI")?;
+    ensure_zld(&conf)?;
     parse_zld_parsed(conf, idx, dat, zdx, zdt)
+}
+
+/// zLD accepts TEI lexica (ADR 0019) and OSIS daily devotionals
+/// (ADR 0021).
+fn ensure_zld(conf: &Conf) -> Result<(), SwordError> {
+    if conf.source.eq_ignore_ascii_case("OSIS") {
+        ensure(conf, "zLD", "OSIS")
+    } else {
+        ensure(conf, "zLD", "TEI")
+    }
 }
 
 fn parse_zld_parsed(
@@ -532,6 +571,11 @@ fn parse_zld_parsed(
             )
         })
         .collect();
+    let devotional = conf
+        .features
+        .iter()
+        .any(|f| f.eq_ignore_ascii_case("DailyDevotion"))
+        || conf.source.eq_ignore_ascii_case("OSIS");
     let mut cache: HashMap<u32, Vec<u8>> = HashMap::new();
     let mut entries = Vec::new();
     for (i, record) in idx.as_chunks::<8>().0.iter().enumerate() {
@@ -593,9 +637,13 @@ fn parse_zld_parsed(
                 .ok_or_else(|| SwordError::Corrupt("entry bounds".into()))?,
         )
         .map_err(|_| SwordError::Encoding)?;
-        let sort = key.parse::<u32>().ok().unwrap_or(i as u32 + 1);
-        if let Some(entry) = parse_tei_entry(sort, &key, fragment)? {
-            entries.push(entry);
+        if devotional {
+            entries.extend(parse_devotional_entry(&key, fragment)?);
+        } else {
+            let sort = key.parse::<u32>().ok().unwrap_or(i as u32 + 1);
+            if let Some(entry) = parse_tei_entry(sort, &key, fragment)? {
+                entries.push(entry);
+            }
         }
     }
     entries.sort_by_key(|e| e.sort);
@@ -606,6 +654,7 @@ fn parse_zld_parsed(
         code: conf.code,
         title: conf.title,
         language: conf.language,
+        devotional,
         entries,
     })
 }
@@ -949,4 +998,330 @@ fn parse_bible_fragment(fragment: &str) -> Result<BibleFragment, SwordError> {
     }
     out.text = text.out;
     Ok(out)
+}
+
+// ---- RawGenBook general books (ADR 0021) ----
+
+/// A general book from a RawGenBook module: the TreeKey flattened
+/// depth-first into reading order.
+pub struct SwordBook {
+    pub code: String,
+    pub title: String,
+    pub language: String,
+    pub sections: Vec<BookSection>,
+}
+
+pub struct BookSection {
+    /// 1-based position in depth-first reading order.
+    pub ordinal: u32,
+    /// Nesting depth (1 = top level).
+    pub level: u8,
+    /// The tree key name (table of contents label).
+    pub name: String,
+    /// The section's own leading title, when its text carries one.
+    pub heading: Option<String>,
+    /// Normalized text; paragraphs separated by "\n\n".
+    pub text: String,
+}
+
+/// Parse a RawGenBook from its configuration and three files: `idx`
+/// (u32 slot offsets into `dat`), `dat` (tree nodes: parent, next
+/// sibling, first child — each an idx offset or 0xFFFFFFFF — then the
+/// NUL-terminated name and a sized payload of offset+size into `bdt`),
+/// and `bdt` (the OSIS section bodies).
+pub fn parse_genbook(
+    conf: &str,
+    idx: &[u8],
+    dat: &[u8],
+    bdt: &[u8],
+) -> Result<SwordBook, SwordError> {
+    let conf = parse_conf(conf)?;
+    for (name, got, want) in [
+        ("ModDrv", &conf.mod_drv, "RawGenBook"),
+        ("SourceType", &conf.source, "OSIS"),
+        ("Encoding", &conf.encoding, "UTF-8"),
+    ] {
+        if !got.eq_ignore_ascii_case(want) {
+            return Err(SwordError::Unsupported(format!("{name}={got}")));
+        }
+    }
+    parse_genbook_parsed(conf, idx, dat, bdt)
+}
+
+const TREE_NONE: u32 = u32::MAX;
+
+struct TreeNode {
+    next: u32,
+    child: u32,
+    name: String,
+    body: Option<(u32, u32)>,
+}
+
+fn tree_node(idx: &[u8], dat: &[u8], slot: u32) -> Result<TreeNode, SwordError> {
+    let slot = slot as usize;
+    let dat_off = u32::from_le_bytes(
+        idx.get(slot..slot + 4)
+            .ok_or_else(|| SwordError::Corrupt("tree slot".into()))?
+            .try_into()
+            .unwrap(),
+    ) as usize;
+    let head = dat
+        .get(dat_off..dat_off + 12)
+        .ok_or_else(|| SwordError::Corrupt("tree node".into()))?;
+    let next = u32::from_le_bytes(head[4..8].try_into().unwrap());
+    let child = u32::from_le_bytes(head[8..12].try_into().unwrap());
+    let name_start = dat_off + 12;
+    let name_end = dat[name_start..]
+        .iter()
+        .position(|&b| b == 0)
+        .map(|p| name_start + p)
+        .ok_or_else(|| SwordError::Corrupt("tree name".into()))?;
+    let name = std::str::from_utf8(&dat[name_start..name_end])
+        .map_err(|_| SwordError::Encoding)?
+        .to_string();
+    let payload = dat.get(name_end + 1..name_end + 3).and_then(|s| {
+        let size = u16::from_le_bytes(s.try_into().unwrap()) as usize;
+        (size >= 8)
+            .then(|| dat.get(name_end + 3..name_end + 3 + 8))
+            .flatten()
+            .map(|p| {
+                (
+                    u32::from_le_bytes(p[0..4].try_into().unwrap()),
+                    u32::from_le_bytes(p[4..8].try_into().unwrap()),
+                )
+            })
+    });
+    Ok(TreeNode {
+        next,
+        child,
+        name,
+        body: payload.filter(|&(_, size)| size > 0),
+    })
+}
+
+fn parse_genbook_parsed(
+    conf: Conf,
+    idx: &[u8],
+    dat: &[u8],
+    bdt: &[u8],
+) -> Result<SwordBook, SwordError> {
+    let mut sections = Vec::new();
+    let max_nodes = idx.len() / 4;
+    let mut visited = 0usize;
+    // Depth-first from the root's first child, in sibling order.
+    let root = tree_node(idx, dat, 0)?;
+    let mut stack: Vec<u32> = Vec::new();
+    if root.child != TREE_NONE {
+        stack.push(root.child);
+    }
+    let mut levels: Vec<u8> = vec![1];
+    while let Some(slot) = stack.pop() {
+        visited += 1;
+        if visited > max_nodes {
+            return Err(SwordError::Corrupt("tree cycle".into()));
+        }
+        let level = *levels.last().unwrap_or(&1);
+        let node = tree_node(idx, dat, slot)?;
+        let (heading, text) = match node.body {
+            Some((off, size)) => {
+                let bytes = bdt
+                    .get(off as usize..(off + size) as usize)
+                    .ok_or_else(|| SwordError::Corrupt("book body bounds".into()))?;
+                let fragment = std::str::from_utf8(bytes).map_err(|_| SwordError::Encoding)?;
+                parse_book_fragment(fragment)?
+            }
+            None => (None, String::new()),
+        };
+        sections.push(BookSection {
+            ordinal: sections.len() as u32 + 1,
+            level,
+            name: node.name,
+            heading,
+            text,
+        });
+        // Push the next sibling first, then descend into children so the
+        // child block comes out immediately after its parent.
+        if node.next != TREE_NONE {
+            stack.push(node.next);
+        } else {
+            levels.pop();
+        }
+        if node.child != TREE_NONE {
+            levels.push(level + 1);
+            stack.push(node.child);
+        }
+    }
+    if sections.is_empty() {
+        return Err(SwordError::Empty);
+    }
+    Ok(SwordBook {
+        code: conf.code,
+        title: conf.title,
+        language: conf.language,
+        sections,
+    })
+}
+
+/// A book section body: the first `title` becomes the heading, `p`
+/// elements become paragraphs, references keep their display text.
+fn parse_book_fragment(fragment: &str) -> Result<(Option<String>, String), SwordError> {
+    let mut reader = Reader::from_str(fragment);
+    reader.config_mut().check_end_names = false;
+    let mut heading: Option<String> = None;
+    let mut heading_capture = false;
+    let mut heading_text = String::new();
+    let mut text = TextBuilder::new();
+    loop {
+        let event = reader.read_event()?;
+        match &event {
+            Event::Start(e) | Event::Empty(e) => match e.local_name().as_ref() {
+                b"title" => {
+                    if heading.is_none() && text.out.is_empty() {
+                        heading_capture = true;
+                        heading_text.clear();
+                    } else {
+                        text.paragraph_break();
+                    }
+                }
+                b"p" | b"div" => text.paragraph_break(),
+                b"lb" | b"milestone" => text.push_text(" "),
+                _ => {}
+            },
+            Event::End(e) => match e.local_name().as_ref() {
+                b"title" => {
+                    if heading_capture {
+                        heading_capture = false;
+                        let t = heading_text
+                            .split_whitespace()
+                            .collect::<Vec<_>>()
+                            .join(" ");
+                        if !t.is_empty() {
+                            heading = Some(t);
+                        }
+                    } else {
+                        text.paragraph_break();
+                    }
+                }
+                b"p" | b"div" => text.paragraph_break(),
+                _ => {}
+            },
+            Event::Text(t) => {
+                let content = t
+                    .xml_content(quick_xml::XmlVersion::Implicit1_0)
+                    .map_err(quick_xml::Error::from)?;
+                if heading_capture {
+                    heading_text.push_str(&content);
+                } else {
+                    text.push_text(&content);
+                }
+            }
+            Event::Eof => break,
+            _ => {}
+        }
+    }
+    Ok((heading, text.out))
+}
+
+/// A devotional zLD entry (OSIS): each `section` div becomes one entry
+/// keyed `(month·100+day)·10 + index`, its title the headword.
+fn parse_devotional_entry(key: &str, fragment: &str) -> Result<Vec<DictEntry>, SwordError> {
+    let day_sort = {
+        let mut parts = key.split('.');
+        let month: u32 = parts.next().and_then(|p| p.parse().ok()).unwrap_or(0);
+        let day: u32 = parts.next().and_then(|p| p.parse().ok()).unwrap_or(0);
+        month * 100 + day
+    };
+    if day_sort == 0 {
+        return Ok(Vec::new());
+    }
+    let mut reader = Reader::from_str(fragment);
+    reader.config_mut().check_end_names = false;
+    let mut entries: Vec<DictEntry> = Vec::new();
+    let mut headword = String::new();
+    let mut heading_capture = false;
+    let mut text = TextBuilder::new();
+    let mut open = false;
+
+    fn flush(
+        entries: &mut Vec<DictEntry>,
+        key: &str,
+        day_sort: u32,
+        headword: &mut String,
+        text: &mut TextBuilder,
+        open: &mut bool,
+    ) {
+        if *open && (!headword.is_empty() || !text.out.is_empty()) {
+            entries.push(DictEntry {
+                sort: day_sort * 10 + entries.len() as u32,
+                key: key.to_string(),
+                headword: std::mem::take(headword),
+                pron: String::new(),
+                text: std::mem::take(&mut text.out),
+            });
+        }
+        *text = TextBuilder::new();
+        *open = false;
+    }
+
+    loop {
+        let event = reader.read_event()?;
+        match &event {
+            Event::Start(e) | Event::Empty(e) => match e.local_name().as_ref() {
+                b"div" if attr(e, b"type").as_deref() == Some("section") => {
+                    flush(
+                        &mut entries,
+                        key,
+                        day_sort,
+                        &mut headword,
+                        &mut text,
+                        &mut open,
+                    );
+                    open = true;
+                }
+                b"title" => {
+                    if open && headword.is_empty() && text.out.is_empty() {
+                        heading_capture = true;
+                    } else {
+                        text.paragraph_break();
+                    }
+                }
+                b"p" => text.paragraph_break(),
+                b"lb" | b"milestone" => text.push_text(" "),
+                _ => {}
+            },
+            Event::End(e) => match e.local_name().as_ref() {
+                b"title" => {
+                    if heading_capture {
+                        heading_capture = false;
+                        headword = headword.split_whitespace().collect::<Vec<_>>().join(" ");
+                    } else {
+                        text.paragraph_break();
+                    }
+                }
+                b"p" => text.paragraph_break(),
+                _ => {}
+            },
+            Event::Text(t) => {
+                let content = t
+                    .xml_content(quick_xml::XmlVersion::Implicit1_0)
+                    .map_err(quick_xml::Error::from)?;
+                if heading_capture {
+                    headword.push_str(&content);
+                } else if open {
+                    text.push_text(&content);
+                }
+            }
+            Event::Eof => break,
+            _ => {}
+        }
+    }
+    flush(
+        &mut entries,
+        key,
+        day_sort,
+        &mut headword,
+        &mut text,
+        &mut open,
+    );
+    Ok(entries)
 }

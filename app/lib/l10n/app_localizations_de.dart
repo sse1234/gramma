@@ -87,6 +87,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get dictionaryView => 'Wörterbuchansicht';
 
   @override
+  String get bookView => 'Buchansicht';
+
+  @override
+  String get devotionalView => 'Andachtsansicht';
+
+  @override
   String get settingsTooltip => 'Einstellungen';
 
   @override
@@ -130,6 +136,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get dictionaryTitle => 'Wörterbuch';
 
   @override
+  String get bookTitle => 'Buch';
+
+  @override
+  String get devotionalTitle => 'Andacht';
+
+  @override
   String get selectorTooltip => 'Buch, Kapitel, Vers wählen';
 
   @override
@@ -158,6 +170,27 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String importedDictionary(String title, int entries) {
     return '$title importiert ($entries Einträge)';
+  }
+
+  @override
+  String get noBookModules =>
+      'Importiere ein Buch (SWORD-Zip-Paket), um diese Ansicht zu nutzen';
+
+  @override
+  String get noDevotionalModules =>
+      'Importiere eine Tagesandacht (SWORD-Zip-Paket), um diese Ansicht zu nutzen';
+
+  @override
+  String get tableOfContents => 'Inhaltsverzeichnis';
+
+  @override
+  String importedBook(String title, int entries) {
+    return '$title importiert ($entries Abschnitte)';
+  }
+
+  @override
+  String importedDevotional(String title, int entries) {
+    return '$title importiert ($entries Andachten)';
   }
 
   @override

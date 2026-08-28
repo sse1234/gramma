@@ -313,6 +313,74 @@ pub struct DictLayoutView {
     pub plain_text: String,
 }
 
+fn view_lines(lines: Vec<gramma_core::typeset::layout::LineOut>) -> Vec<LineView> {
+    lines
+        .into_iter()
+        .map(|l| LineView {
+            runs: l
+                .runs
+                .into_iter()
+                .map(|r| RunView {
+                    text: r.text,
+                    x: r.x,
+                    width: r.width,
+                    verse_number: r.verse_number,
+                    note_marker: r.note_marker,
+                    heading_level: r.heading_level,
+                    verse: r.verse,
+                    link: r.link,
+                })
+                .collect(),
+        })
+        .collect()
+}
+
+/// One stored entry as a typeset prose layout — the shared tail of the
+/// dictionary and devotional paths.
+fn entry_layout(
+    measure: &FontMeasure<'_>,
+    entry: gramma_core::library::DictEntryRow,
+    prev_sort: Option<u32>,
+    next_sort: Option<u32>,
+    label: Option<&str>,
+    measure_units: i64,
+) -> DictLayoutView {
+    let scanned = scan_references(&entry.text, None);
+    let spans: Vec<(u32, u32)> = scanned.iter().map(|r| (r.start, r.end)).collect();
+    let refs: Vec<String> = scanned.iter().map(|r| r.reference.to_string()).collect();
+    let paragraphs = prose_paragraphs(&entry.text, &spans);
+    let display = super::library::display_key(&entry.key, entry.sort);
+    let heading = if entry.pron.is_empty() {
+        entry.headword.clone()
+    } else {
+        format!("{} · {}", entry.headword, entry.pron)
+    };
+    let lines = layout_prose(
+        label,
+        (!heading.is_empty()).then_some(heading.as_str()),
+        &paragraphs,
+        0,
+        measure,
+        None,
+        measure_units,
+    );
+    let plain_text = format!("{display} {heading}. {}", entry.text.replace("\n\n", " "));
+    DictLayoutView {
+        sort: entry.sort,
+        display_key: display,
+        headword: entry.headword,
+        pron: entry.pron,
+        lines: view_lines(lines),
+        refs,
+        prev_sort,
+        next_sort,
+        units_per_em: measure.units_per_em(),
+        measure_units,
+        number_scale: VERSE_NUMBER_SCALE_PERCENT as f64 / 100.0,
+        plain_text,
+    }
+}
+
 /// Typeset one dictionary entry at `measure_ems` ems of its text size.
 /// Async: shaping and breaking run on a worker thread.
 pub fn layout_dict_entry(
@@ -325,19 +393,74 @@ pub fn layout_dict_entry(
     let Some((entry, prev_sort, next_sort)) = found else {
         return Ok(None);
     };
-    let scanned = scan_references(&entry.text, None);
+    let measure_units = (measure_ems * measure.units_per_em() as f64) as i64;
+    let display = super::library::display_key(&entry.key, entry.sort);
+    Ok(Some(entry_layout(
+        measure,
+        entry,
+        prev_sort,
+        next_sort,
+        Some(&display),
+        measure_units,
+    )))
+}
+
+/// Typeset a devotional day's readings (ADR 0021): every section whose
+/// sort lies in the day's range, in order. Async.
+pub fn layout_devotional_day(
+    module_code: String,
+    month: u16,
+    day: u16,
+    measure_ems: f64,
+) -> anyhow::Result<Vec<DictLayoutView>> {
+    let measure = active_measure()?;
+    let lo = (month as u32 * 100 + day as u32) * 10;
+    let entries = with_library(|library| library.dict_entries_between(&module_code, lo, lo + 9))?;
+    let measure_units = (measure_ems * measure.units_per_em() as f64) as i64;
+    Ok(entries
+        .into_iter()
+        .map(|entry| entry_layout(measure, entry, None, None, None, measure_units))
+        .collect())
+}
+
+/// One book section, typeset (ADR 0021).
+pub struct BookLayoutView {
+    pub ordinal: u32,
+    pub level: u8,
+    pub name: String,
+    pub lines: Vec<LineView>,
+    /// OSIS targets by `RunView.link` index.
+    pub refs: Vec<String>,
+    pub prev_ordinal: Option<u32>,
+    pub next_ordinal: Option<u32>,
+    pub units_per_em: u16,
+    pub measure_units: i64,
+    pub number_scale: f64,
+    pub plain_text: String,
+}
+
+/// Typeset one section of a general book at `measure_ems` ems. Async.
+pub fn layout_book_section(
+    module_code: String,
+    ordinal: u32,
+    measure_ems: f64,
+) -> anyhow::Result<Option<BookLayoutView>> {
+    let measure = active_measure()?;
+    let found = with_library(|library| library.book_section(&module_code, ordinal))?;
+    let Some((section, prev_ordinal, next_ordinal)) = found else {
+        return Ok(None);
+    };
+    let scanned = scan_references(&section.text, None);
     let spans: Vec<(u32, u32)> = scanned.iter().map(|r| (r.start, r.end)).collect();
     let refs: Vec<String> = scanned.iter().map(|r| r.reference.to_string()).collect();
-    let paragraphs = prose_paragraphs(&entry.text, &spans);
-    let display = super::library::display_key(&entry.key, entry.sort);
-    let heading = if entry.pron.is_empty() {
-        entry.headword.clone()
-    } else {
-        format!("{} · {}", entry.headword, entry.pron)
-    };
+    let paragraphs = prose_paragraphs(&section.text, &spans);
+    let heading = section
+        .heading
+        .clone()
+        .unwrap_or_else(|| section.name.clone());
     let measure_units = (measure_ems * measure.units_per_em() as f64) as i64;
     let lines = layout_prose(
-        Some(&display),
+        None,
         (!heading.is_empty()).then_some(heading.as_str()),
         &paragraphs,
         0,
@@ -345,34 +468,15 @@ pub fn layout_dict_entry(
         None,
         measure_units,
     );
-    let plain_text = format!("{display} {heading}. {}", entry.text.replace("\n\n", " "));
-    Ok(Some(DictLayoutView {
-        sort: entry.sort,
-        display_key: display,
-        headword: entry.headword,
-        pron: entry.pron,
-        lines: lines
-            .into_iter()
-            .map(|l| LineView {
-                runs: l
-                    .runs
-                    .into_iter()
-                    .map(|r| RunView {
-                        text: r.text,
-                        x: r.x,
-                        width: r.width,
-                        verse_number: r.verse_number,
-                        note_marker: r.note_marker,
-                        heading_level: r.heading_level,
-                        verse: r.verse,
-                        link: r.link,
-                    })
-                    .collect(),
-            })
-            .collect(),
+    let plain_text = format!("{heading}. {}", section.text.replace("\n\n", " "));
+    Ok(Some(BookLayoutView {
+        ordinal: section.ordinal,
+        level: section.level,
+        name: section.name,
+        lines: view_lines(lines),
         refs,
-        prev_sort,
-        next_sort,
+        prev_ordinal,
+        next_ordinal,
         units_per_em: measure.units_per_em(),
         measure_units,
         number_scale: VERSE_NUMBER_SCALE_PERCENT as f64 / 100.0,

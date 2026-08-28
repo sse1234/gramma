@@ -242,6 +242,18 @@ abstract class AppLocalizations {
   /// **'Dictionary view'**
   String get dictionaryView;
 
+  /// No description provided for @bookView.
+  ///
+  /// In en, this message translates to:
+  /// **'Book view'**
+  String get bookView;
+
+  /// No description provided for @devotionalView.
+  ///
+  /// In en, this message translates to:
+  /// **'Devotional view'**
+  String get devotionalView;
+
   /// No description provided for @settingsTooltip.
   ///
   /// In en, this message translates to:
@@ -320,6 +332,18 @@ abstract class AppLocalizations {
   /// **'Dictionary'**
   String get dictionaryTitle;
 
+  /// No description provided for @bookTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Book'**
+  String get bookTitle;
+
+  /// No description provided for @devotionalTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Devotional'**
+  String get devotionalTitle;
+
   /// No description provided for @selectorTooltip.
   ///
   /// In en, this message translates to:
@@ -367,6 +391,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Imported {title} ({entries} entries)'**
   String importedDictionary(String title, int entries);
+
+  /// No description provided for @noBookModules.
+  ///
+  /// In en, this message translates to:
+  /// **'Import a book (a SWORD zip package) to use this view'**
+  String get noBookModules;
+
+  /// No description provided for @noDevotionalModules.
+  ///
+  /// In en, this message translates to:
+  /// **'Import a daily devotional (a SWORD zip package) to use this view'**
+  String get noDevotionalModules;
+
+  /// No description provided for @tableOfContents.
+  ///
+  /// In en, this message translates to:
+  /// **'Table of contents'**
+  String get tableOfContents;
+
+  /// No description provided for @importedBook.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported {title} ({entries} sections)'**
+  String importedBook(String title, int entries);
+
+  /// No description provided for @importedDevotional.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported {title} ({entries} readings)'**
+  String importedDevotional(String title, int entries);
 
   /// No description provided for @noDictionaryModules.
   ///
