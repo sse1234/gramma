@@ -3,16 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
+import 'annotations.dart';
 import 'column_plan.dart';
+import 'mark_popup.dart';
+import 'palette.dart';
 import 'l10n.dart';
 import 'note_popup.dart';
 import 'column_snap_physics.dart';
 import 'pane_badge.dart';
 import 'pane_model.dart';
 import 'reference_selector.dart';
-import 'run_hit.dart';
 import 'settings.dart';
 import 'src/rust/api/library.dart';
+import 'src/rust/api/references.dart';
 import 'src/rust/api/typeset.dart';
 import 'typeset_chapter.dart';
 import 'typeset_column.dart';
@@ -578,16 +581,186 @@ class _ReaderPaneState extends State<ReaderPane> {
 
   /// A tapped inline note marker (ADR 0016): the footnote right where
   /// the reader's eye is, with in-popup reference navigation.
-  void _lookupRun(int chapterIndex, RunView run) {
-    final word = lookupWord(run);
-    if (word == null || chapterIndex >= _spine.length) return;
+  /// Live selection (ADR 0023): the chapter index it belongs to, the
+  /// long-press anchor run, and the normalized range.
+  int? _selectionChapter;
+  RunView? _selectionAnchor;
+  VerseSelection? _selection;
+
+  void _selectStart(int chapterIndex, RunView run) {
+    setState(() {
+      _selectionChapter = chapterIndex;
+      _selectionAnchor = run;
+      _selection = VerseSelection.ofRun(run);
+    });
+  }
+
+  void _selectExtend(int chapterIndex, RunView run) {
+    final anchor = _selectionAnchor;
+    if (anchor == null || chapterIndex != _selectionChapter) return;
+    setState(() => _selection = VerseSelection.between(anchor, run));
+  }
+
+  void _clearSelection() {
+    if (_selection == null) return;
+    setState(() {
+      _selection = null;
+      _selectionAnchor = null;
+      _selectionChapter = null;
+    });
+  }
+
+  /// A tap on a word: exits an active selection, otherwise opens the
+  /// note popup of a mark covering the word, otherwise toggles reading
+  /// mode like any plain tap.
+  void _runTap(int chapterIndex, RunView run) {
+    if (_selection != null) {
+      _clearSelection();
+      return;
+    }
+    if (chapterIndex >= _spine.length) return;
     final chapter = _spine[chapterIndex];
+    final covering = Annotations.forChapter(chapter.bookOsis, chapter.chapter)
+        .where((m) => markCoversRun(m, run, widget.spec.module))
+        .lastOrNull;
+    if (covering != null) {
+      _editMark(covering);
+    } else {
+      widget.onToggleMode();
+    }
+  }
+
+  void _plainTap() {
+    if (_selection != null) {
+      _clearSelection();
+    } else {
+      widget.onToggleMode();
+    }
+  }
+
+  String _selectionLabel(int chapterIndex, VerseSelection sel) {
+    final chapter = _spine[chapterIndex];
+    final start = formatReference(
+        osis: '${chapter.bookOsis}.${chapter.chapter}.${sel.verseStart}');
+    return sel.verseStart == sel.verseEnd ? start : '$start–${sel.verseEnd}';
+  }
+
+  void _selectionDictionary() {
+    final sel = _selection;
+    final chapterIndex = _selectionChapter;
+    final word = sel?.word;
+    if (sel == null || chapterIndex == null || word == null) return;
+    final chapter = _spine[chapterIndex];
+    _clearSelection();
     widget.onWordLookup?.call(
       word,
       module: widget.spec.module,
       bookOsis: chapter.bookOsis,
       chapter: chapter.chapter,
-      verse: run.verse,
+      verse: sel.verseStart,
+    );
+  }
+
+  void _selectionMark() {
+    final sel = _selection;
+    final chapterIndex = _selectionChapter;
+    final module = widget.spec.module;
+    if (sel == null || chapterIndex == null || module == null) return;
+    final chapter = _spine[chapterIndex];
+    final draft = NoteMark(
+      id: Annotations.newId(),
+      module: module,
+      bookOsis: chapter.bookOsis,
+      chapter: chapter.chapter,
+      verseStart: sel.verseStart,
+      verseEnd: sel.verseEnd,
+      startOffset: sel.startOffset,
+      endOffset: sel.endOffset,
+      colorIndex: 0,
+      text: '',
+      created: DateTime.now().toUtc().toIso8601String(),
+    );
+    showMarkPopup(
+      context,
+      title: _selectionLabel(chapterIndex, sel),
+      draft: draft,
+      isNew: true,
+      onSave: (mark) {
+        Annotations.save(mark);
+        _clearSelection();
+        setState(() {});
+      },
+    );
+  }
+
+  void _editMark(NoteMark mark) {
+    showMarkPopup(
+      context,
+      title: formatReference(osis: mark.osis.split('-').first) +
+          (mark.verseStart == mark.verseEnd ? '' : '–${mark.verseEnd}'),
+      draft: mark,
+      isNew: false,
+      onSave: (updated) {
+        Annotations.save(updated);
+        setState(() {});
+      },
+      onDelete: () {
+        Annotations.delete(mark.id);
+        setState(() {});
+      },
+    );
+  }
+
+  /// Marks of one chapter with their theme colors, for the painters.
+  List<(NoteMark, Color)> _paintMarks(int chapterIndex) {
+    if (chapterIndex >= _spine.length) return const [];
+    final chapter = _spine[chapterIndex];
+    final brightness = Theme.of(context).brightness;
+    return [
+      for (final m in Annotations.forChapter(chapter.bookOsis, chapter.chapter))
+        (m, markColor(m.colorIndex, brightness)),
+    ];
+  }
+
+  Widget _selectionBar(ThemeData theme) {
+    final sel = _selection!;
+    final chapterIndex = _selectionChapter!;
+    return Material(
+      key: const Key('selection-bar'),
+      color: theme.colorScheme.surfaceContainerHigh,
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _selectionLabel(chapterIndex, sel),
+                key: const Key('selection-label'),
+                style: theme.textTheme.titleSmall,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            IconButton(
+              key: const Key('selection-dictionary'),
+              tooltip: context.l10n.dictionaryTitle,
+              icon: const Icon(Icons.translate_outlined, size: 20),
+              onPressed: sel.word == null ? null : _selectionDictionary,
+            ),
+            IconButton(
+              key: const Key('selection-mark'),
+              tooltip: context.l10n.markSelection,
+              icon: const Icon(Icons.brush_outlined, size: 20),
+              onPressed: _selectionMark,
+            ),
+            IconButton(
+              key: const Key('selection-close'),
+              icon: const Icon(Icons.close, size: 20),
+              onPressed: _clearSelection,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -735,6 +908,7 @@ class _ReaderPaneState extends State<ReaderPane> {
                 ),
           ),
         ),
+        if (_selection != null) _selectionBar(theme),
       ],
     );
   }
@@ -929,10 +1103,26 @@ class _ReaderPaneState extends State<ReaderPane> {
       scale: scale,
       fontSize: fontSize,
       lineHeight: lineHeight,
-      onMarkerTap: (chapter, run) =>
-          _openNotePopup(chapter, run.verse, run.text),
-      onPlainTap: widget.onToggleMode,
-      onWordLongPress: _lookupRun,
+      onMarkerTap: (chapter, run) {
+        if (_selection != null) {
+          _clearSelection();
+        } else {
+          _openNotePopup(chapter, run.verse, run.text);
+        }
+      },
+      onPlainTap: _plainTap,
+      onRunTap: _runTap,
+      onSelectStart: _selectStart,
+      onSelectExtend: _selectExtend,
+      onSelectEnd: () {},
+      marksByChapter: {
+        for (final row in rows.whereType<TextRow>())
+          row.chapter: _paintMarks(row.chapter),
+      },
+      paneModule: widget.spec.module,
+      selection: _selection == null
+          ? null
+          : (_selectionChapter!, _selection!),
 
     );
   }
@@ -970,9 +1160,22 @@ class _ReaderPaneState extends State<ReaderPane> {
             TypesetChapter(
               layout: layout,
               lineHeightEm: _lineSpacing,
-              onMarkerTap: (run) => _openNotePopup(index, run.verse, run.text),
-              onPlainTap: widget.onToggleMode,
-              onWordLongPress: (run) => _lookupRun(index, run),
+              onMarkerTap: (run) {
+                if (_selection != null) {
+                  _clearSelection();
+                } else {
+                  _openNotePopup(index, run.verse, run.text);
+                }
+              },
+              onPlainTap: _plainTap,
+              onRunTap: (run) => _runTap(index, run),
+              onSelectStart: (run) => _selectStart(index, run),
+              onSelectExtend: (run) => _selectExtend(index, run),
+              onSelectEnd: () {},
+              marks: _paintMarks(index),
+              paneModule: widget.spec.module,
+              selection:
+                  _selectionChapter == index ? _selection : null,
             )
           else
             LayoutBuilder(

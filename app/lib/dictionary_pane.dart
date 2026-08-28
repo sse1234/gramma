@@ -323,8 +323,10 @@ class _DictionaryPaneState extends State<DictionaryPane> {
         ?.copyWith(color: theme.colorScheme.primary);
     final textStyle = theme.textTheme.bodyMedium
         ?.copyWith(fontFamily: family, height: 1.3);
-    final strongStyle =
-        textStyle?.copyWith(fontWeight: FontWeight.w600);
+    // The linked words carry a wash, not weight (ADR 0023).
+    final strongStyle = textStyle?.copyWith(
+        backgroundColor: theme.colorScheme.primary.withValues(
+            alpha: theme.brightness == Brightness.light ? 0.16 : 0.28));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

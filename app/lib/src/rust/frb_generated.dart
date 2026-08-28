@@ -1576,8 +1576,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   RunView dco_decode_run_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 8)
-      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
     return RunView(
       text: dco_decode_String(arr[0]),
       x: dco_decode_f_64(arr[1]),
@@ -1587,6 +1587,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       headingLevel: dco_decode_u_8(arr[5]),
       verse: dco_decode_u_16(arr[6]),
       link: dco_decode_opt_box_autoadd_u_32(arr[7]),
+      offset: dco_decode_u_32(arr[8]),
     );
   }
 
@@ -2234,6 +2235,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_headingLevel = sse_decode_u_8(deserializer);
     var var_verse = sse_decode_u_16(deserializer);
     var var_link = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_offset = sse_decode_u_32(deserializer);
     return RunView(
       text: var_text,
       x: var_x,
@@ -2243,6 +2245,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       headingLevel: var_headingLevel,
       verse: var_verse,
       link: var_link,
+      offset: var_offset,
     );
   }
 
@@ -2803,6 +2806,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_8(self.headingLevel, serializer);
     sse_encode_u_16(self.verse, serializer);
     sse_encode_opt_box_autoadd_u_32(self.link, serializer);
+    sse_encode_u_32(self.offset, serializer);
   }
 
   @protected

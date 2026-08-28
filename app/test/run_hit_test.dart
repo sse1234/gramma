@@ -11,6 +11,7 @@ RunView _run(double x, double width, {bool marker = false, String? text}) =>
       noteMarker: marker,
       headingLevel: 0,
       verse: 1,
+      offset: 0,
     );
 
 void main() {

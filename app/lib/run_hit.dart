@@ -91,7 +91,12 @@ RunView? haloNear(
 /// numbers) or dissolve into punctuation entirely.
 String? lookupWord(RunView run) {
   if (run.noteMarker || run.verseNumber) return null;
-  final word = run.text.replaceAll(
+  return lookupWordText(run.text);
+}
+
+/// [lookupWord] on a bare string.
+String? lookupWordText(String text) {
+  final word = text.replaceAll(
       RegExp(r'^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$', unicode: true), '');
   return word.isEmpty ? null : word;
 }

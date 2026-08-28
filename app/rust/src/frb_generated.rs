@@ -1806,6 +1806,7 @@ impl SseDecode for crate::api::typeset::RunView {
         let mut var_headingLevel = <u8>::sse_decode(deserializer);
         let mut var_verse = <u16>::sse_decode(deserializer);
         let mut var_link = <Option<u32>>::sse_decode(deserializer);
+        let mut var_offset = <u32>::sse_decode(deserializer);
         return crate::api::typeset::RunView {
             text: var_text,
             x: var_x,
@@ -1815,6 +1816,7 @@ impl SseDecode for crate::api::typeset::RunView {
             heading_level: var_headingLevel,
             verse: var_verse,
             link: var_link,
+            offset: var_offset,
         };
     }
 }
@@ -2335,6 +2337,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::typeset::RunView {
             self.heading_level.into_into_dart().into_dart(),
             self.verse.into_into_dart().into_dart(),
             self.link.into_into_dart().into_dart(),
+            self.offset.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -2827,6 +2830,7 @@ impl SseEncode for crate::api::typeset::RunView {
         <u8>::sse_encode(self.heading_level, serializer);
         <u16>::sse_encode(self.verse, serializer);
         <Option<u32>>::sse_encode(self.link, serializer);
+        <u32>::sse_encode(self.offset, serializer);
     }
 }
 

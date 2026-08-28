@@ -85,6 +85,10 @@ class PassageList extends StatelessWidget {
         ),
       );
     }
+    // Target verses carry a color wash, never added weight — the same
+    // visual language as user marks (ADR 0023).
+    final wash = theme.colorScheme.primary.withValues(
+        alpha: theme.brightness == Brightness.light ? 0.16 : 0.28);
     return ListView.builder(
       shrinkWrap: true,
       itemCount: visible.length,
@@ -95,16 +99,11 @@ class PassageList extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 3),
           child: Text.rich(
             TextSpan(children: [
-              TextSpan(
-                text: '${v.verse}  ',
-                style: numberStyle?.copyWith(
-                  fontWeight: strong ? FontWeight.w800 : FontWeight.w400,
-                ),
-              ),
+              TextSpan(text: '${v.verse}  ', style: numberStyle),
               TextSpan(
                 text: v.text,
                 style: strong
-                    ? textStyle?.copyWith(fontWeight: FontWeight.w600)
+                    ? textStyle?.copyWith(backgroundColor: wash)
                     : textStyle,
               ),
             ]),

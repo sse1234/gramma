@@ -64,6 +64,9 @@ pub struct RunView {
     /// Reference index in the owning layout's refs (prose, ADR 0018);
     /// tapping the run opens that reference. None for plain text.
     pub link: Option<u32>,
+    /// Byte offset of the run within its verse's text (ADR 0023);
+    /// zero for non-word runs and prose layouts.
+    pub offset: u32,
 }
 
 pub struct LineView {
@@ -158,6 +161,7 @@ pub fn layout_chapter(
                         heading_level: r.heading_level,
                         verse: r.verse,
                         link: r.link,
+                        offset: r.offset,
                     })
                     .collect(),
             })
@@ -254,6 +258,7 @@ pub fn layout_comments(
                                 heading_level: r.heading_level,
                                 verse: r.verse,
                                 link: r.link,
+                                offset: r.offset,
                             })
                             .collect(),
                     })
@@ -329,6 +334,7 @@ fn view_lines(lines: Vec<gramma_core::typeset::layout::LineOut>) -> Vec<LineView
                     heading_level: r.heading_level,
                     verse: r.verse,
                     link: r.link,
+                    offset: r.offset,
                 })
                 .collect(),
         })

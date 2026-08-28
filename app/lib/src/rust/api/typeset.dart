@@ -365,6 +365,10 @@ class RunView {
   /// tapping the run opens that reference. None for plain text.
   final int? link;
 
+  /// Byte offset of the run within its verse's text (ADR 0023);
+  /// zero for non-word runs and prose layouts.
+  final int offset;
+
   const RunView({
     required this.text,
     required this.x,
@@ -374,6 +378,7 @@ class RunView {
     required this.headingLevel,
     required this.verse,
     this.link,
+    required this.offset,
   });
 
   @override
@@ -385,7 +390,8 @@ class RunView {
       noteMarker.hashCode ^
       headingLevel.hashCode ^
       verse.hashCode ^
-      link.hashCode;
+      link.hashCode ^
+      offset.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -399,5 +405,6 @@ class RunView {
           noteMarker == other.noteMarker &&
           headingLevel == other.headingLevel &&
           verse == other.verse &&
-          link == other.link;
+          link == other.link &&
+          offset == other.offset;
 }

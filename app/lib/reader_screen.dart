@@ -1,6 +1,7 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
+import 'annotations.dart';
 import 'book_pane.dart';
 import 'commentary_pane.dart';
 import 'devotional_pane.dart';
@@ -166,6 +167,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   Future<void> _syncPull() async {
     final changed = await pullSync();
     if (changed.isEmpty || !mounted) return;
+    Annotations.invalidate();
     setState(() {
       if (changed.contains('desks')) {
         final registry = DeskRegistry.decode(userGet(key: 'desks') ?? '');

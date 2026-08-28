@@ -223,6 +223,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get labelRecorded => 'Saved as training example';
 
   @override
+  String get markSelection => 'Mark / note';
+
+  @override
+  String get noteHint => 'Note (optional — empty saves just the mark)';
+
+  @override
+  String get deleteNote => 'Delete';
+
+  @override
+  String get save => 'Save';
+
+  @override
   String get exportLabels => 'Export training labels…';
 
   @override

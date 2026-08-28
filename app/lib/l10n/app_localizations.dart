@@ -476,6 +476,30 @@ abstract class AppLocalizations {
   /// **'Saved as training example'**
   String get labelRecorded;
 
+  /// No description provided for @markSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark / note'**
+  String get markSelection;
+
+  /// No description provided for @noteHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Note (optional — empty saves just the mark)'**
+  String get noteHint;
+
+  /// No description provided for @deleteNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get deleteNote;
+
+  /// No description provided for @save.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get save;
+
   /// No description provided for @exportLabels.
   ///
   /// In en, this message translates to:
