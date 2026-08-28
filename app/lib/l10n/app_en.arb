@@ -71,6 +71,8 @@
   "goodHit": "Good hit — save as training example",
   "noGoodHit": "No good hit",
   "labelRecorded": "Saved as training example",
+  "exportLabels": "Export training labels…",
+  "noLabelsYet": "No training labels collected yet",
   "strongsTagged": "Strong's numbers",
   "noConcordanceSource": "Import a Strong's-tagged Bible (e.g. the KJV) to see occurrences",
   "@importedCommentary": {"placeholders": {"title": {"type": "String"}, "entries": {"type": "int"}}},

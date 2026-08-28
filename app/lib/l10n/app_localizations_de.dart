@@ -223,6 +223,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get labelRecorded => 'Als Trainingsbeispiel gespeichert';
 
   @override
+  String get exportLabels => 'Trainingslabels exportieren…';
+
+  @override
+  String get noLabelsYet => 'Noch keine Trainingslabels gesammelt';
+
+  @override
   String get strongsTagged => 'Strong-Nummern';
 
   @override

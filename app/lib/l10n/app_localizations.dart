@@ -476,6 +476,18 @@ abstract class AppLocalizations {
   /// **'Saved as training example'**
   String get labelRecorded;
 
+  /// No description provided for @exportLabels.
+  ///
+  /// In en, this message translates to:
+  /// **'Export training labels…'**
+  String get exportLabels;
+
+  /// No description provided for @noLabelsYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No training labels collected yet'**
+  String get noLabelsYet;
+
   /// No description provided for @strongsTagged.
   ///
   /// In en, this message translates to:

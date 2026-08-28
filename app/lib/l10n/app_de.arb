@@ -64,6 +64,8 @@
   "goodHit": "Guter Treffer – als Trainingsbeispiel speichern",
   "noGoodHit": "Kein guter Treffer",
   "labelRecorded": "Als Trainingsbeispiel gespeichert",
+  "exportLabels": "Trainingslabels exportieren…",
+  "noLabelsYet": "Noch keine Trainingslabels gesammelt",
   "strongsTagged": "Strong-Nummern",
   "noConcordanceSource": "Importiere eine Bibel mit Strong-Nummern (z. B. die KJV), um Vorkommen zu sehen",
   "importToBegin": "Importiere ein OSIS-Modul, um mit dem Lesen zu beginnen",

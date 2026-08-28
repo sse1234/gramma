@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/gestures.dart'
@@ -13,6 +14,7 @@ import 'package:gramma/typeset_chapter.dart';
 import 'package:gramma/typeset_prose.dart';
 import 'package:gramma/main.dart';
 import 'package:gramma/pane_model.dart';
+import 'package:gramma/search_tool.dart';
 import 'package:gramma/settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -1043,6 +1045,18 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('exporting without labels explains itself', (tester) async {
+    _freshUserStore();
+    _phoneViewport(tester);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('tools-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tool-export-labels')));
+    await tester.pumpAndSettle();
+    expect(find.text('No training labels collected yet'), findsOneWidget);
+  });
+
   testWidgets('search tool: hits, jump, and training labels',
       (tester) async {
     _freshUserStore();
@@ -1086,6 +1100,15 @@ void main() {
           (v) => v.contains('"label":"no_good_hit"')),
       hasLength(1),
     );
+
+    // The export payload is bibelsuche-compatible JSONL, in order.
+    final jsonl = labelExportJsonl();
+    final lines =
+        jsonl.trim().split('\n').map((l) => jsonDecode(l)).toList();
+    expect(lines, hasLength(2));
+    expect(lines[0]['label'], 'good_hit');
+    expect(lines[0]['corpus'], 'FixDe');
+    expect(lines[1]['label'], 'no_good_hit');
 
     // Tapping the hit jumps the reading view.
     await tester.tap(find.byKey(const Key('search-hit-0')));
