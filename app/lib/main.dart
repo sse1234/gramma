@@ -93,8 +93,28 @@ class GrammaApp extends StatelessWidget {
             tone: settings.tone),
         darkTheme: grammaTheme(Brightness.dark, settings.contrast,
             trueBlack: settings.trueBlackDark, tone: settings.tone),
-        builder: (context, child) =>
-            SettingsScope(controller: settings, child: child!),
+        builder: (context, child) => SettingsScope(
+          controller: settings,
+          // Any pointer-down outside the focused text field dismisses
+          // the keyboard — scrolling and menu taps included. Pointer
+          // events bypass the gesture arena, so this never steals taps
+          // from buttons or the readers.
+          child: Listener(
+            behavior: HitTestBehavior.deferToChild,
+            onPointerDown: (event) {
+              final focus = FocusManager.instance.primaryFocus;
+              final focusContext = focus?.context;
+              if (focus == null || focusContext == null) return;
+              final box = focusContext.findRenderObject();
+              if (box is RenderBox && box.attached) {
+                final local = box.globalToLocal(event.position);
+                if ((Offset.zero & box.size).contains(local)) return;
+              }
+              focus.unfocus();
+            },
+            child: child!,
+          ),
+        ),
         home: const ReaderScreen(),
       ),
     );
