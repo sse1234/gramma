@@ -392,6 +392,12 @@ abstract class AppLocalizations {
   /// **'No matches'**
   String get noDictionaryResults;
 
+  /// No description provided for @noConcordanceSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Import a Strong\'s-tagged Bible (e.g. the KJV) to see occurrences'**
+  String get noConcordanceSource;
+
   /// No description provided for @importToBegin.
   ///
   /// In en, this message translates to:

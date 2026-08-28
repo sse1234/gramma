@@ -407,9 +407,35 @@ class _ReaderScreenState extends State<ReaderScreen>
   }
 
   /// Route a long-pressed word (ADR 0019) into the desk's dictionary
-  /// views as a search; with none open yet, one is created first.
-  void _lookupWord(String word) {
+  /// views; with none open yet, one is created first. In a Strong's-
+  /// tagged text the word resolves directly to its entry (ADR 0020);
+  /// anywhere else it becomes a search.
+  void _lookupWord(
+    String word, {
+    String? module,
+    String? bookOsis,
+    int? chapter,
+    int? verse,
+  }) {
     if (_dictionaryModules.isEmpty) return;
+    var anchor = 'q:$word';
+    if (module != null && bookOsis != null && chapter != null && verse != null) {
+      try {
+        final strongs = strongsFor(
+          moduleCode: module,
+          bookOsis: bookOsis,
+          chapter: chapter,
+          verse: verse,
+          word: word,
+        );
+        // Greek numbers resolve to the lexicon directly; others (Hebrew,
+        // until a Hebrew lexicon arrives) fall back to the search.
+        final greek =
+            strongs.where((s) => s.startsWith('G')).firstOrNull;
+        final sort = greek == null ? null : int.tryParse(greek.substring(1));
+        if (sort != null) anchor = 'G$sort';
+      } catch (_) {}
+    }
     var targets =
         _layout.allPanes.where((p) => p.kind == PaneKind.dictionary).toList();
     if (targets.isEmpty) {
@@ -419,7 +445,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     }
     setState(() {
       for (final pane in targets) {
-        pane.anchor = 'q:$word';
+        pane.anchor = anchor;
       }
     });
     _save();

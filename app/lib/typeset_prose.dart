@@ -60,6 +60,7 @@ class TypesetProse extends StatelessWidget {
     this.onLinkTap,
     this.onPlainTap,
     this.onWordLongPress,
+    this.onLabelTap,
   });
 
   final ProseLayout layout;
@@ -75,6 +76,10 @@ class TypesetProse extends StatelessWidget {
   /// A long press on a word (ADR 0019): dictionary lookup.
   final ValueChanged<RunView>? onWordLongPress;
 
+  /// A tap on the entry's label run (the Strong number), with marker
+  /// halo mechanics (ADR 0020): opens the concordance.
+  final VoidCallback? onLabelTap;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -88,6 +93,22 @@ class TypesetProse extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTapUp: (details) {
+          if (onLabelTap != null) {
+            final label = haloNear(
+              [
+                for (var i = 0; i < layout.lines.length; i++)
+                  (line: layout.lines[i], top: i * lineHeight),
+              ],
+              scale,
+              fontSize * layout.numberScale,
+              details.localPosition,
+              where: (run) => run.verseNumber,
+            );
+            if (label != null) {
+              onLabelTap!();
+              return;
+            }
+          }
           final run = runAtOffset(
               layout.lines, scale, lineHeight, details.localPosition);
           final link = run?.link;

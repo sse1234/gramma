@@ -148,3 +148,57 @@ def dictionary() -> None:
 
 
 dictionary()
+
+
+BIBLE_CONF = """\
+[KjvTest]
+Description=Testbibel mit Strongs
+DataPath=./modules/texts/ztext/kjvtest/
+ModDrv=zText
+SourceType=OSIS
+Encoding=UTF-8
+CompressType=ZIP
+Versification=KJV
+Lang=en
+"""
+
+BIBLE_SLOTS = [
+    '<milestone type="x-importer" subType="x-osis2mod" n="test"/>',
+    '<div canonical="true" sID="b1" subType="x-OT" type="bookGroup"/> '
+    '<div canonical="true" osisID="Gen" sID="b2" type="book"/> '
+    '<title type="main">GENESIS</title> ',
+    '<chapter chapterTitle="CHAPTER 1." osisID="Gen.1" sID="c1"/> '
+    '<title type="chapter">CHAPTER 1.</title> ',
+    '<w lemma="strong:G1">In the beginning</w> '
+    '<w lemma="strong:G3">heaven</w> appeared.',
+    '<w lemma="strong:G2">Love</w> and <w lemma="strong:G3">heaven</w> abide.',
+]
+
+
+def bible() -> None:
+    block = "".join(BIBLE_SLOTS).encode()
+    compressed = zlib.compress(block, 6)
+    bzs = struct.pack("<III", 0, len(compressed), len(block))
+    bzv = struct.pack("<IIH", 0, 0, 0)  # testament intro, empty
+    off = 0
+    for s in BIBLE_SLOTS:
+        raw = s.encode()
+        bzv += struct.pack("<IIH", 0, off, len(raw))
+        off += len(raw)
+
+    out = Path(__file__).resolve().parent.parent / "app/test/fixtures/bible.sword.zip"
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        stamp = (2026, 1, 1, 0, 0, 0)
+
+        def add(name: str, data: bytes) -> None:
+            info = zipfile.ZipInfo(name, date_time=stamp)
+            z.writestr(info, data)
+
+        add("mods.d/kjvtest.conf", BIBLE_CONF.encode())
+        add("modules/texts/ztext/kjvtest/ot.bzs", bzs)
+        add("modules/texts/ztext/kjvtest/ot.bzv", bzv)
+        add("modules/texts/ztext/kjvtest/ot.bzz", compressed)
+    print(f"wrote {out}")
+
+
+bible()

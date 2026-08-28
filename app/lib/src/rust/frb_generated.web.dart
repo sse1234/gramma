@@ -57,6 +57,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CommentView dco_decode_comment_view(dynamic raw);
 
   @protected
+  ConcordanceResult dco_decode_concordance_result(dynamic raw);
+
+  @protected
   DictHitView dco_decode_dict_hit_view(dynamic raw);
 
   @protected
@@ -99,6 +102,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<NoteView> dco_decode_list_note_view(dynamic raw);
 
   @protected
+  List<OccurrenceView> dco_decode_list_occurrence_view(dynamic raw);
+
+  @protected
   Uint32List dco_decode_list_prim_u_32_strict(dynamic raw);
 
   @protected
@@ -121,6 +127,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   NoteView dco_decode_note_view(dynamic raw);
+
+  @protected
+  OccurrenceView dco_decode_occurrence_view(dynamic raw);
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
@@ -189,6 +198,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CommentView sse_decode_comment_view(SseDeserializer deserializer);
 
   @protected
+  ConcordanceResult sse_decode_concordance_result(SseDeserializer deserializer);
+
+  @protected
   DictHitView sse_decode_dict_hit_view(SseDeserializer deserializer);
 
   @protected
@@ -235,6 +247,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<NoteView> sse_decode_list_note_view(SseDeserializer deserializer);
 
   @protected
+  List<OccurrenceView> sse_decode_list_occurrence_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Uint32List sse_decode_list_prim_u_32_strict(SseDeserializer deserializer);
 
   @protected
@@ -257,6 +274,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   NoteView sse_decode_note_view(SseDeserializer deserializer);
+
+  @protected
+  OccurrenceView sse_decode_occurrence_view(SseDeserializer deserializer);
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
@@ -339,6 +359,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_comment_view(CommentView self, SseSerializer serializer);
 
   @protected
+  void sse_encode_concordance_result(
+    ConcordanceResult self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_dict_hit_view(DictHitView self, SseSerializer serializer);
 
   @protected
@@ -402,6 +428,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_note_view(List<NoteView> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_occurrence_view(
+    List<OccurrenceView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_prim_u_32_strict(
     Uint32List self,
     SseSerializer serializer,
@@ -433,6 +465,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_note_view(NoteView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_occurrence_view(
+    OccurrenceView self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);

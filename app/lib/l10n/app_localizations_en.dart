@@ -175,6 +175,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noDictionaryResults => 'No matches';
 
   @override
+  String get noConcordanceSource =>
+      'Import a Strong\'s-tagged Bible (e.g. the KJV) to see occurrences';
+
+  @override
   String get importToBegin => 'Import an OSIS module to begin reading';
 
   @override

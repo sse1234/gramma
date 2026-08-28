@@ -9,7 +9,7 @@ use flate2::write::ZlibEncoder;
 use gramma_core::library::Library;
 use gramma_core::reference::BookId;
 use gramma_core::sword::{
-    SwordModule, Testament, parse_zcom, parse_zld, read_sword_zip, read_zcom_zip,
+    SwordModule, Testament, parse_zcom, parse_zld, parse_ztext, read_sword_zip, read_zcom_zip,
 };
 
 const CONF: &str = "\
@@ -213,6 +213,44 @@ fn reads_a_real_package_when_provided() {
                 with_pron
             );
         }
+        SwordModule::Bible(doc) => {
+            assert!(doc.verses.len() > 20000, "only {} verses", doc.verses.len());
+            let links: usize = doc.verses.iter().map(|v| v.links.len()).sum();
+            assert!(links > 100000, "only {links} word links");
+            for v in &doc.verses {
+                for l in &v.links {
+                    assert!(v.text.is_char_boundary(l.start as usize));
+                    assert!(v.text.is_char_boundary(l.end as usize));
+                    assert!(l.start < l.end && (l.end as usize) <= v.text.len());
+                }
+            }
+            let john316 = doc
+                .verses
+                .iter()
+                .find(|v| {
+                    v.book == gramma_core::reference::book_by_osis("John").unwrap()
+                        && v.chapter == 3
+                        && v.verse == 16
+                })
+                .expect("John 3:16 present — the slot walk stayed aligned");
+            assert!(
+                john316.text.contains("only begotten Son")
+                    || john316.text.contains("eingeborenen Sohn"),
+                "John 3:16 reads: {}",
+                john316.text
+            );
+            assert!(
+                john316.links.iter().any(|l| l.strong == "G3439"),
+                "monogenes is linked in John 3:16"
+            );
+            println!(
+                "{}: {} verses, {} word links, {} notes",
+                doc.code,
+                doc.verses.len(),
+                links,
+                doc.notes.len()
+            );
+        }
     }
 }
 
@@ -331,7 +369,7 @@ fn the_zip_package_dispatches_by_driver() {
     }
     match read_sword_zip(&path).unwrap() {
         SwordModule::Dictionary(d) => assert_eq!(d.entries.len(), 3),
-        SwordModule::Commentary(_) => panic!("dispatched as commentary"),
+        _ => panic!("dispatched wrongly"),
     }
     std::fs::remove_dir_all(&dir).ok();
 }
@@ -381,5 +419,159 @@ fn dictionary_imports_looks_up_and_searches() {
             .unwrap()
             .len(),
         1
+    );
+}
+
+// ---- zText Bibles with Strong's links (ADR 0020) ----
+
+const BIBLE_CONF: &str = "\
+[KjvTest]
+Description=Testbibel mit Strongs
+DataPath=./modules/texts/ztext/kjvtest/
+ModDrv=zText
+SourceType=OSIS
+Encoding=UTF-8
+CompressType=ZIP
+Versification=KJV
+Lang=en
+";
+
+const SLOT_IMPORTER: &str = r#"<milestone type="x-importer" subType="x-osis2mod" n="test"/>"#;
+const SLOT_BOOK: &str = concat!(
+    r#"<div canonical="true" sID="b1" subType="x-OT" type="bookGroup"/> "#,
+    r#"<div canonical="true" osisID="Gen" sID="b2" type="book"/> "#,
+    r#"<title type="main">GENESIS</title> "#,
+);
+const SLOT_CHAPTER: &str = concat!(
+    r#"<chapter chapterTitle="CHAPTER 1." osisID="Gen.1" sID="c1"/> "#,
+    r#"<title type="chapter">CHAPTER 1.</title> "#,
+);
+const SLOT_V1: &str = concat!(
+    r#"<w lemma="strong:G746 lemma.TR:αρχη">In the beginning</w> "#,
+    r#"<w lemma="strong:G2316">God</w> "#,
+    r#"<transChange type="added">created</transChange> "#,
+    r#"<w lemma="strong:G3772 strong:G1093" morph="x">heaven and earth</w>."#,
+    r#"<note type="study">a marginal <catchWord>note</catchWord></note>"#,
+);
+const SLOT_V2: &str = concat!(
+    r#"<w lemma="strong:G3772">And heaven</w> "#,
+    r#"<w lemma="lemma.TR:untagged">was</w> void."#,
+);
+
+fn bible_testament() -> Testament {
+    let slots = [SLOT_IMPORTER, SLOT_BOOK, SLOT_CHAPTER, SLOT_V1, SLOT_V2];
+    let block: String = slots.concat();
+    let mut z = ZlibEncoder::new(Vec::new(), Compression::default());
+    z.write_all(block.as_bytes()).unwrap();
+    let compressed = z.finish().unwrap();
+    let mut bzs = Vec::new();
+    bzs.extend_from_slice(&0u32.to_le_bytes());
+    bzs.extend_from_slice(&(compressed.len() as u32).to_le_bytes());
+    bzs.extend_from_slice(&(block.len() as u32).to_le_bytes());
+    let mut bzv = Vec::new();
+    let mut slot = |off: u32, size: u16| {
+        bzv.extend_from_slice(&0u32.to_le_bytes());
+        bzv.extend_from_slice(&off.to_le_bytes());
+        bzv.extend_from_slice(&size.to_le_bytes());
+    };
+    slot(0, 0); // testament intro, empty
+    let mut off = 0u32;
+    for s in slots {
+        slot(off, s.len() as u16);
+        off += s.len() as u32;
+    }
+    Testament {
+        bzs,
+        bzv,
+        bzz: compressed,
+    }
+}
+
+#[test]
+fn parses_a_synthetic_ztext_bible() {
+    let doc = parse_ztext(BIBLE_CONF, &[bible_testament()]).unwrap();
+    assert_eq!(doc.code, "KjvTest");
+    assert_eq!(doc.verses.len(), 2);
+    let v1 = &doc.verses[0];
+    assert_eq!(
+        (v1.book, v1.chapter, v1.verse),
+        (BookId::from_index(0).unwrap(), 1, 1)
+    );
+    assert_eq!(v1.text, "In the beginning God created heaven and earth.");
+    let strongs: Vec<(&str, &str)> = v1
+        .links
+        .iter()
+        .map(|l| {
+            (
+                l.strong.as_str(),
+                &v1.text[l.start as usize..l.end as usize],
+            )
+        })
+        .collect();
+    assert_eq!(
+        strongs,
+        [
+            ("G746", "In the beginning"),
+            ("G2316", "God"),
+            ("G3772", "heaven and earth"),
+            ("G1093", "heaven and earth"),
+        ],
+        "words carry their Strong links; transChange text has none"
+    );
+    assert_eq!(doc.notes.len(), 1);
+    assert_eq!(doc.notes[0].text, "a marginal note");
+    let v2 = &doc.verses[1];
+    assert_eq!(v2.verse, 2);
+    assert_eq!(v2.text, "And heaven was void.");
+    assert_eq!(v2.links.len(), 1, "lemma without strong: yields no link");
+}
+
+#[test]
+fn bible_imports_with_concordance_and_word_resolution() {
+    let doc = parse_ztext(BIBLE_CONF, &[bible_testament()]).unwrap();
+    let mut library = Library::open_in_memory().unwrap();
+    let info = library.import_bible(&doc).unwrap();
+    assert_eq!(
+        (info.kind.as_str(), info.verses, info.notes),
+        ("bible", 2, 1)
+    );
+
+    // The concordance: every occurrence of a Strong number, in order.
+    let hits = library.concordance("KjvTest", "G3772", 100).unwrap();
+    assert_eq!(hits.len(), 2);
+    assert_eq!((hits[0].chapter, hits[0].verse), (1, 1));
+    assert_eq!(
+        &hits[0].text[hits[0].start as usize..hits[0].end as usize],
+        "heaven and earth"
+    );
+    assert_eq!((hits[1].chapter, hits[1].verse), (1, 2));
+    assert!(
+        library
+            .concordance("KjvTest", "G9999", 100)
+            .unwrap()
+            .is_empty()
+    );
+
+    // A long-pressed word resolves to its Strong number(s).
+    let genesis = BookId::from_index(0).unwrap();
+    let strongs = library
+        .strongs_for_word("KjvTest", genesis, 1, 1, "god")
+        .unwrap();
+    assert_eq!(strongs, ["G2316"], "case-insensitive containment");
+    let strongs = library
+        .strongs_for_word("KjvTest", genesis, 1, 1, "beginning")
+        .unwrap();
+    assert_eq!(strongs, ["G746"], "a word inside a multi-word link matches");
+    assert!(
+        library
+            .strongs_for_word("KjvTest", genesis, 1, 1, "created")
+            .unwrap()
+            .is_empty()
+    );
+
+    // The module with Strong links is discoverable.
+    assert_eq!(
+        library.strongs_module().unwrap().as_deref(),
+        Some("KjvTest")
     );
 }

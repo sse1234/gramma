@@ -133,6 +133,19 @@ CREATE TABLE IF NOT EXISTS dict_entry(
   text TEXT NOT NULL,
   PRIMARY KEY(module_id, sort)
 ) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS word_link(
+  module_id INTEGER NOT NULL REFERENCES module(id) ON DELETE CASCADE,
+  book INTEGER NOT NULL,
+  chapter INTEGER NOT NULL,
+  verse INTEGER NOT NULL,
+  seq INTEGER NOT NULL,
+  start INTEGER NOT NULL,
+  ref_end INTEGER NOT NULL,
+  strong TEXT NOT NULL,
+  PRIMARY KEY(module_id, book, chapter, verse, seq)
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS word_link_strong
+  ON word_link(module_id, strong);
 CREATE TABLE IF NOT EXISTS comment_ref(
   module_id INTEGER NOT NULL REFERENCES module(id) ON DELETE CASCADE,
   book INTEGER NOT NULL,
@@ -154,6 +167,18 @@ pub struct DictEntryRow {
     pub headword: String,
     pub pron: String,
     /// Paragraphs separated by "\n\n".
+    pub text: String,
+}
+
+/// One concordance hit (ADR 0020): a Strong's occurrence with its
+/// verse text and the covered byte range.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Occurrence {
+    pub book: BookId,
+    pub chapter: u16,
+    pub verse: u16,
+    pub start: u32,
+    pub end: u32,
     pub text: String,
 }
 
@@ -337,6 +362,192 @@ impl Library {
             notes: 0,
             kind: "commentary".to_string(),
         })
+    }
+
+    /// Import a SWORD Bible text (zText, ADR 0020) with its word-level
+    /// Strong's links, replacing any module with the same code.
+    pub fn import_bible(
+        &mut self,
+        doc: &crate::sword::SwordBible,
+    ) -> Result<ModuleInfo, LibraryError> {
+        let tx = self.conn.transaction()?;
+        tx.execute("DELETE FROM module WHERE code = ?1", [&doc.code])?;
+        tx.execute(
+            "INSERT INTO module(code, title, language, kind)
+             VALUES (?1, ?2, ?3, 'bible')",
+            (&doc.code, &doc.title, &doc.language),
+        )?;
+        let module_id = tx.last_insert_rowid();
+        {
+            let mut insert_verse = tx.prepare(
+                "INSERT OR REPLACE INTO verse(module_id, book, chapter, verse, text)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+            )?;
+            let mut insert_link = tx.prepare(
+                "INSERT OR REPLACE INTO word_link
+                   (module_id, book, chapter, verse, seq, start, ref_end, strong)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            )?;
+            for v in &doc.verses {
+                insert_verse.execute((
+                    module_id,
+                    v.book.index() as i64,
+                    v.chapter,
+                    v.verse,
+                    &v.text,
+                ))?;
+                for (seq, link) in v.links.iter().enumerate() {
+                    insert_link.execute((
+                        module_id,
+                        v.book.index() as i64,
+                        v.chapter,
+                        v.verse,
+                        seq as i64 + 1,
+                        link.start,
+                        link.end,
+                        &link.strong,
+                    ))?;
+                }
+            }
+            let mut insert_note = tx.prepare(
+                "INSERT OR REPLACE INTO note(module_id, book, chapter, verse, seq, offset, text)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            )?;
+            for n in &doc.notes {
+                insert_note.execute((
+                    module_id,
+                    n.book.index() as i64,
+                    n.chapter,
+                    n.verse,
+                    n.seq,
+                    n.offset,
+                    &n.text,
+                ))?;
+            }
+        }
+        tx.commit()?;
+        let verses = self.verse_count(module_id)?;
+        Ok(ModuleInfo {
+            code: doc.code.clone(),
+            title: doc.title.clone(),
+            language: doc.language.clone(),
+            verses,
+            notes: doc.notes.len() as u32,
+            kind: "bible".to_string(),
+        })
+    }
+
+    /// Every occurrence of a Strong number in a module, in canon order —
+    /// the concordance (ADR 0020).
+    pub fn concordance(
+        &self,
+        module_code: &str,
+        strong: &str,
+        limit: usize,
+    ) -> Result<Vec<Occurrence>, LibraryError> {
+        let module_id = self.module_id(module_code)?;
+        let mut stmt = self.conn.prepare(
+            "SELECT w.book, w.chapter, w.verse, w.start, w.ref_end, v.text
+             FROM word_link w
+             JOIN verse v ON v.module_id = w.module_id AND v.book = w.book
+               AND v.chapter = w.chapter AND v.verse = w.verse
+             WHERE w.module_id = ?1 AND w.strong = ?2
+             ORDER BY w.book, w.chapter, w.verse, w.seq
+             LIMIT ?3",
+        )?;
+        let hits = stmt
+            .query_map((module_id, strong, limit as i64), |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, u16>(1)?,
+                    row.get::<_, u16>(2)?,
+                    row.get::<_, u32>(3)?,
+                    row.get::<_, u32>(4)?,
+                    row.get::<_, String>(5)?,
+                ))
+            })?
+            .filter_map(|row| {
+                row.map(|(book, chapter, verse, start, end, text)| {
+                    BookId::from_index(book as usize).map(|book| Occurrence {
+                        book,
+                        chapter,
+                        verse,
+                        start,
+                        end,
+                        text,
+                    })
+                })
+                .transpose()
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(hits)
+    }
+
+    /// The Strong number(s) of a word in a verse: links whose covered
+    /// text contains the word (Unicode case-insensitive, whole-word).
+    pub fn strongs_for_word(
+        &self,
+        module_code: &str,
+        book: BookId,
+        chapter: u16,
+        verse: u16,
+        word: &str,
+    ) -> Result<Vec<String>, LibraryError> {
+        let module_id = self.module_id(module_code)?;
+        let text: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT text FROM verse
+                 WHERE module_id = ?1 AND book = ?2 AND chapter = ?3 AND verse = ?4",
+                (module_id, book.index() as i64, chapter, verse),
+                |row| row.get(0),
+            )
+            .optional()?;
+        let Some(text) = text else {
+            return Ok(Vec::new());
+        };
+        let needle = word.to_lowercase();
+        let mut stmt = self.conn.prepare(
+            "SELECT start, ref_end, strong FROM word_link
+             WHERE module_id = ?1 AND book = ?2 AND chapter = ?3 AND verse = ?4
+             ORDER BY seq",
+        )?;
+        let mut out = Vec::new();
+        let rows = stmt.query_map((module_id, book.index() as i64, chapter, verse), |row| {
+            Ok((
+                row.get::<_, u32>(0)?,
+                row.get::<_, u32>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?;
+        for row in rows {
+            let (start, end, strong) = row?;
+            let Some(slice) = text.get(start as usize..end as usize) else {
+                continue;
+            };
+            let matches = slice
+                .split(|c: char| !c.is_alphanumeric())
+                .any(|w| !w.is_empty() && w.to_lowercase() == needle);
+            if matches && !out.contains(&strong) {
+                out.push(strong);
+            }
+        }
+        Ok(out)
+    }
+
+    /// The first module carrying Strong's word links, if any — the
+    /// concordance source.
+    pub fn strongs_module(&self) -> Result<Option<String>, LibraryError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT m.code FROM module m
+                 WHERE EXISTS (SELECT 1 FROM word_link w WHERE w.module_id = m.id)
+                 ORDER BY m.code LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?)
     }
 
     /// Import a SWORD dictionary (ADR 0019), replacing any module with
