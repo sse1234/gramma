@@ -208,6 +208,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noDictionaryResults => 'No matches';
 
   @override
+  String get searchTool => 'Search';
+
+  @override
+  String get searchQueryHint => 'Search the text…';
+
+  @override
+  String get goodHit => 'Good hit — save as training example';
+
+  @override
+  String get noGoodHit => 'No good hit';
+
+  @override
+  String get labelRecorded => 'Saved as training example';
+
+  @override
   String get strongsTagged => 'Strong\'s numbers';
 
   @override

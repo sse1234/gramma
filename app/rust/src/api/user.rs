@@ -33,6 +33,13 @@ pub fn user_get(key: String) -> anyhow::Result<Option<String>> {
     with_store(|store| Ok(store.get(&key)?))
 }
 
+/// Keys starting with `prefix` — e.g. "label/" for the collected search
+/// labels (ADR 0022).
+#[flutter_rust_bridge::frb(sync)]
+pub fn user_keys(prefix: String) -> anyhow::Result<Vec<String>> {
+    with_store(|store| Ok(store.keys_with_prefix(&prefix)?))
+}
+
 /// Point the store at a synced folder (None disables sync). Fails when
 /// the folder cannot be written.
 #[flutter_rust_bridge::frb(sync)]

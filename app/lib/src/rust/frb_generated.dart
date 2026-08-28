@@ -72,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -396979714;
+  int get rustContentHash => 1352665595;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -181,6 +181,12 @@ abstract class RustLibApi extends BaseApi {
 
   ParseOutcome crateApiReferencesParseReference({required String input});
 
+  Future<List<SearchHitView>> crateApiLibrarySearchVerses({
+    required String moduleCode,
+    required String query,
+    required int limit,
+  });
+
   void crateApiTypesetSetTypesetFont({required List<int> fontData});
 
   List<String> crateApiLibraryStrongsFor({
@@ -196,6 +202,8 @@ abstract class RustLibApi extends BaseApi {
   List<String> crateApiUserSyncNow();
 
   String? crateApiUserUserGet({required String key});
+
+  List<String> crateApiUserUserKeys({required String prefix});
 
   void crateApiUserUserSet({required String key, required String value});
 }
@@ -933,13 +941,50 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "parse_reference", argNames: ["input"]);
 
   @override
+  Future<List<SearchHitView>> crateApiLibrarySearchVerses({
+    required String moduleCode,
+    required String query,
+    required int limit,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(moduleCode, serializer);
+          sse_encode_String(query, serializer);
+          sse_encode_u_32(limit, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 26,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_search_hit_view,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiLibrarySearchVersesConstMeta,
+        argValues: [moduleCode, query, limit],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLibrarySearchVersesConstMeta =>
+      const TaskConstMeta(
+        debugName: "search_verses",
+        argNames: ["moduleCode", "query", "limit"],
+      );
+
+  @override
   void crateApiTypesetSetTypesetFont({required List<int> fontData}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_u_8_loose(fontData, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 27)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -975,7 +1020,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_u_16(chapter, serializer);
           sse_encode_u_16(verse, serializer);
           sse_encode_String(word, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 27)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_String,
@@ -999,7 +1044,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_String,
@@ -1021,7 +1066,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_String,
@@ -1044,7 +1089,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(key, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_String,
@@ -1061,6 +1106,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "user_get", argNames: ["key"]);
 
   @override
+  List<String> crateApiUserUserKeys({required String prefix}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(prefix, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiUserUserKeysConstMeta,
+        argValues: [prefix],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiUserUserKeysConstMeta =>
+      const TaskConstMeta(debugName: "user_keys", argNames: ["prefix"]);
+
+  @override
   void crateApiUserUserSet({required String key, required String value}) {
     return handler.executeSync(
       SyncTask(
@@ -1068,7 +1136,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(key, serializer);
           sse_encode_String(value, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -1397,6 +1465,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<SearchHitView> dco_decode_list_search_hit_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_search_hit_view).toList();
+  }
+
+  @protected
   List<VerseView> dco_decode_list_verse_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_verse_view).toList();
@@ -1513,6 +1587,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       headingLevel: dco_decode_u_8(arr[5]),
       verse: dco_decode_u_16(arr[6]),
       link: dco_decode_opt_box_autoadd_u_32(arr[7]),
+    );
+  }
+
+  @protected
+  SearchHitView dco_decode_search_hit_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return SearchHitView(
+      bookOsis: dco_decode_String(arr[0]),
+      chapter: dco_decode_u_16(arr[1]),
+      verse: dco_decode_u_16(arr[2]),
+      text: dco_decode_String(arr[3]),
+      score: dco_decode_f_64(arr[4]),
     );
   }
 
@@ -1989,6 +2078,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<SearchHitView> sse_decode_list_search_hit_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <SearchHitView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_search_hit_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<VerseView> sse_decode_list_verse_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -2140,6 +2243,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       headingLevel: var_headingLevel,
       verse: var_verse,
       link: var_link,
+    );
+  }
+
+  @protected
+  SearchHitView sse_decode_search_hit_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_bookOsis = sse_decode_String(deserializer);
+    var var_chapter = sse_decode_u_16(deserializer);
+    var var_verse = sse_decode_u_16(deserializer);
+    var var_text = sse_decode_String(deserializer);
+    var var_score = sse_decode_f_64(deserializer);
+    return SearchHitView(
+      bookOsis: var_bookOsis,
+      chapter: var_chapter,
+      verse: var_verse,
+      text: var_text,
+      score: var_score,
     );
   }
 
@@ -2553,6 +2673,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_search_hit_view(
+    List<SearchHitView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_search_hit_view(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_verse_view(
     List<VerseView> self,
     SseSerializer serializer,
@@ -2671,6 +2803,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_8(self.headingLevel, serializer);
     sse_encode_u_16(self.verse, serializer);
     sse_encode_opt_box_autoadd_u_32(self.link, serializer);
+  }
+
+  @protected
+  void sse_encode_search_hit_view(
+    SearchHitView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.bookOsis, serializer);
+    sse_encode_u_16(self.chapter, serializer);
+    sse_encode_u_16(self.verse, serializer);
+    sse_encode_String(self.text, serializer);
+    sse_encode_f_64(self.score, serializer);
   }
 
   @protected

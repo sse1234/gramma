@@ -20,6 +20,11 @@ void userSet({required String key, required String value}) =>
 String? userGet({required String key}) =>
     RustLib.instance.api.crateApiUserUserGet(key: key);
 
+/// Keys starting with `prefix` — e.g. "label/" for the collected search
+/// labels (ADR 0022).
+List<String> userKeys({required String prefix}) =>
+    RustLib.instance.api.crateApiUserUserKeys(prefix: prefix);
+
 /// Point the store at a synced folder (None disables sync). Fails when
 /// the folder cannot be written.
 void configureSync({String? dir}) =>
