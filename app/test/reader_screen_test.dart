@@ -1490,29 +1490,20 @@ void main() {
     );
   });
 
-  testWidgets('the tools menu opens the reading plan and records the jump',
+  testWidgets('the reading-plan tool stays hidden with no plan bundled',
       (tester) async {
+    // The Bibelliga plan is out of the repository until its licensing
+    // is settled; the menu entry appears only for a discovered plan.
     _freshUserStore();
     _phoneViewport(tester);
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await _settleLayouts(tester);
     await tester.tap(find.byKey(const Key('tools-menu')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('tool-plan')));
-    // The bundled plan loads asynchronously before the dialog appears.
-    await _settle(
-        tester, () => _found(find.byKey(const Key('plan-title'))));
-    expect(
-      tester.widget<Text>(find.byKey(const Key('plan-title'))).data,
-      startsWith('Bibelliga — Day'),
-    );
-    await tester.tap(find.byKey(const Key('plan-ref-0')));
+    expect(find.byKey(const Key('tool-search')), findsOneWidget);
+    expect(find.byKey(const Key('tool-plan')), findsNothing);
+    await tester.tapAt(const Offset(5, 5));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('plan-title')), findsNothing);
-    final back = tester
-        .widget<IconButton>(find.byKey(const Key('nav-back')).first);
-    expect(back.onPressed, isNotNull,
-        reason: 'the plan jump entered the desk history');
   });
 
   testWidgets('switching the typeface re-typesets the reader',

@@ -158,11 +158,11 @@ abstract class AppLocalizations {
   /// **'Tools'**
   String get toolsTooltip;
 
-  /// No description provided for @readingPlanBibelliga.
+  /// No description provided for @readingPlan.
   ///
   /// In en, this message translates to:
-  /// **'Reading plan · Bibelliga'**
-  String get readingPlanBibelliga;
+  /// **'Reading plan'**
+  String get readingPlan;
 
   /// No description provided for @desksTooltip.
   ///

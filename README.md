@@ -2,62 +2,92 @@
 
 *A multi-platform Bible study application.* (working title)
 
+Free, open source, offline. No price tag, no paid modules, no accounts,
+no analytics — and none of that will ever change.
+
 ## Vision
 
-gramma aims to make reading and studying Scripture easy and enjoyable, with
-typesetting quality in the tradition of Gutenberg and Knuth — not merely
-"text on a screen".
-
-### Target platforms
-
-- iOS / iPadOS
-- Android
-- macOS
-- Linux
-- Windows
+gramma aims to make reading and studying Scripture easy and enjoyable,
+with typesetting quality in the tradition of Gutenberg and Knuth — not
+merely "text on a screen".
 
 ### Core principles
 
 - **Offline-first.** The app is fully functional without a network
   connection. Sync is an enhancement, never a requirement.
-- **Sync between a user's own installations** — notes, reading position,
-  and similar personal data are exchanged between devices.
-- **Typesetting as a craft.** Line breaking and page layout build on prior
-  art (TeX / Knuth–Plass). One column on phones, two or more columns on
-  tablet/desktop — but with the same words per line everywhere, so the
-  reader can build up a stable visual memory of the text.
-- **Endless scrolling** as the primary navigation mode.
-- **Synchronized side-by-side views** of at least two versified assets
-  (e.g. Bible text + commentary, or Bible text + a book with verse
-  references) as a base requirement.
-- **On-device semantic search** (planned; developed independently, to be
-  integrated later).
+- **Your data stays yours.** Notes, marks, desks, and reading position
+  sync between a user's own installations as end-to-end-encrypted
+  files in a folder the user controls — no gramma server, no account,
+  and nothing readable in transit.
+- **Typesetting as a craft.** Line breaking builds on prior art
+  (TeX / Knuth–Plass): our own engine with rustybuzz shaping, German
+  and English hyphenation, and a protected measure. One column on
+  phones, more on tablet and desktop — with the same words per line
+  everywhere, so the reader builds a stable visual memory of the text.
+  Layout is deterministic across platforms, verified by golden tests.
+- **Words as objects.** Every typeset word is addressable: tappable,
+  linkable, resolvable through Strong's numbers, searchable, and
+  markable.
 
-### Content
+## What works today
 
-- Initial format: **OSIS**, to import content provided by the CrossWire
-  Bible Society.
-- Later: content from CLV Verlag (pending permission from the publisher).
-- Asset types beyond Bible text: commentaries, dictionaries, concordances
-  (esp. Strong's), and books with verse references, including rich media
-  (bitmaps, vector graphics).
+- **Reader**: endless scrolling over whole modules, adaptive
+  multi-column layout at constant zoom, synchronized side-by-side
+  panes (text ↔ text, text ↔ commentary, …), footnotes, desks
+  (saved workspace layouts), light/dark themes, English and German UI.
+- **Content**: clean-room readers for SWORD modules — Bibles (zText),
+  commentaries (zCom), dictionaries and daily devotionals (zLD),
+  general books (RawGenBook) — plus direct OSIS import, all into a
+  local SQLite library.
+- **Study tools**: Strong's dictionaries with pane history,
+  concordance built from Strong's-tagged Bibles, cross-reference and
+  passage previews, lexical search (BM25 with German-aware token
+  folding), daily devotional navigation.
+- **Annotations**: word-precise color marks and notes anchored to
+  verses and passages — exact words in the origin translation, whole
+  verses in every other — synced over the user's own op-log.
+- **Sync**: an end-to-end-encrypted operation log written as files
+  into a folder the user provides and syncs by any means they like
+  (iCloud Drive, Syncthing, Nextcloud, a USB stick) — no gramma
+  server, no account.
 
-## Engineering approach
+Platforms exercised today: macOS, iOS/iPadOS, Android (a 2015 tablet
+is a supported reality, not a footnote). Windows and Linux are on the
+road to release.
 
-Quality and robustness come first: test-driven development, deterministic
-core logic that is testable without a UI, and recorded architecture
-decisions (see [docs/adr](docs/adr/)).
+## Content and licensing
+
+The repository contains **code only** — no Bible texts, no publisher
+content. Users import their own SWORD modules (e.g. from the
+[CrossWire Bible Society](https://crosswire.org/)) or OSIS files;
+module licenses are the modules' own. Content from CLV Verlag awaits
+the publisher's permission before any support ships (see ADR 0002) —
+the same ask-first stance applies to all third-party content.
+
+- Code: [MIT](LICENSE)
+- Bundled fonts (Literata, Gentium Plus, Gentium Book Plus):
+  [SIL OFL 1.1](app/fonts/OFL.txt)
+- Vendored build tooling (`app/rust_builder/cargokit`): MIT,
+  Matej Knopp
+
+All Rust and Dart dependencies are under permissive licenses
+(MIT/Apache-2.0/BSD class); see ADR 0024 for the audit.
 
 ## Repository layout
 
 ```text
 crates/gramma-core/   headless Rust domain core (all logic lives here)
-app/                  Flutter application for all five platforms
+app/                  Flutter application for all platforms
 app/rust/             bridge crate exposing gramma-core via flutter_rust_bridge
-docs/adr/             architecture decision records
+docs/adr/             architecture decision records — the project's memory
+tools/                fixture generators and asset pipelines
 ```
 
 ## Development
+
+Quality and robustness come first: test-driven development, a
+deterministic core testable without a UI, and an ADR for every
+decision that shaped the design (see [docs/adr](docs/adr/)).
 
 ```bash
 cargo test --workspace          # core + bridge tests
@@ -69,18 +99,13 @@ cd app && flutter run           # run the app on a connected device/desktop
 cargo run --release --example import_osis -- <library.db> <file.osis.xml>
 ```
 
-After changing the bridge API in `app/rust/src/api/`, regenerate bindings
-with `flutter_rust_bridge_codegen generate` (run inside `app/`).
+After changing the bridge API in `app/rust/src/api/`, regenerate
+bindings with `flutter_rust_bridge_codegen generate` (run inside
+`app/`).
 
-## Status
+## Roadmap to release
 
-Reading works end to end: OSIS import (CrossWire content) into SQLite,
-an endless-scrolling reader over the whole module, typesetting by our
-own Knuth–Plass engine (rustybuzz shaping, German hyphenation, bundled
-Gentium Book Plus), adaptive multi-column layout with horizontal
-scrolling at constant zoom, and settings (text size, line spacing,
-theme, contrast, protected measure). Layout is deterministic across
-platforms — same words per line everywhere — verified by golden tests
-on CI. See [docs/adr](docs/adr/) for the architecture record.
-
-Next: side-by-side synchronized views, versification schemes, sync.
+Windows and Linux bring-up (x86 and arm), an annotations overview
+pane, and tiered semantic search: today's lexical tier runs anywhere;
+a dense-retrieval tier (on-device embeddings) follows for devices
+that can carry it.

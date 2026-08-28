@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,21 +8,30 @@ import 'package:gramma/reading_plan.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('the bundled Bibelliga plan is complete', () {
-    final json = File('assets/plans/bibelliga.json').readAsStringSync();
+  test('a plan in the asset schema decodes fully', () {
+    final json = jsonEncode({
+      'name': 'Test',
+      'source': 'a schema example',
+      'days': [
+        [
+          {'label': '1. Mose 1-2', 'osis': 'Gen.1'},
+          {'label': 'Psalm 1-2', 'osis': 'Ps.1'},
+        ],
+        [
+          {'label': 'Matthäus 1', 'osis': 'Matt.1'},
+        ],
+      ],
+    });
     final plan = ReadingPlan.decode(json)!;
-    expect(plan.name, 'Bibelliga');
-    expect(plan.days.length, 366, reason: 'a full leap-year calendar');
-    expect(plan.days.every((d) => d.length == 3), isTrue,
-        reason: 'three streams every day');
-    expect(plan.days[0].map((r) => r.osis), ['Gen.1', 'Ps.1', 'Matt.1']);
-    expect(plan.days[365].map((r) => r.label),
-        ['Hiob 41-42', 'Maleachi 3', 'Offenbarung 22']);
-    final books = {
-      for (final day in plan.days)
-        for (final ref in day) ref.osis.split('.').first,
-    };
-    expect(books.length, 66, reason: 'the whole canon, nothing else');
+    expect(plan.name, 'Test');
+    expect(plan.source, 'a schema example');
+    expect(plan.days.length, 2);
+    expect(plan.days[0].map((r) => r.osis), ['Gen.1', 'Ps.1']);
+    expect(plan.days[1].single.label, 'Matthäus 1');
+  });
+
+  test('no plan is bundled until its licensing is settled', () async {
+    expect(await ReadingPlan.loadBundled(), isNull);
   });
 
   test('garbage decodes to null', () {

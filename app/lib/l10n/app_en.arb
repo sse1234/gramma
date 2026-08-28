@@ -10,7 +10,7 @@
   "today": "Today",
   "settingsTitle": "Settings",
   "toolsTooltip": "Tools",
-  "readingPlanBibelliga": "Reading plan · Bibelliga",
+  "readingPlan": "Reading plan",
   "desksTooltip": "Desks — {name}",
   "@desksTooltip": {"placeholders": {"name": {"type": "String"}}},
   "newDesk": "New desk",

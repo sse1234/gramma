@@ -1,13 +1,13 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 
 import 'l10n.dart';
 
-/// Reading plans: 1..n references per day of the year. The bundled
-/// "Bibelliga" plan (366 days, three streams) is the first; a plan
-/// generator can produce more in the same schema.
+/// Reading plans: 1..n references per day of the year. Any JSON file
+/// under `assets/plans/` in this schema is discovered at startup; when
+/// none is bundled, the feature stays dormant.
 class PlanRef {
   const PlanRef({required this.label, required this.osis});
 
@@ -53,8 +53,17 @@ class ReadingPlan {
   }
 
   static Future<ReadingPlan?> loadBundled() async {
-    final json = await rootBundle.loadString('assets/plans/bibelliga.json');
-    return decode(json);
+    final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+    final paths = manifest
+        .listAssets()
+        .where((p) => p.startsWith('assets/plans/') && p.endsWith('.json'))
+        .toList()
+      ..sort();
+    for (final path in paths) {
+      final plan = decode(await rootBundle.loadString(path));
+      if (plan != null) return plan;
+    }
+    return null;
   }
 }
 

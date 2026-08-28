@@ -56,6 +56,9 @@ class _ReaderScreenState extends State<ReaderScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    ReadingPlan.loadBundled().then((plan) {
+      if (mounted && plan != null) setState(() => _plan = plan);
+    });
   }
 
   @override
@@ -334,9 +337,11 @@ class _ReaderScreenState extends State<ReaderScreen>
     await exportLabels(directory.path);
   }
 
+  ReadingPlan? _plan;
+
   Future<void> _openReadingPlan() async {
-    final plan = await ReadingPlan.loadBundled();
-    if (plan == null || !mounted) return;
+    final plan = _plan;
+    if (plan == null) return;
     await showReadingPlan(context, plan: plan, onOpen: _openOsis);
   }
 
@@ -767,11 +772,13 @@ class _ReaderScreenState extends State<ReaderScreen>
                 value: _openSearch,
                 child: Text(context.l10n.searchTool),
               ),
-              PopupMenuItem(
-                key: const Key('tool-plan'),
-                value: _openReadingPlan,
-                child: Text(context.l10n.readingPlanBibelliga),
-              ),
+              if (_plan case final plan?)
+                PopupMenuItem(
+                  key: const Key('tool-plan'),
+                  value: _openReadingPlan,
+                  child:
+                      Text('${context.l10n.readingPlan} · ${plan.name}'),
+                ),
               PopupMenuItem(
                 key: const Key('tool-export-labels'),
                 value: _exportLabels,
