@@ -422,6 +422,23 @@ fn dictionary_imports_looks_up_and_searches() {
         .unwrap();
     assert_eq!(hits[0].headword, "ἄγγελος");
 
+    // Body matching is by canonical token, not substring: "gut" is a
+    // token of entry 1, but "brauch" inside "brauchbar" is not.
+    let hits = library.dictionary_search("GerTestDict", "gut", 10).unwrap();
+    assert_eq!(hits.len(), 1);
+    assert!(
+        library
+            .dictionary_search("GerTestDict", "brauch", 10)
+            .unwrap()
+            .is_empty()
+    );
+    // Inflections fold onto the same token: "Boten" finds "Bote".
+    let hits = library
+        .dictionary_search("GerTestDict", "Boten", 10)
+        .unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].headword, "ἄγγελος");
+
     // Re-import replaces.
     library.import_dictionary(&dict).unwrap();
     assert_eq!(

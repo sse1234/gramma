@@ -809,8 +809,11 @@ impl Library {
     }
 
     /// Search a dictionary: headword, transliteration, and key hits rank
-    /// before body-text hits; matching is Unicode case-insensitive (done
-    /// here, since SQLite's LIKE only folds ASCII).
+    /// before body-text hits. Bodies match by canonical search tokens
+    /// (the bibelsuche tokenizer, ADR 0022) — "Zeltes" finds "Zelt",
+    /// but "Einzelteile" does not — ordered by match density so the
+    /// entry actually about the word beats one mentioning it in
+    /// passing (the GerSch "Zelt"→G40 lesson).
     pub fn dictionary_search(
         &self,
         module_code: &str,
@@ -822,11 +825,13 @@ impl Library {
         if needle.is_empty() {
             return Ok(Vec::new());
         }
+        let query_tokens = crate::search::tokenize(query);
         let mut stmt = self.conn.prepare(
             "SELECT sort, key, headword, pron, text FROM dict_entry
              WHERE module_id = ?1 ORDER BY sort",
         )?;
-        let mut ranked: Vec<(u8, DictHit)> = Vec::new();
+        // (rank, negative match density, sort) orders the results.
+        let mut ranked: Vec<(u8, i64, DictHit)> = Vec::new();
         let rows = stmt.query_map([module_id], |row| {
             Ok((
                 DictHit {
@@ -840,20 +845,34 @@ impl Library {
         })?;
         for row in rows {
             let (hit, text) = row?;
-            let rank = if hit.headword.to_lowercase().contains(&needle)
+            if hit.headword.to_lowercase().contains(&needle)
                 || hit.pron.to_lowercase().contains(&needle)
                 || hit.key.trim_start_matches('0') == needle.trim_start_matches('0')
             {
-                0
-            } else if text.to_lowercase().contains(&needle) {
-                1
-            } else {
+                ranked.push((0, 0, hit));
                 continue;
-            };
-            ranked.push((rank, hit));
+            }
+            if query_tokens.is_empty() {
+                continue;
+            }
+            let body_tokens = crate::search::tokenize(&text);
+            let matches = body_tokens
+                .iter()
+                .filter(|t| query_tokens.contains(t))
+                .count();
+            let all_present = query_tokens
+                .iter()
+                .all(|q| body_tokens.iter().any(|t| t == q));
+            if all_present && matches > 0 {
+                ranked.push((1, -(matches as i64), hit));
+            }
         }
-        ranked.sort_by_key(|(rank, hit)| (*rank, hit.sort));
-        Ok(ranked.into_iter().map(|(_, hit)| hit).take(limit).collect())
+        ranked.sort_by_key(|(rank, density, hit)| (*rank, *density, hit.sort));
+        Ok(ranked
+            .into_iter()
+            .map(|(_, _, hit)| hit)
+            .take(limit)
+            .collect())
     }
 
     /// Commentary entries of one chapter, ordered by starting verse.

@@ -181,8 +181,8 @@ class _ChapterPainter extends CustomPainter {
       for (final (start, end) in coveredSpans(line, covers)) {
         canvas.drawRRect(
           RRect.fromRectAndRadius(
-            Rect.fromLTRB(start * scale - 2, y - fontSize * 0.06,
-                end * scale + 2, y + fontSize * 1.12),
+            Rect.fromLTRB(start * scale - 2, y + fontSize * 0.08,
+                end * scale + 2, y + fontSize * 1.26),
             const Radius.circular(3),
           ),
           Paint()..color = color,
@@ -213,9 +213,13 @@ class _ChapterPainter extends CustomPainter {
     );
     final markerStyle = numberStyle.copyWith(fontStyle: FontStyle.italic);
     final subSectionStyle = textStyle.copyWith(fontStyle: FontStyle.italic);
+    // Washes first, text second — in one pass a line's wash would
+    // conceal the previous line's descenders.
+    for (var i = 0; i < layout.lines.length; i++) {
+      _paintWashes(canvas, layout.lines[i], i * lineHeight);
+    }
     for (var i = 0; i < layout.lines.length; i++) {
       final y = i * lineHeight;
-      _paintWashes(canvas, layout.lines[i], y);
       for (final run in layout.lines[i].runs) {
         final style = run.verseNumber
             ? numberStyle
