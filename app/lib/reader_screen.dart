@@ -2,6 +2,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import 'commentary_pane.dart';
+import 'dictionary_pane.dart';
 import 'desks.dart';
 import 'l10n.dart';
 import 'footnotes_pane.dart';
@@ -136,13 +137,16 @@ class _ReaderScreenState extends State<ReaderScreen>
       ..ensureBadges();
   }
 
-  /// Bible texts carry the reading views; commentaries live in commentary
-  /// views only (ADR 0017).
+  /// Bible texts carry the reading views; commentaries and dictionaries
+  /// live in their own view kinds (ADR 0017, 0019).
   List<ModuleView> get _bibleModules =>
-      [for (final m in _modules) if (m.kind != 'commentary') m];
+      [for (final m in _modules) if (m.kind == 'bible') m];
 
   List<ModuleView> get _commentaryModules =>
       [for (final m in _modules) if (m.kind == 'commentary') m];
+
+  List<ModuleView> get _dictionaryModules =>
+      [for (final m in _modules) if (m.kind == 'dictionary') m];
 
   void _save() {
     userSet(key: 'desk/$_deskId', value: _layout.encode());
@@ -358,31 +362,35 @@ class _ReaderScreenState extends State<ReaderScreen>
   /// Last content width the desk was built at, to snap on window resize.
   double? _deskWidth;
 
-  void _addPane(PaneKind kind) {
-    if (!_layout.hasFreeBadge) return;
+  PaneSpec? _addPane(PaneKind kind) {
+    if (!_layout.hasFreeBadge) return null;
+    PaneSpec? created;
     setState(() {
       switch (kind) {
         case PaneKind.text:
-          _layout.columns.add(PaneColumn(panes: [
-            PaneSpec(
-              kind: PaneKind.text,
-              module: _bibleModules.firstOrNull?.code,
-              anchor: _layout.allPanes.firstOrNull?.anchor,
-            ),
-          ]));
+          created = PaneSpec(
+            kind: PaneKind.text,
+            module: _bibleModules.firstOrNull?.code,
+            anchor: _layout.allPanes.firstOrNull?.anchor,
+          );
+          _layout.columns.add(PaneColumn(panes: [created!]));
         case PaneKind.footnotes:
         case PaneKind.commentary:
+        case PaneKind.dictionary:
           final source = _layout.allPanes
               .where((p) => p.kind == PaneKind.text)
               .firstOrNull;
           final pane = PaneSpec(
             kind: kind,
-            module: kind == PaneKind.commentary
-                ? _commentaryModules.firstOrNull?.code
-                : null,
-            follow: source?.id,
+            module: switch (kind) {
+              PaneKind.commentary => _commentaryModules.firstOrNull?.code,
+              PaneKind.dictionary => _dictionaryModules.firstOrNull?.code,
+              _ => null,
+            },
+            follow: kind == PaneKind.dictionary ? null : source?.id,
             weight: 0.5,
           );
+          created = pane;
           final column =
               source == null ? null : _layout.columnOf(source.id);
           if (column != null) {
@@ -394,6 +402,26 @@ class _ReaderScreenState extends State<ReaderScreen>
       _layout.ensureBadges();
     });
     _snapPending = true;
+    _save();
+    return created;
+  }
+
+  /// Route a long-pressed word (ADR 0019) into the desk's dictionary
+  /// views as a search; with none open yet, one is created first.
+  void _lookupWord(String word) {
+    if (_dictionaryModules.isEmpty) return;
+    var targets =
+        _layout.allPanes.where((p) => p.kind == PaneKind.dictionary).toList();
+    if (targets.isEmpty) {
+      final created = _addPane(PaneKind.dictionary);
+      if (created == null) return;
+      targets = [created];
+    }
+    setState(() {
+      for (final pane in targets) {
+        pane.anchor = 'q:$word';
+      }
+    });
     _save();
   }
 
@@ -422,9 +450,13 @@ class _ReaderScreenState extends State<ReaderScreen>
           : await importOsisFile(path: file.path);
       setState(() => _modules = modules());
       messenger.showSnackBar(SnackBar(
-        content: Text(imported.kind == 'commentary'
-            ? l10n.importedCommentary(imported.title, imported.verses.toInt())
-            : l10n.importedModule(imported.title, imported.verses.toInt())),
+        content: Text(switch (imported.kind) {
+          'commentary' =>
+            l10n.importedCommentary(imported.title, imported.verses.toInt()),
+          'dictionary' =>
+            l10n.importedDictionary(imported.title, imported.verses.toInt()),
+          _ => l10n.importedModule(imported.title, imported.verses.toInt()),
+        }),
       ));
     } catch (e) {
       messenger.showSnackBar(
@@ -532,6 +564,7 @@ class _ReaderScreenState extends State<ReaderScreen>
               switch (spec.kind) {
                 PaneKind.footnotes => Icons.notes_outlined,
                 PaneKind.commentary => Icons.comment_outlined,
+                PaneKind.dictionary => Icons.translate_outlined,
                 PaneKind.text => Icons.menu_book_outlined,
               },
               size: 20,
@@ -717,6 +750,11 @@ class _ReaderScreenState extends State<ReaderScreen>
                 value: PaneKind.commentary,
                 child: Text(context.l10n.commentaryView),
               ),
+              PopupMenuItem(
+                key: const Key('add-dictionary'),
+                value: PaneKind.dictionary,
+                child: Text(context.l10n.dictionaryView),
+              ),
             ],
           ),
           IconButton(
@@ -849,6 +887,7 @@ class _ReaderScreenState extends State<ReaderScreen>
           key: ValueKey('pane-${spec.id}'),
           spec: spec,
           modules: _bibleModules,
+          onWordLookup: _lookupWord,
           followedAnchor: followedAnchor,
           followOptions: _followOptionsFor(spec),
           readingMode: settings.readingMode,
@@ -886,6 +925,23 @@ class _ReaderScreenState extends State<ReaderScreen>
           onFollow: (follow) => _setFollow(spec.id, follow),
           onClose: closable ? () => _closePane(spec.id) : null,
         );
+      case PaneKind.dictionary:
+        return DictionaryPane(
+          key: ValueKey('pane-${spec.id}'),
+          module: spec.module,
+          modules: _dictionaryModules,
+          onModule: (code) => _setModule(spec.id, code),
+          anchor: spec.anchor,
+          onAnchor: (anchor) => _setAnchor(spec.id, anchor),
+          previewModule:
+              settings.defaultModule ?? _bibleModules.firstOrNull?.code,
+          readingMode: settings.readingMode,
+          onToggleMode: toggleMode,
+          badge: badge,
+          onOpenReference: (osis) => _openReference(spec, osis),
+          dragHandle: _dragHandle(spec),
+          onClose: closable ? () => _closePane(spec.id) : null,
+        );
       case PaneKind.commentary:
         return CommentaryPane(
           key: ValueKey('pane-${spec.id}'),
@@ -896,6 +952,7 @@ class _ReaderScreenState extends State<ReaderScreen>
           followedAnchorEnd: _layout.byId(spec.follow)?.anchorEnd,
           sourceModule: _layout.byId(spec.follow)?.module,
           onOpenReference: (osis) => _openReference(spec, osis),
+          onWordLookup: _lookupWord,
           followValue: spec.follow,
           followOptions: _followOptionsFor(spec),
           readingMode: settings.readingMode,

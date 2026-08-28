@@ -70,3 +70,81 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+DICT_CONF = """\
+[WbTest]
+Description=Testlexikon
+DataPath=./modules/lexdict/zld/wbtest/dict
+ModDrv=zLD
+SourceType=TEI
+Encoding=UTF-8
+CompressType=ZIP
+Lang=de
+"""
+
+DICT_ENTRIES = [
+    (
+        "00001",
+        '<entryFree n="00001"><orth>ἀγαθός</orth>'
+        '<pron rend="italic">ag-ath-os\'</pron><lb/>'
+        "<def>gut, brauchbar; vgl. 1. Mose 1,2</def></entryFree>",
+    ),
+    (
+        "00002",
+        '<entryFree n="00002"><orth>ἀγάπη</orth>'
+        '<pron rend="italic">ag-ah\'-pay</pron><lb/>'
+        "<def>I) d. Liebe<lb/>1) d. höchste Form d. Liebe.</def></entryFree>",
+    ),
+    (
+        "00003",
+        '<entryFree n="00003"><orth>οὐρανός</orth>'
+        '<pron rend="italic">oo-ran-os\'</pron><lb/>'
+        "<def>d. Himmel; d. sichtbare Himmelsgewölbe.</def></entryFree>",
+    ),
+]
+
+
+def dictionary() -> None:
+    def block(entries):
+        header = struct.pack("<I", len(entries))
+        body = b""
+        base = 4 + len(entries) * 8
+        pairs = b""
+        for _, e in entries:
+            raw = e.encode()
+            pairs += struct.pack("<II", base + len(body), len(raw))
+            body += raw
+        return header[:4] + pairs + body
+
+    blocks = [block(DICT_ENTRIES[:2]), block(DICT_ENTRIES[2:])]
+    zdx = b""
+    zdt = b""
+    for b in blocks:
+        compressed = zlib.compress(b, 6)
+        zdx += struct.pack("<II", len(zdt), len(compressed))
+        zdt += compressed
+    idx = b""
+    dat = b""
+    placements = [("00001", 0, 0), ("00002", 0, 1), ("00003", 1, 0)]
+    for key, block_no, entry_no in placements:
+        idx += struct.pack("<II", len(dat), 15)
+        dat += key.encode() + b"\r\n" + struct.pack("<II", block_no, entry_no)
+
+    out = Path(__file__).resolve().parent.parent / "app/test/fixtures/dictionary.sword.zip"
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        stamp = (2026, 1, 1, 0, 0, 0)
+
+        def add(name: str, data: bytes) -> None:
+            info = zipfile.ZipInfo(name, date_time=stamp)
+            z.writestr(info, data)
+
+        add("mods.d/wbtest.conf", DICT_CONF.encode())
+        add("modules/lexdict/zld/wbtest/dict.idx", idx)
+        add("modules/lexdict/zld/wbtest/dict.dat", dat)
+        add("modules/lexdict/zld/wbtest/dict.zdx", zdx)
+        add("modules/lexdict/zld/wbtest/dict.zdt", zdt)
+    print(f"wrote {out}")
+
+
+dictionary()

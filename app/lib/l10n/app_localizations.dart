@@ -236,6 +236,12 @@ abstract class AppLocalizations {
   /// **'Commentary view'**
   String get commentaryView;
 
+  /// No description provided for @dictionaryView.
+  ///
+  /// In en, this message translates to:
+  /// **'Dictionary view'**
+  String get dictionaryView;
+
   /// No description provided for @settingsTooltip.
   ///
   /// In en, this message translates to:
@@ -308,6 +314,12 @@ abstract class AppLocalizations {
   /// **'Commentary'**
   String get commentaryTitle;
 
+  /// No description provided for @dictionaryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Dictionary'**
+  String get dictionaryTitle;
+
   /// No description provided for @selectorTooltip.
   ///
   /// In en, this message translates to:
@@ -349,6 +361,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Imported {title} ({entries} entries)'**
   String importedCommentary(String title, int entries);
+
+  /// No description provided for @importedDictionary.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported {title} ({entries} entries)'**
+  String importedDictionary(String title, int entries);
+
+  /// No description provided for @noDictionaryModules.
+  ///
+  /// In en, this message translates to:
+  /// **'Import a dictionary (a SWORD zip package) to use this view'**
+  String get noDictionaryModules;
+
+  /// No description provided for @searchDictionaryHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search by Strong\'s number or word — or long-press a word in the text'**
+  String get searchDictionaryHint;
+
+  /// No description provided for @dictionarySearchLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Number or word'**
+  String get dictionarySearchLabel;
+
+  /// No description provided for @noDictionaryResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No matches'**
+  String get noDictionaryResults;
 
   /// No description provided for @importToBegin.
   ///

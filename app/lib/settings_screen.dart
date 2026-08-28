@@ -58,7 +58,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // reading-view candidates.
       _modules = [
         for (final m in modules())
-          if (m.kind != 'commentary') m
+          if (m.kind == 'bible') m
       ];
     } catch (_) {
       _modules = const [];

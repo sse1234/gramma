@@ -84,6 +84,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get commentaryView => 'Kommentaransicht';
 
   @override
+  String get dictionaryView => 'Wörterbuchansicht';
+
+  @override
   String get settingsTooltip => 'Einstellungen';
 
   @override
@@ -124,6 +127,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get commentaryTitle => 'Kommentar';
 
   @override
+  String get dictionaryTitle => 'Wörterbuch';
+
+  @override
   String get selectorTooltip => 'Buch, Kapitel, Vers wählen';
 
   @override
@@ -148,6 +154,25 @@ class AppLocalizationsDe extends AppLocalizations {
   String importedCommentary(String title, int entries) {
     return '$title importiert ($entries Abschnitte)';
   }
+
+  @override
+  String importedDictionary(String title, int entries) {
+    return '$title importiert ($entries Einträge)';
+  }
+
+  @override
+  String get noDictionaryModules =>
+      'Importiere ein Wörterbuch (SWORD-Zip-Paket), um diese Ansicht zu nutzen';
+
+  @override
+  String get searchDictionaryHint =>
+      'Suche nach Strong-Nummer oder Wort – oder halte ein Wort im Text gedrückt';
+
+  @override
+  String get dictionarySearchLabel => 'Nummer oder Wort';
+
+  @override
+  String get noDictionaryResults => 'Keine Treffer';
 
   @override
   String get importToBegin =>

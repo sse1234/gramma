@@ -84,6 +84,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commentaryView => 'Commentary view';
 
   @override
+  String get dictionaryView => 'Dictionary view';
+
+  @override
   String get settingsTooltip => 'Settings';
 
   @override
@@ -124,6 +127,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commentaryTitle => 'Commentary';
 
   @override
+  String get dictionaryTitle => 'Dictionary';
+
+  @override
   String get selectorTooltip => 'Select book, chapter, verse';
 
   @override
@@ -148,6 +154,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String importedCommentary(String title, int entries) {
     return 'Imported $title ($entries entries)';
   }
+
+  @override
+  String importedDictionary(String title, int entries) {
+    return 'Imported $title ($entries entries)';
+  }
+
+  @override
+  String get noDictionaryModules =>
+      'Import a dictionary (a SWORD zip package) to use this view';
+
+  @override
+  String get searchDictionaryHint =>
+      'Search by Strong\'s number or word — or long-press a word in the text';
+
+  @override
+  String get dictionarySearchLabel => 'Number or word';
+
+  @override
+  String get noDictionaryResults => 'No matches';
 
   @override
   String get importToBegin => 'Import an OSIS module to begin reading';

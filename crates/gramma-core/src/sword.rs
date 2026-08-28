@@ -57,6 +57,33 @@ pub struct SwordCommentary {
     pub entries: Vec<CommentaryEntry>,
 }
 
+/// A SWORD package's content, by module driver.
+pub enum SwordModule {
+    Commentary(SwordCommentary),
+    Dictionary(SwordDictionary),
+}
+
+/// A lexicon/dictionary (zLD, ADR 0019): keyed entries in sort order.
+pub struct SwordDictionary {
+    pub code: String,
+    pub title: String,
+    pub language: String,
+    pub entries: Vec<DictEntry>,
+}
+
+pub struct DictEntry {
+    /// Numeric ordering key (the Strong's number for Strong's lexica).
+    pub sort: u32,
+    /// The module's own key string ("00026").
+    pub key: String,
+    /// The headword (the Greek word for Strong's).
+    pub headword: String,
+    /// Transliteration / pronunciation.
+    pub pron: String,
+    /// Normalized body; paragraphs are separated by "\n\n".
+    pub text: String,
+}
+
 /// One commentary section, covering a verse range within one chapter.
 pub struct CommentaryEntry {
     pub book: BookId,
@@ -83,6 +110,10 @@ struct Conf {
     title: String,
     language: String,
     data_path: String,
+    mod_drv: String,
+    compress: String,
+    source: String,
+    encoding: String,
 }
 
 fn parse_conf(conf: &str) -> Result<Conf, SwordError> {
@@ -100,19 +131,12 @@ fn parse_conf(conf: &str) -> Result<Conf, SwordError> {
         }
     }
     let code = code.ok_or(SwordError::NoConf)?;
-    let expect = |key: &str, wanted: &str| -> Result<(), SwordError> {
-        let got = values.get(key).copied().unwrap_or("");
-        if got.eq_ignore_ascii_case(wanted) {
-            Ok(())
-        } else {
-            Err(SwordError::Unsupported(format!("{key}={got}")))
-        }
-    };
-    expect("ModDrv", "zCom")?;
-    expect("CompressType", "ZIP")?;
-    expect("SourceType", "OSIS")?;
-    expect("Encoding", "UTF-8")?;
+    let get = |key: &str| values.get(key).copied().unwrap_or("").to_string();
     Ok(Conf {
+        mod_drv: get("ModDrv"),
+        compress: get("CompressType"),
+        source: get("SourceType"),
+        encoding: get("Encoding"),
         title: values
             .get("Description")
             .map(|s| s.to_string())
@@ -127,8 +151,24 @@ fn parse_conf(conf: &str) -> Result<Conf, SwordError> {
     })
 }
 
+/// Only ZIP-compressed, UTF-8 modules with the expected markup are
+/// accepted; anything else fails clearly instead of importing wrongly.
+fn ensure(conf: &Conf, mod_drv: &str, source: &str) -> Result<(), SwordError> {
+    for (name, got, want) in [
+        ("ModDrv", &conf.mod_drv, mod_drv),
+        ("CompressType", &conf.compress, "ZIP"),
+        ("SourceType", &conf.source, source),
+        ("Encoding", &conf.encoding, "UTF-8"),
+    ] {
+        if !got.eq_ignore_ascii_case(want) {
+            return Err(SwordError::Unsupported(format!("{name}={got}")));
+        }
+    }
+    Ok(())
+}
+
 /// Read a SWORD distribution package (the CrossWire raw zip form).
-pub fn read_zcom_zip(path: &Path) -> Result<SwordCommentary, SwordError> {
+pub fn read_sword_zip(path: &Path) -> Result<SwordModule, SwordError> {
     let file = std::fs::File::open(path)?;
     let mut zip = zip::ZipArchive::new(file)?;
     let conf_name = (0..zip.len())
@@ -150,6 +190,18 @@ pub fn read_zcom_zip(path: &Path) -> Result<SwordCommentary, SwordError> {
             Err(e) => Err(e.into()),
         }
     };
+    if conf.mod_drv.eq_ignore_ascii_case("zLD") {
+        ensure(&conf, "zLD", "TEI")?;
+        let mut file = |ext: &str| -> Result<Vec<u8>, SwordError> {
+            read(format!("{}.{ext}", conf.data_path))?
+                .ok_or_else(|| SwordError::Corrupt(format!("missing {ext} file")))
+        };
+        let (idx, dat, zdx, zdt) = (file("idx")?, file("dat")?, file("zdx")?, file("zdt")?);
+        return Ok(SwordModule::Dictionary(parse_zld_parsed(
+            conf, &idx, &dat, &zdx, &zdt,
+        )?));
+    }
+    ensure(&conf, "zCom", "OSIS")?;
     let mut testaments = Vec::new();
     for t in ["ot", "nt"] {
         let base = format!("{}/{t}", conf.data_path);
@@ -162,12 +214,24 @@ pub fn read_zcom_zip(path: &Path) -> Result<SwordCommentary, SwordError> {
         };
         testaments.push(Testament { bzs, bzv, bzz });
     }
-    parse_zcom_parsed(conf, &testaments)
+    Ok(SwordModule::Commentary(parse_zcom_parsed(
+        conf,
+        &testaments,
+    )?))
+}
+
+pub fn read_zcom_zip(path: &Path) -> Result<SwordCommentary, SwordError> {
+    match read_sword_zip(path)? {
+        SwordModule::Commentary(c) => Ok(c),
+        SwordModule::Dictionary(_) => Err(SwordError::Unsupported("expected a commentary".into())),
+    }
 }
 
 /// Parse a zCom commentary from its configuration and data files.
 pub fn parse_zcom(conf: &str, testaments: &[Testament]) -> Result<SwordCommentary, SwordError> {
-    parse_zcom_parsed(parse_conf(conf)?, testaments)
+    let conf = parse_conf(conf)?;
+    ensure(&conf, "zCom", "OSIS")?;
+    parse_zcom_parsed(conf, testaments)
 }
 
 fn parse_zcom_parsed(conf: Conf, testaments: &[Testament]) -> Result<SwordCommentary, SwordError> {
@@ -426,5 +490,171 @@ fn parse_fragment(fragment: &str) -> Result<Option<CommentaryEntry>, SwordError>
         heading,
         text: text.out,
         refs,
+    }))
+}
+
+/// Parse a zLD dictionary from its configuration and four data files
+/// (ADR 0019). `idx`/`dat` map keys to a block number and entry index;
+/// `zdx`/`zdt` hold the zlib blocks, each prefixed by an entry count and
+/// (offset, size) pairs into the decompressed block.
+pub fn parse_zld(
+    conf: &str,
+    idx: &[u8],
+    dat: &[u8],
+    zdx: &[u8],
+    zdt: &[u8],
+) -> Result<SwordDictionary, SwordError> {
+    let conf = parse_conf(conf)?;
+    ensure(&conf, "zLD", "TEI")?;
+    parse_zld_parsed(conf, idx, dat, zdx, zdt)
+}
+
+fn parse_zld_parsed(
+    conf: Conf,
+    idx: &[u8],
+    dat: &[u8],
+    zdx: &[u8],
+    zdt: &[u8],
+) -> Result<SwordDictionary, SwordError> {
+    let blocks: Vec<(u32, u32)> = zdx
+        .as_chunks::<8>()
+        .0
+        .iter()
+        .map(|c| {
+            (
+                u32::from_le_bytes(c[0..4].try_into().unwrap()),
+                u32::from_le_bytes(c[4..8].try_into().unwrap()),
+            )
+        })
+        .collect();
+    let mut cache: HashMap<u32, Vec<u8>> = HashMap::new();
+    let mut entries = Vec::new();
+    for (i, record) in idx.as_chunks::<8>().0.iter().enumerate() {
+        let off = u32::from_le_bytes(record[0..4].try_into().unwrap()) as usize;
+        let size = u32::from_le_bytes(record[4..8].try_into().unwrap()) as usize;
+        let slice = dat
+            .get(off..off + size)
+            .ok_or_else(|| SwordError::Corrupt("key record bounds".into()))?;
+        let split = slice
+            .iter()
+            .position(|&b| b == b'\r' || b == b'\n')
+            .ok_or_else(|| SwordError::Corrupt("key record".into()))?;
+        let key = std::str::from_utf8(&slice[..split])
+            .map_err(|_| SwordError::Encoding)?
+            .trim()
+            .to_string();
+        // Exactly one line break separates key and binary tail — the
+        // tail's block/entry numbers may themselves contain 0x0A/0x0D.
+        let data_start = if slice[split..].starts_with(b"\r\n") {
+            split + 2
+        } else {
+            split + 1
+        };
+        let tail = slice
+            .get(data_start..data_start + 8)
+            .ok_or_else(|| SwordError::Corrupt("key record tail".into()))?;
+        let block = u32::from_le_bytes(tail[0..4].try_into().unwrap());
+        let entry_no = u32::from_le_bytes(tail[4..8].try_into().unwrap()) as usize;
+        let data = match cache.entry(block) {
+            std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+            std::collections::hash_map::Entry::Vacant(e) => {
+                let (start, compressed) = *blocks
+                    .get(block as usize)
+                    .ok_or_else(|| SwordError::Corrupt(format!("block {block}")))?;
+                let raw = zdt
+                    .get(start as usize..(start + compressed) as usize)
+                    .ok_or_else(|| SwordError::Corrupt(format!("block {block} bounds")))?;
+                let mut out = Vec::new();
+                ZlibDecoder::new(raw).read_to_end(&mut out)?;
+                e.insert(out)
+            }
+        };
+        let count = u32::from_le_bytes(
+            data.get(0..4)
+                .ok_or_else(|| SwordError::Corrupt("block header".into()))?
+                .try_into()
+                .unwrap(),
+        ) as usize;
+        if entry_no >= count {
+            return Err(SwordError::Corrupt(format!("entry {entry_no} of {count}")));
+        }
+        let pair = data
+            .get(4 + entry_no * 8..12 + entry_no * 8)
+            .ok_or_else(|| SwordError::Corrupt("entry pair".into()))?;
+        let eoff = u32::from_le_bytes(pair[0..4].try_into().unwrap()) as usize;
+        let esize = u32::from_le_bytes(pair[4..8].try_into().unwrap()) as usize;
+        let fragment = std::str::from_utf8(
+            data.get(eoff..eoff + esize)
+                .ok_or_else(|| SwordError::Corrupt("entry bounds".into()))?,
+        )
+        .map_err(|_| SwordError::Encoding)?;
+        let sort = key.parse::<u32>().ok().unwrap_or(i as u32 + 1);
+        if let Some(entry) = parse_tei_entry(sort, &key, fragment)? {
+            entries.push(entry);
+        }
+    }
+    entries.sort_by_key(|e| e.sort);
+    if entries.is_empty() {
+        return Err(SwordError::Empty);
+    }
+    Ok(SwordDictionary {
+        code: conf.code,
+        title: conf.title,
+        language: conf.language,
+        entries,
+    })
+}
+
+/// One TEI `entryFree` fragment: `orth` is the headword, `pron` the
+/// transliteration, `def` the body with `<lb/>` as paragraph breaks.
+fn parse_tei_entry(sort: u32, key: &str, fragment: &str) -> Result<Option<DictEntry>, SwordError> {
+    let mut reader = Reader::from_str(fragment);
+    reader.config_mut().check_end_names = false;
+    let mut headword = String::new();
+    let mut pron = String::new();
+    let mut in_orth = false;
+    let mut in_pron = false;
+    let mut text = TextBuilder::new();
+    loop {
+        let event = reader.read_event()?;
+        match &event {
+            Event::Start(e) => match e.local_name().as_ref() {
+                b"orth" if headword.is_empty() => in_orth = true,
+                b"pron" if pron.is_empty() => in_pron = true,
+                _ => {}
+            },
+            Event::Empty(e) if e.local_name().as_ref() == b"lb" => {
+                text.paragraph_break();
+            }
+            Event::End(e) => match e.local_name().as_ref() {
+                b"orth" => in_orth = false,
+                b"pron" => in_pron = false,
+                _ => {}
+            },
+            Event::Text(t) => {
+                let content = t
+                    .xml_content(quick_xml::XmlVersion::Implicit1_0)
+                    .map_err(quick_xml::Error::from)?;
+                if in_orth {
+                    headword.push_str(content.trim());
+                } else if in_pron {
+                    pron.push_str(content.trim());
+                } else {
+                    text.push_text(&content);
+                }
+            }
+            Event::Eof => break,
+            _ => {}
+        }
+    }
+    if headword.is_empty() && text.out.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(DictEntry {
+        sort,
+        key: key.to_string(),
+        headword,
+        pron,
+        text: text.out,
     }))
 }

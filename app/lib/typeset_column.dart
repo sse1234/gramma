@@ -41,12 +41,16 @@ class TypesetColumn extends StatelessWidget {
     required this.lineHeight,
     this.onMarkerTap,
     this.onPlainTap,
+    this.onWordLongPress,
   });
 
   /// A tap on an inline note marker (ADR 0016); other taps fall through
   /// to [onPlainTap] (the reading-mode toggle).
   final void Function(int chapter, RunView run)? onMarkerTap;
   final VoidCallback? onPlainTap;
+
+  /// A long press on a word (ADR 0019): dictionary lookup.
+  final ValueChanged<RunView>? onWordLongPress;
 
   final List<ColumnRow> rows;
   final int rowCount;
@@ -73,23 +77,43 @@ class TypesetColumn extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTapUp: (details) {
-          final index = details.localPosition.dy ~/ lineHeight;
-          final hit = rows
-              .whereType<TextRow>()
-              .where((r) => r.row == index)
-              .firstOrNull;
-          final run = hit == null
-              ? null
-              : runInLine(hit.line, scale, details.localPosition.dx, slop: 6);
-          if (hit != null &&
-              run != null &&
-              run.noteMarker &&
-              onMarkerTap != null) {
-            onMarkerTap!(hit.chapter, run);
-          } else {
-            onPlainTap?.call();
+          // Markers carry their forgiving halo (ADR 0019), searched
+          // across neighboring rows; anything else falls through.
+          final marker = markerNear(
+            [
+              for (final r in rows.whereType<TextRow>())
+                (line: r.line, top: r.row * lineHeight),
+            ],
+            scale,
+            fontSize * (rows.whereType<TextRow>().firstOrNull?.numberScale ??
+                    0.65),
+            details.localPosition,
+          );
+          if (marker != null && onMarkerTap != null) {
+            final row = rows
+                .whereType<TextRow>()
+                .where((r) => r.line.runs.contains(marker))
+                .firstOrNull;
+            if (row != null) {
+              onMarkerTap!(row.chapter, marker);
+              return;
+            }
           }
+          onPlainTap?.call();
         },
+        onLongPressStart: onWordLongPress == null
+            ? null
+            : (details) {
+                final index = details.localPosition.dy ~/ lineHeight;
+                final hit = rows
+                    .whereType<TextRow>()
+                    .where((r) => r.row == index)
+                    .firstOrNull;
+                final run = hit == null
+                    ? null
+                    : runInLine(hit.line, scale, details.localPosition.dx);
+                if (run != null) onWordLongPress!(run);
+              },
         child: CustomPaint(
           size: Size.fromHeight(rowCount * lineHeight),
           painter: _ColumnPainter(

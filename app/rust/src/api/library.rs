@@ -108,15 +108,19 @@ pub fn import_osis_file(path: String) -> anyhow::Result<ModuleView> {
     })
 }
 
-/// Import a SWORD zCom commentary package (a CrossWire zip, ADR 0017).
+/// Import a SWORD package (a CrossWire zip): zCom commentaries
+/// (ADR 0017) and zLD dictionaries (ADR 0019), dispatched by driver.
 pub fn import_sword_file(path: String) -> anyhow::Result<ModuleView> {
-    let doc = gramma_core::sword::read_zcom_zip(Path::new(&path))
+    let module = gramma_core::sword::read_sword_zip(Path::new(&path))
         .with_context(|| format!("read {path}"))?;
     let mut guard = LIBRARY.lock().unwrap();
     let library = guard
         .as_mut()
         .ok_or_else(|| anyhow!("library not opened"))?;
-    let info = library.import_commentary(&doc)?;
+    let info = match module {
+        gramma_core::sword::SwordModule::Commentary(doc) => library.import_commentary(&doc)?,
+        gramma_core::sword::SwordModule::Dictionary(doc) => library.import_dictionary(&doc)?,
+    };
     Ok(ModuleView {
         code: info.code,
         title: info.title,
@@ -124,6 +128,43 @@ pub fn import_sword_file(path: String) -> anyhow::Result<ModuleView> {
         verses: info.verses,
         notes: info.notes,
         kind: info.kind,
+    })
+}
+
+/// A dictionary search hit (ADR 0019), ranked headword-first.
+pub struct DictHitView {
+    pub sort: u32,
+    /// User-facing key ("G26" for Strong's Greek).
+    pub display_key: String,
+    pub headword: String,
+    pub pron: String,
+}
+
+/// User-facing form of a dictionary key: Strong's numeric keys read as
+/// "G26"; anything else stays the module's own key.
+#[flutter_rust_bridge::frb(ignore)]
+pub(crate) fn display_key(key: &str, sort: u32) -> String {
+    if !key.is_empty() && key.bytes().all(|b| b.is_ascii_digit()) {
+        format!("G{sort}")
+    } else {
+        key.to_string()
+    }
+}
+
+/// Search a dictionary module: Strong numbers ("26", "G26"), headwords,
+/// transliterations, and body text (Unicode case-insensitive).
+#[flutter_rust_bridge::frb(sync)]
+pub fn dict_search(module_code: String, query: String) -> anyhow::Result<Vec<DictHitView>> {
+    let query = query.trim().trim_start_matches(['G', 'g']).to_string();
+    with_library(|library| library.dictionary_search(&module_code, &query, 40)).map(|hits| {
+        hits.into_iter()
+            .map(|h| DictHitView {
+                sort: h.sort,
+                display_key: display_key(&h.key, h.sort),
+                headword: h.headword,
+                pron: h.pron,
+            })
+            .collect()
     })
 }
 

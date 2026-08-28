@@ -5,10 +5,52 @@ import 'run_paint.dart';
 import 'settings.dart';
 import 'src/rust/api/typeset.dart';
 
-/// Paints one typeset commentary entry (ADR 0018): the same Knuth–Plass
-/// lines and painting path as the Bible text, at the pane's own measure.
-/// Runs carrying a link index are tappable references (ADR 0016 hit
-/// paths); other taps fall through to [onPlainTap].
+/// The common shape of a typeset prose layout — commentary entries
+/// (ADR 0018) and dictionary entries (ADR 0019) paint identically.
+class ProseLayout {
+  const ProseLayout({
+    required this.lines,
+    required this.refs,
+    required this.unitsPerEm,
+    required this.measureUnits,
+    required this.numberScale,
+    required this.plainText,
+  });
+
+  ProseLayout.ofComment(CommentLayoutView c)
+      : this(
+          lines: c.lines,
+          refs: c.refs,
+          unitsPerEm: c.unitsPerEm,
+          measureUnits: c.measureUnits,
+          numberScale: c.numberScale,
+          plainText: c.plainText,
+        );
+
+  ProseLayout.ofDict(DictLayoutView d)
+      : this(
+          lines: d.lines,
+          refs: d.refs,
+          unitsPerEm: d.unitsPerEm,
+          measureUnits: d.measureUnits,
+          numberScale: d.numberScale,
+          plainText: d.plainText,
+        );
+
+  final List<LineView> lines;
+
+  /// OSIS targets by run link index.
+  final List<String> refs;
+  final int unitsPerEm;
+  final int measureUnits;
+  final double numberScale;
+  final String plainText;
+}
+
+/// Paints one typeset prose entry: the same Knuth–Plass lines and
+/// painting path as the Bible text, at the pane's own measure. Runs
+/// carrying a link index are tappable references (ADR 0016 hit paths);
+/// other taps fall through to [onPlainTap].
 class TypesetProse extends StatelessWidget {
   const TypesetProse({
     super.key,
@@ -17,9 +59,10 @@ class TypesetProse extends StatelessWidget {
     this.lineHeightEm = 1.5,
     this.onLinkTap,
     this.onPlainTap,
+    this.onWordLongPress,
   });
 
-  final CommentLayoutView layout;
+  final ProseLayout layout;
 
   /// Text size in logical pixels; the measure was computed from it.
   final double fontSize;
@@ -28,6 +71,9 @@ class TypesetProse extends StatelessWidget {
   /// A tap on a reference run, with the resolved OSIS target.
   final ValueChanged<String>? onLinkTap;
   final VoidCallback? onPlainTap;
+
+  /// A long press on a word (ADR 0019): dictionary lookup.
+  final ValueChanged<RunView>? onWordLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -43,8 +89,7 @@ class TypesetProse extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTapUp: (details) {
           final run = runAtOffset(
-              layout.lines, scale, lineHeight, details.localPosition,
-              slop: 6);
+              layout.lines, scale, lineHeight, details.localPosition);
           final link = run?.link;
           if (link != null && link < layout.refs.length && onLinkTap != null) {
             onLinkTap!(layout.refs[link]);
@@ -52,6 +97,13 @@ class TypesetProse extends StatelessWidget {
             onPlainTap?.call();
           }
         },
+        onLongPressStart: onWordLongPress == null
+            ? null
+            : (details) {
+                final run = runAtOffset(
+                    layout.lines, scale, lineHeight, details.localPosition);
+                if (run != null) onWordLongPress!(run);
+              },
         child: CustomPaint(
           size: Size(width, layout.lines.length * lineHeight),
           painter: _ProsePainter(
@@ -82,7 +134,7 @@ class _ProsePainter extends CustomPainter {
     required this.family,
   });
 
-  final CommentLayoutView layout;
+  final ProseLayout layout;
   final double scale;
   final double fontSize;
   final double lineHeight;

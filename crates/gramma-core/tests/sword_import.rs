@@ -8,7 +8,9 @@ use flate2::Compression;
 use flate2::write::ZlibEncoder;
 use gramma_core::library::Library;
 use gramma_core::reference::BookId;
-use gramma_core::sword::{Testament, parse_zcom, read_zcom_zip};
+use gramma_core::sword::{
+    SwordModule, Testament, parse_zcom, parse_zld, read_sword_zip, read_zcom_zip,
+};
 
 const CONF: &str = "\
 [GerTest]
@@ -165,28 +167,219 @@ fn commentary_imports_into_the_library_and_queries_by_chapter() {
 #[ignore = "needs a real SWORD package via GRAMMA_SWORD_ZIP"]
 fn reads_a_real_package_when_provided() {
     let path = std::env::var("GRAMMA_SWORD_ZIP").expect("set GRAMMA_SWORD_ZIP");
-    let doc = read_zcom_zip(std::path::Path::new(&path)).unwrap();
-    assert!(!doc.code.is_empty());
-    assert!(
-        doc.entries.len() > 100,
-        "only {} entries",
-        doc.entries.len()
-    );
-    for e in &doc.entries {
-        assert!(!e.text.is_empty() || e.heading.is_some());
-        assert!(e.verse_start <= e.verse_end);
-        for r in &e.refs {
-            assert!(e.text.is_char_boundary(r.start as usize));
-            assert!(e.text.is_char_boundary(r.end as usize));
-            assert!(r.start < r.end && (r.end as usize) <= e.text.len());
+    match read_sword_zip(std::path::Path::new(&path)).unwrap() {
+        SwordModule::Commentary(doc) => {
+            assert!(!doc.code.is_empty());
+            assert!(
+                doc.entries.len() > 100,
+                "only {} entries",
+                doc.entries.len()
+            );
+            for e in &doc.entries {
+                assert!(!e.text.is_empty() || e.heading.is_some());
+                assert!(e.verse_start <= e.verse_end);
+                for r in &e.refs {
+                    assert!(e.text.is_char_boundary(r.start as usize));
+                    assert!(e.text.is_char_boundary(r.end as usize));
+                    assert!(r.start < r.end && (r.end as usize) <= e.text.len());
+                }
+            }
+            let with_heading = doc.entries.iter().filter(|e| e.heading.is_some()).count();
+            println!(
+                "{}: {} commentary entries, {} with heading, {} refs",
+                doc.code,
+                doc.entries.len(),
+                with_heading,
+                doc.entries.iter().map(|e| e.refs.len()).sum::<usize>()
+            );
+        }
+        SwordModule::Dictionary(doc) => {
+            assert!(!doc.code.is_empty());
+            assert!(
+                doc.entries.len() > 100,
+                "only {} entries",
+                doc.entries.len()
+            );
+            let mut sorts = std::collections::HashSet::new();
+            for e in &doc.entries {
+                assert!(!e.headword.is_empty() || !e.text.is_empty());
+                assert!(sorts.insert(e.sort), "duplicate sort {}", e.sort);
+            }
+            let with_pron = doc.entries.iter().filter(|e| !e.pron.is_empty()).count();
+            println!(
+                "{}: {} dictionary entries, {} with transliteration",
+                doc.code,
+                doc.entries.len(),
+                with_pron
+            );
         }
     }
-    let with_heading = doc.entries.iter().filter(|e| e.heading.is_some()).count();
-    println!(
-        "{}: {} entries, {} with heading, {} refs",
-        doc.code,
-        doc.entries.len(),
-        with_heading,
-        doc.entries.iter().map(|e| e.refs.len()).sum::<usize>()
+}
+
+// ---- zLD dictionaries (ADR 0019) ----
+
+const DICT_CONF: &str = "\
+[GerTestDict]
+Description=Testlexikon Griechisch-Deutsch
+DataPath=./modules/lexdict/zld/gertestdict/dict
+ModDrv=zLD
+SourceType=TEI
+Encoding=UTF-8
+CompressType=ZIP
+Lang=de
+";
+
+const ENTRY_1: &str = concat!(
+    r#"<entryFree n="00001"><orth>ἀγαθός</orth>"#,
+    r#"<pron rend="italic">ag-ath-os'</pron><lb/>"#,
+    "<def>gut, brauchbar;\nvgl. Mt 24:12 und danach 25:14</def></entryFree>",
+);
+const ENTRY_2: &str = concat!(
+    r#"<entryFree n="00002"><orth>ἀγάπη</orth>"#,
+    r#"<pron rend="italic">ag-ah'-pay</pron><lb/>"#,
+    "<def>I) d. Liebe<lb/>1) d. höchste   Form d. Liebe.</def></entryFree>",
+);
+const ENTRY_3: &str = concat!(
+    r#"<entryFree n="00003"><orth>ἄγγελος</orth>"#,
+    r#"<pron rend="italic">ang'-el-os</pron><lb/>"#,
+    "<def>d. Bote, d. Engel</def></entryFree>",
+);
+
+/// Build the four zLD files: two zlib blocks (entries 1+2, entry 3),
+/// each with the block-local count and (offset, size) pair header.
+fn zld_files() -> (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>) {
+    fn block(entries: &[&str]) -> Vec<u8> {
+        let mut header = Vec::new();
+        header.extend_from_slice(&(entries.len() as u32).to_le_bytes());
+        let mut body = Vec::new();
+        let base = 4 + entries.len() * 8;
+        for e in entries {
+            header.extend_from_slice(&((base + body.len()) as u32).to_le_bytes());
+            header.extend_from_slice(&(e.len() as u32).to_le_bytes());
+            body.extend_from_slice(e.as_bytes());
+        }
+        header.extend_from_slice(&body);
+        header
+    }
+    let blocks = [block(&[ENTRY_1, ENTRY_2]), block(&[ENTRY_3])];
+    let mut zdx = Vec::new();
+    let mut zdt = Vec::new();
+    for b in &blocks {
+        let mut z = ZlibEncoder::new(Vec::new(), Compression::default());
+        z.write_all(b).unwrap();
+        let compressed = z.finish().unwrap();
+        zdx.extend_from_slice(&(zdt.len() as u32).to_le_bytes());
+        zdx.extend_from_slice(&(compressed.len() as u32).to_le_bytes());
+        zdt.extend_from_slice(&compressed);
+    }
+    let mut idx = Vec::new();
+    let mut dat = Vec::new();
+    for (key, block_no, entry_no) in [("00001", 0u32, 0u32), ("00002", 0, 1), ("00003", 1, 0)] {
+        idx.extend_from_slice(&(dat.len() as u32).to_le_bytes());
+        idx.extend_from_slice(&15u32.to_le_bytes());
+        dat.extend_from_slice(key.as_bytes());
+        dat.extend_from_slice(b"\r\n");
+        dat.extend_from_slice(&block_no.to_le_bytes());
+        dat.extend_from_slice(&entry_no.to_le_bytes());
+    }
+    (idx, dat, zdx, zdt)
+}
+
+#[test]
+fn parses_a_synthetic_zld_dictionary() {
+    let (idx, dat, zdx, zdt) = zld_files();
+    let dict = parse_zld(DICT_CONF, &idx, &dat, &zdx, &zdt).unwrap();
+    assert_eq!(dict.code, "GerTestDict");
+    assert_eq!(dict.language, "de");
+    assert_eq!(dict.entries.len(), 3);
+    let a = &dict.entries[0];
+    assert_eq!((a.sort, a.key.as_str()), (1, "00001"));
+    assert_eq!(a.headword, "ἀγαθός");
+    assert_eq!(a.pron, "ag-ath-os'");
+    assert_eq!(a.text, "gut, brauchbar; vgl. Mt 24:12 und danach 25:14");
+    let b = &dict.entries[1];
+    assert_eq!(
+        b.text, "I) d. Liebe\n\n1) d. höchste Form d. Liebe.",
+        "lb becomes a paragraph break, whitespace normalizes"
+    );
+    assert_eq!(dict.entries[2].headword, "ἄγγελος");
+}
+
+#[test]
+fn the_zip_package_dispatches_by_driver() {
+    let dir = std::env::temp_dir().join(format!("gramma-zld-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("gertestdict.zip");
+    let (idx, dat, zdx, zdt) = zld_files();
+    {
+        let file = std::fs::File::create(&path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let opts = zip::write::SimpleFileOptions::default();
+        zip.start_file("mods.d/gertestdict.conf", opts).unwrap();
+        zip.write_all(DICT_CONF.as_bytes()).unwrap();
+        for (name, data) in [
+            ("dict.idx", &idx),
+            ("dict.dat", &dat),
+            ("dict.zdx", &zdx),
+            ("dict.zdt", &zdt),
+        ] {
+            zip.start_file(format!("modules/lexdict/zld/gertestdict/{name}"), opts)
+                .unwrap();
+            zip.write_all(data).unwrap();
+        }
+        zip.finish().unwrap();
+    }
+    match read_sword_zip(&path).unwrap() {
+        SwordModule::Dictionary(d) => assert_eq!(d.entries.len(), 3),
+        SwordModule::Commentary(_) => panic!("dispatched as commentary"),
+    }
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn dictionary_imports_looks_up_and_searches() {
+    let (idx, dat, zdx, zdt) = zld_files();
+    let dict = parse_zld(DICT_CONF, &idx, &dat, &zdx, &zdt).unwrap();
+    let mut library = Library::open_in_memory().unwrap();
+    let info = library.import_dictionary(&dict).unwrap();
+    assert_eq!((info.kind.as_str(), info.verses), ("dictionary", 3));
+
+    let (entry, prev, next) = library.dictionary_entry("GerTestDict", 2).unwrap().unwrap();
+    assert_eq!(entry.headword, "ἀγάπη");
+    assert_eq!((prev, next), (Some(1), Some(3)));
+    let (_, prev, next) = library.dictionary_entry("GerTestDict", 1).unwrap().unwrap();
+    assert_eq!((prev, next), (None, Some(2)));
+    assert!(
+        library
+            .dictionary_entry("GerTestDict", 9)
+            .unwrap()
+            .is_none()
+    );
+
+    // Search: headword and transliteration hits rank before body hits;
+    // matching is Unicode case-insensitive.
+    let hits = library
+        .dictionary_search("GerTestDict", "liebe", 10)
+        .unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].sort, 2);
+    // Exact codepoints for now: ἀγάπη has an accented ά, so only
+    // ἀγαθός matches (diacritic folding is future work).
+    let hits = library.dictionary_search("GerTestDict", "ἀγα", 10).unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].headword, "ἀγαθός");
+    let hits = library
+        .dictionary_search("GerTestDict", "Engel", 10)
+        .unwrap();
+    assert_eq!(hits[0].headword, "ἄγγελος");
+
+    // Re-import replaces.
+    library.import_dictionary(&dict).unwrap();
+    assert_eq!(
+        library
+            .dictionary_search("GerTestDict", "Liebe", 10)
+            .unwrap()
+            .len(),
+        1
     );
 }
