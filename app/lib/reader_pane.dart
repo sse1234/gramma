@@ -10,6 +10,7 @@ import 'column_snap_physics.dart';
 import 'pane_badge.dart';
 import 'pane_model.dart';
 import 'reference_selector.dart';
+import 'run_hit.dart';
 import 'settings.dart';
 import 'src/rust/api/library.dart';
 import 'src/rust/api/typeset.dart';
@@ -78,6 +79,7 @@ class ReaderPane extends StatefulWidget {
     this.command,
     this.dragHandle,
     this.onClose,
+    this.onWordLookup,
   });
 
   final PaneSpec spec;
@@ -88,6 +90,9 @@ class ReaderPane extends StatefulWidget {
   /// Reading mode hides the pane's chrome; tapping the content toggles it.
   final bool readingMode;
   final VoidCallback onToggleMode;
+
+  /// A long-pressed word, stripped for dictionary lookup (ADR 0019).
+  final ValueChanged<String>? onWordLookup;
 
   /// The pane's identity badge, shown leftmost in the chrome.
   final Widget? badge;
@@ -571,6 +576,11 @@ class _ReaderPaneState extends State<ReaderPane> {
 
   /// A tapped inline note marker (ADR 0016): the footnote right where
   /// the reader's eye is, with in-popup reference navigation.
+  void _lookupRun(RunView run) {
+    final word = lookupWord(run);
+    if (word != null) widget.onWordLookup?.call(word);
+  }
+
   void _openNotePopup(int chapterIndex, int verse, String label) {
     final active = _active;
     if (active == null || chapterIndex >= _spine.length) return;
@@ -911,6 +921,7 @@ class _ReaderPaneState extends State<ReaderPane> {
       onMarkerTap: (chapter, run) =>
           _openNotePopup(chapter, run.verse, run.text),
       onPlainTap: widget.onToggleMode,
+      onWordLongPress: _lookupRun,
     );
   }
 
@@ -949,6 +960,7 @@ class _ReaderPaneState extends State<ReaderPane> {
               lineHeightEm: _lineSpacing,
               onMarkerTap: (run) => _openNotePopup(index, run.verse, run.text),
               onPlainTap: widget.onToggleMode,
+              onWordLongPress: _lookupRun,
             )
           else
             LayoutBuilder(
@@ -1017,7 +1029,10 @@ class PaneHeader extends StatelessWidget {
   final Widget? dragHandle;
   final String? followValue;
   final List<FollowOption> followOptions;
-  final ValueChanged<String?> onFollow;
+
+  /// Null hides the link selector entirely (views without a position
+  /// link, e.g. the dictionary).
+  final ValueChanged<String?>? onFollow;
   final VoidCallback? onClose;
 
   @override
@@ -1061,22 +1076,24 @@ class PaneHeader extends StatelessWidget {
           _backForward(context),
           _historyButton(context, theme),
         ],
-        const SizedBox(width: 8),
-        DropdownButton<String>(
-          key: const Key('link-select'),
-          underline: const SizedBox.shrink(),
-          value: followValue,
-          hint: Text(context.l10n.unlinked),
-          items: [
-            DropdownMenuItem<String>(child: Text(context.l10n.unlinked)),
-            for (final option in followOptions)
-              DropdownMenuItem(
-                value: option.id,
-                child: _linkRow(option),
-              ),
-          ],
-          onChanged: onFollow,
-        ),
+        if (onFollow != null) ...[
+          const SizedBox(width: 8),
+          DropdownButton<String>(
+            key: const Key('link-select'),
+            underline: const SizedBox.shrink(),
+            value: followValue,
+            hint: Text(context.l10n.unlinked),
+            items: [
+              DropdownMenuItem<String>(child: Text(context.l10n.unlinked)),
+              for (final option in followOptions)
+                DropdownMenuItem(
+                  value: option.id,
+                  child: _linkRow(option),
+                ),
+            ],
+            onChanged: onFollow,
+          ),
+        ],
         if (onClose != null)
           IconButton(
             key: const Key('close-pane'),
@@ -1208,20 +1225,23 @@ class PaneHeader extends StatelessWidget {
         ));
       }
     }
-    if (entries.isNotEmpty) entries.add(const PopupMenuDivider());
-    entries.add(CheckedPopupMenuItem(
-      key: const Key('menu-unlinked'),
-      checked: followValue == null,
-      value: () => onFollow(null),
-      child: Text(context.l10n.unlinked),
-    ));
-    for (final option in followOptions) {
+    final follow = onFollow;
+    if (follow != null) {
+      if (entries.isNotEmpty) entries.add(const PopupMenuDivider());
       entries.add(CheckedPopupMenuItem(
-        key: Key('menu-link-${option.badge}'),
-        checked: followValue == option.id,
-        value: () => onFollow(option.id),
-        child: _linkRow(option),
+        key: const Key('menu-unlinked'),
+        checked: followValue == null,
+        value: () => follow(null),
+        child: Text(context.l10n.unlinked),
       ));
+      for (final option in followOptions) {
+        entries.add(CheckedPopupMenuItem(
+          key: Key('menu-link-${option.badge}'),
+          checked: followValue == option.id,
+          value: () => follow(option.id),
+          child: _linkRow(option),
+        ));
+      }
     }
     if (onClose != null) {
       entries.add(const PopupMenuDivider());

@@ -111,6 +111,7 @@ void main() {
     );
     await importOsisFile(path: _fixture);
     await importSwordFile(path: 'test/fixtures/commentary.sword.zip');
+    await importSwordFile(path: 'test/fixtures/dictionary.sword.zip');
     _freshUserStore();
   });
 
@@ -711,6 +712,140 @@ void main() {
     expect(position.data, '1. Mose 3',
         reason: 'Open navigates the linked text view');
     semantics.dispose();
+  });
+
+  /// Center of the first run whose text contains [word] in the painted
+  /// vertical chapter — recomputed from the deterministic layout.
+  Future<Offset> wordPoint(WidgetTester tester, int chapter, String word) async {
+    final layout = await tester.runAsync(() => layoutChapter(
+        moduleCode: 'FixDe',
+        bookOsis: 'Gen',
+        chapter: chapter,
+        measureEms: 26));
+    for (var i = 0; i < layout!.lines.length; i++) {
+      for (final run in layout.lines[i].runs) {
+        if (!run.noteMarker && !run.verseNumber && run.text.contains(word)) {
+          for (final element in find.byType(TypesetChapter).evaluate()) {
+            final widget = element.widget as TypesetChapter;
+            if (widget.layout.lines.length != layout.lines.length) continue;
+            final rect =
+                tester.getRect(find.byWidget(widget, skipOffstage: false));
+            final scale = rect.width / layout.measureUnits;
+            final lineHeight = scale * layout.unitsPerEm * 1.5;
+            return rect.topLeft +
+                Offset((run.x + run.width / 2) * scale,
+                    (i + 0.3) * lineHeight);
+          }
+        }
+      }
+    }
+    fail('word $word not painted in chapter $chapter');
+  }
+
+  testWidgets('dictionary view: search, entry, and browsing', (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-dictionary')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('dict-search')), findsOneWidget);
+
+    // Search a German gloss, open the hit.
+    await tester.enterText(find.byKey(const Key('dict-search')), 'Liebe');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('dict-results')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('dict-hit-2')));
+    await _settle(
+        tester, () => _found(find.byKey(const Key('dict-entry-2'))));
+    expect(find.bySemanticsLabel(RegExp('ἀγάπη')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('höchste Form')), findsOneWidget);
+
+    // Browse: next reaches the neighbor entry, prev returns.
+    await tester.tap(find.byKey(const Key('dict-next')));
+    await _settle(
+        tester, () => _found(find.byKey(const Key('dict-entry-3'))));
+    expect(find.bySemanticsLabel(RegExp('οὐρανός')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('dict-prev')));
+    await _settle(
+        tester, () => _found(find.byKey(const Key('dict-entry-2'))));
+
+    // A Strong's number in the search field goes straight to its entry.
+    await tester.enterText(find.byKey(const Key('dict-search')), 'G1');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await _settle(
+        tester, () => _found(find.byKey(const Key('dict-entry-1'))));
+
+    // The scanned reference in the entry previews and opens the passage.
+    final paneWidth =
+        tester.getSize(find.byKey(const Key('dict-entry-1'))).width;
+    final fontSize = (paneWidth < 400.0 ? paneWidth : 400.0) / 26.0;
+    late DictLayoutView? entry;
+    await tester.runAsync(() async {
+      entry = await layoutDictEntry(
+        moduleCode: 'WbTest',
+        sort: 1,
+        measureEms: paneWidth / fontSize,
+      );
+    });
+    RunView? linkRun;
+    var lineIndex = 0;
+    for (var i = 0; i < entry!.lines.length && linkRun == null; i++) {
+      for (final run in entry!.lines[i].runs) {
+        if (run.link != null) {
+          linkRun = run;
+          lineIndex = i;
+          break;
+        }
+      }
+    }
+    expect(linkRun, isNotNull);
+    final runScale = fontSize / entry!.unitsPerEm;
+    final lineHeight = fontSize * 1.5;
+    final origin = tester.getTopLeft(find.descendant(
+      of: find.byKey(const Key('dict-entry-1')),
+      matching: find.byType(CustomPaint),
+    ));
+    await tester.tapAt(origin +
+        Offset((linkRun!.x + linkRun.width / 2) * runScale,
+            lineIndex * lineHeight + lineHeight * 0.4));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Und die Erde war wüst'), findsWidgets,
+        reason: 'preview shows the referenced passage');
+    semantics.dispose();
+  });
+
+  testWidgets('long-pressing a word opens the dictionary and searches it',
+      (tester) async {
+    _freshUserStore();
+    // Wide enough for the full pane chrome, narrow enough to stay in the
+    // vertical reader.
+    tester.view.physicalSize = const Size(700, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    expect(find.byKey(const Key('dict-search')), findsNothing);
+
+    await tester.longPressAt(await wordPoint(tester, 1, 'Himmel'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('dict-search')), findsOneWidget,
+        reason: 'a dictionary view was created for the lookup');
+    expect(find.byKey(const Key('dict-results')), findsOneWidget);
+    expect(find.byKey(const Key('dict-hit-3')), findsOneWidget,
+        reason: 'the Himmel gloss entry matches');
+    final field =
+        tester.widget<TextField>(find.byKey(const Key('dict-search')));
+    expect(field.controller!.text, 'Himmel');
   });
 
   testWidgets('desk history: back, forward, and the dropdown', (tester) async {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'footnotes_pane.dart' show visibleChapterIndexes;
 import 'l10n.dart';
 import 'passage_preview.dart';
+import 'run_hit.dart';
 import 'reader_pane.dart';
 import 'settings.dart';
 import 'src/rust/api/library.dart';
@@ -37,6 +38,7 @@ class CommentaryPane extends StatefulWidget {
     required this.onOpenReference,
     this.dragHandle,
     this.onClose,
+    this.onWordLookup,
   });
 
   /// The commentary module shown, and the installed commentaries.
@@ -62,6 +64,9 @@ class CommentaryPane extends StatefulWidget {
   final ValueChanged<String> onOpenReference;
   final Widget? dragHandle;
   final VoidCallback? onClose;
+
+  /// A long-pressed word, stripped for dictionary lookup (ADR 0019).
+  final ValueChanged<String>? onWordLookup;
 
   @override
   State<CommentaryPane> createState() => _CommentaryPaneState();
@@ -233,11 +238,15 @@ class _CommentaryPaneState extends State<CommentaryPane> {
               key: Key('comment-$key.${entry.verseStart}'),
               padding: const EdgeInsets.only(top: 6, bottom: 10),
               child: TypesetProse(
-                layout: entry,
+                layout: ProseLayout.ofComment(entry),
                 fontSize: fontSize,
                 lineHeightEm: settings.lineSpacing,
                 onLinkTap: _openPreview,
                 onPlainTap: widget.onToggleMode,
+                onWordLongPress: (run) {
+                  final word = lookupWord(run);
+                  if (word != null) widget.onWordLookup?.call(word);
+                },
               ),
             ));
           }

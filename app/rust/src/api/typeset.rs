@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::{Mutex, OnceLock, RwLock};
 
 use anyhow::anyhow;
-use gramma_core::reference::book_by_osis;
+use gramma_core::reference::{book_by_osis, scan_references};
 use gramma_core::typeset::layout::{
     layout_prose, layout_verses, ProseParagraph, VERSE_NUMBER_SCALE_PERCENT,
 };
@@ -221,29 +221,8 @@ pub fn layout_comments(
             } else {
                 format!("{}-{}", c.verse_start, c.verse_end)
             };
-            // Reference offsets address the whole entry text; paragraphs
-            // carry them re-based to their own start.
-            let mut paragraphs = Vec::new();
-            let mut cursor = 0usize;
-            for part in c.text.split("\n\n") {
-                let start = cursor;
-                let end = start + part.len();
-                let links = c
-                    .refs
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, r)| (r.start as usize) < end && (r.end as usize) > start)
-                    .map(|(i, r)| {
-                        (
-                            (r.start as usize).saturating_sub(start),
-                            (r.end as usize).min(end) - start,
-                            i as u32,
-                        )
-                    })
-                    .collect();
-                paragraphs.push(ProseParagraph { text: part, links });
-                cursor = end + 2;
-            }
+            let spans: Vec<(u32, u32)> = c.refs.iter().map(|r| (r.start, r.end)).collect();
+            let paragraphs = prose_paragraphs(&c.text, &spans);
             let lines = layout_prose(
                 Some(&label),
                 c.heading.as_deref(),
@@ -287,6 +266,118 @@ pub fn layout_comments(
             }
         })
         .collect())
+}
+
+/// Split prose into paragraphs at "\n\n", re-basing reference byte
+/// spans (indexed in order) onto each paragraph.
+fn prose_paragraphs<'a>(text: &'a str, spans: &[(u32, u32)]) -> Vec<ProseParagraph<'a>> {
+    let mut paragraphs = Vec::new();
+    let mut cursor = 0usize;
+    for part in text.split("\n\n") {
+        let start = cursor;
+        let end = start + part.len();
+        let links = spans
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| (r.0 as usize) < end && (r.1 as usize) > start)
+            .map(|(i, r)| {
+                (
+                    (r.0 as usize).saturating_sub(start),
+                    (r.1 as usize).min(end) - start,
+                    i as u32,
+                )
+            })
+            .collect();
+        paragraphs.push(ProseParagraph { text: part, links });
+        cursor = end + 2;
+    }
+    paragraphs
+}
+
+/// One dictionary entry, typeset (ADR 0019): key label, headword line,
+/// and the body through the same engine as everything else. Verse
+/// references found in the prose are tappable link runs.
+pub struct DictLayoutView {
+    pub sort: u32,
+    pub display_key: String,
+    pub headword: String,
+    pub pron: String,
+    pub lines: Vec<LineView>,
+    /// OSIS targets by `RunView.link` index.
+    pub refs: Vec<String>,
+    pub prev_sort: Option<u32>,
+    pub next_sort: Option<u32>,
+    pub units_per_em: u16,
+    pub measure_units: i64,
+    pub number_scale: f64,
+    pub plain_text: String,
+}
+
+/// Typeset one dictionary entry at `measure_ems` ems of its text size.
+/// Async: shaping and breaking run on a worker thread.
+pub fn layout_dict_entry(
+    module_code: String,
+    sort: u32,
+    measure_ems: f64,
+) -> anyhow::Result<Option<DictLayoutView>> {
+    let measure = active_measure()?;
+    let found = with_library(|library| library.dictionary_entry(&module_code, sort))?;
+    let Some((entry, prev_sort, next_sort)) = found else {
+        return Ok(None);
+    };
+    let scanned = scan_references(&entry.text, None);
+    let spans: Vec<(u32, u32)> = scanned.iter().map(|r| (r.start, r.end)).collect();
+    let refs: Vec<String> = scanned.iter().map(|r| r.reference.to_string()).collect();
+    let paragraphs = prose_paragraphs(&entry.text, &spans);
+    let display = super::library::display_key(&entry.key, entry.sort);
+    let heading = if entry.pron.is_empty() {
+        entry.headword.clone()
+    } else {
+        format!("{} · {}", entry.headword, entry.pron)
+    };
+    let measure_units = (measure_ems * measure.units_per_em() as f64) as i64;
+    let lines = layout_prose(
+        Some(&display),
+        (!heading.is_empty()).then_some(heading.as_str()),
+        &paragraphs,
+        0,
+        measure,
+        None,
+        measure_units,
+    );
+    let plain_text = format!("{display} {heading}. {}", entry.text.replace("\n\n", " "));
+    Ok(Some(DictLayoutView {
+        sort: entry.sort,
+        display_key: display,
+        headword: entry.headword,
+        pron: entry.pron,
+        lines: lines
+            .into_iter()
+            .map(|l| LineView {
+                runs: l
+                    .runs
+                    .into_iter()
+                    .map(|r| RunView {
+                        text: r.text,
+                        x: r.x,
+                        width: r.width,
+                        verse_number: r.verse_number,
+                        note_marker: r.note_marker,
+                        heading_level: r.heading_level,
+                        verse: r.verse,
+                        link: r.link,
+                    })
+                    .collect(),
+            })
+            .collect(),
+        refs,
+        prev_sort,
+        next_sort,
+        units_per_em: measure.units_per_em(),
+        measure_units,
+        number_scale: VERSE_NUMBER_SCALE_PERCENT as f64 / 100.0,
+        plain_text,
+    }))
 }
 
 /// Text-line count of every chapter in the module's spine order, at the

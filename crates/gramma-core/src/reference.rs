@@ -237,7 +237,9 @@ fn parse_chapter_verse(s: &str) -> Option<(u16, Option<u16>, Option<u16>, usize)
     let (chapter, mut len) = digits(s)?;
     let mut verse = None;
     let mut end = None;
-    if s[len..].starts_with(',')
+    // Chapter and verse separate with a comma (German print style) or a
+    // colon (dictionary and lexicon prose, ADR 0019).
+    if (s[len..].starts_with(',') || s[len..].starts_with(':'))
         && let Some((v, vlen)) = digits(&s[len + 1..])
     {
         verse = Some(v);
@@ -349,8 +351,12 @@ pub fn scan_references(text: &str, context: Option<BookId>) -> Vec<ScannedRefere
         {
             matched_end = Some((i + consumed, reference));
         }
+        // A bare pair hanging directly on a comma is a verse list of the
+        // previous reference ("Hld 2:4,5,7"), never a new chapter,verse.
+        let after_comma = i > 0 && text[..i].ends_with(',');
         if matched_end.is_none()
             && ch.is_ascii_digit()
+            && !after_comma
             && let Some(book) = last_book
             && let Some((c, Some(v), e, len)) = parse_chapter_verse(slice)
         {
@@ -666,7 +672,7 @@ static CANON: [BookInfo; 66] = canon_table![
     ("Luke", "Luke", "Lukas", "Lk", ["lk", "luk"]),
     ("John", "John", "Johannes", "Joh", ["joh", "jn"]),
     ("Acts", "Acts", "Apostelgeschichte", "Apg", ["apg", "act"]),
-    ("Rom", "Romans", "Römer", "Rö", ["rm"]),
+    ("Rom", "Romans", "Römer", "Rö", ["rm", "roem"]),
     (
         "1Cor",
         "1 Corinthians",

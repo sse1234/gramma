@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `activate_font`, `active_measure`
+// These functions are ignored because they are not marked as `pub`: `activate_font`, `active_measure`, `prose_paragraphs`
 
 void initTypesetting({required List<int> fontData}) =>
     RustLib.instance.api.crateApiTypesetInitTypesetting(fontData: fontData);
@@ -45,6 +45,18 @@ Future<List<CommentLayoutView>> layoutComments({
   moduleCode: moduleCode,
   bookOsis: bookOsis,
   chapter: chapter,
+  measureEms: measureEms,
+);
+
+/// Typeset one dictionary entry at `measure_ems` ems of its text size.
+/// Async: shaping and breaking run on a worker thread.
+Future<DictLayoutView?> layoutDictEntry({
+  required String moduleCode,
+  required int sort,
+  required double measureEms,
+}) => RustLib.instance.api.crateApiTypesetLayoutDictEntry(
+  moduleCode: moduleCode,
+  sort: sort,
   measureEms: measureEms,
 );
 
@@ -153,6 +165,74 @@ class CommentLayoutView {
           verseEnd == other.verseEnd &&
           lines == other.lines &&
           refs == other.refs &&
+          unitsPerEm == other.unitsPerEm &&
+          measureUnits == other.measureUnits &&
+          numberScale == other.numberScale &&
+          plainText == other.plainText;
+}
+
+/// One dictionary entry, typeset (ADR 0019): key label, headword line,
+/// and the body through the same engine as everything else. Verse
+/// references found in the prose are tappable link runs.
+class DictLayoutView {
+  final int sort;
+  final String displayKey;
+  final String headword;
+  final String pron;
+  final List<LineView> lines;
+
+  /// OSIS targets by `RunView.link` index.
+  final List<String> refs;
+  final int? prevSort;
+  final int? nextSort;
+  final int unitsPerEm;
+  final PlatformInt64 measureUnits;
+  final double numberScale;
+  final String plainText;
+
+  const DictLayoutView({
+    required this.sort,
+    required this.displayKey,
+    required this.headword,
+    required this.pron,
+    required this.lines,
+    required this.refs,
+    this.prevSort,
+    this.nextSort,
+    required this.unitsPerEm,
+    required this.measureUnits,
+    required this.numberScale,
+    required this.plainText,
+  });
+
+  @override
+  int get hashCode =>
+      sort.hashCode ^
+      displayKey.hashCode ^
+      headword.hashCode ^
+      pron.hashCode ^
+      lines.hashCode ^
+      refs.hashCode ^
+      prevSort.hashCode ^
+      nextSort.hashCode ^
+      unitsPerEm.hashCode ^
+      measureUnits.hashCode ^
+      numberScale.hashCode ^
+      plainText.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DictLayoutView &&
+          runtimeType == other.runtimeType &&
+          sort == other.sort &&
+          displayKey == other.displayKey &&
+          headword == other.headword &&
+          pron == other.pron &&
+          lines == other.lines &&
+          refs == other.refs &&
+          prevSort == other.prevSort &&
+          nextSort == other.nextSort &&
           unitsPerEm == other.unitsPerEm &&
           measureUnits == other.measureUnits &&
           numberScale == other.numberScale &&

@@ -124,6 +124,15 @@ CREATE TABLE IF NOT EXISTS comment(
   text TEXT NOT NULL,
   PRIMARY KEY(module_id, book, chapter, verse_start)
 ) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS dict_entry(
+  module_id INTEGER NOT NULL REFERENCES module(id) ON DELETE CASCADE,
+  sort INTEGER NOT NULL,
+  key TEXT NOT NULL,
+  headword TEXT NOT NULL,
+  pron TEXT NOT NULL,
+  text TEXT NOT NULL,
+  PRIMARY KEY(module_id, sort)
+) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS comment_ref(
   module_id INTEGER NOT NULL REFERENCES module(id) ON DELETE CASCADE,
   book INTEGER NOT NULL,
@@ -136,6 +145,26 @@ CREATE TABLE IF NOT EXISTS comment_ref(
   PRIMARY KEY(module_id, book, chapter, verse_start, seq)
 ) WITHOUT ROWID;
 ";
+
+/// One dictionary entry (ADR 0019).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DictEntryRow {
+    pub sort: u32,
+    pub key: String,
+    pub headword: String,
+    pub pron: String,
+    /// Paragraphs separated by "\n\n".
+    pub text: String,
+}
+
+/// A dictionary search hit: enough to render a result row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DictHit {
+    pub sort: u32,
+    pub key: String,
+    pub headword: String,
+    pub pron: String,
+}
 
 pub struct Library {
     conn: Connection,
@@ -310,6 +339,136 @@ impl Library {
         })
     }
 
+    /// Import a SWORD dictionary (ADR 0019), replacing any module with
+    /// the same code.
+    pub fn import_dictionary(
+        &mut self,
+        doc: &crate::sword::SwordDictionary,
+    ) -> Result<ModuleInfo, LibraryError> {
+        let tx = self.conn.transaction()?;
+        tx.execute("DELETE FROM module WHERE code = ?1", [&doc.code])?;
+        tx.execute(
+            "INSERT INTO module(code, title, language, kind)
+             VALUES (?1, ?2, ?3, 'dictionary')",
+            (&doc.code, &doc.title, &doc.language),
+        )?;
+        let module_id = tx.last_insert_rowid();
+        {
+            let mut insert = tx.prepare(
+                "INSERT OR REPLACE INTO dict_entry
+                   (module_id, sort, key, headword, pron, text)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            )?;
+            for e in &doc.entries {
+                insert.execute((module_id, e.sort, &e.key, &e.headword, &e.pron, &e.text))?;
+            }
+        }
+        tx.commit()?;
+        let entries: u32 = self.conn.query_row(
+            "SELECT COUNT(*) FROM dict_entry WHERE module_id = ?1",
+            [module_id],
+            |row| row.get(0),
+        )?;
+        Ok(ModuleInfo {
+            code: doc.code.clone(),
+            title: doc.title.clone(),
+            language: doc.language.clone(),
+            verses: entries,
+            notes: 0,
+            kind: "dictionary".to_string(),
+        })
+    }
+
+    /// One dictionary entry by sort key, with its neighbors for
+    /// prev/next browsing.
+    #[allow(clippy::type_complexity)]
+    pub fn dictionary_entry(
+        &self,
+        module_code: &str,
+        sort: u32,
+    ) -> Result<Option<(DictEntryRow, Option<u32>, Option<u32>)>, LibraryError> {
+        let module_id = self.module_id(module_code)?;
+        let entry = self
+            .conn
+            .query_row(
+                "SELECT sort, key, headword, pron, text FROM dict_entry
+                 WHERE module_id = ?1 AND sort = ?2",
+                (module_id, sort),
+                |row| {
+                    Ok(DictEntryRow {
+                        sort: row.get(0)?,
+                        key: row.get(1)?,
+                        headword: row.get(2)?,
+                        pron: row.get(3)?,
+                        text: row.get(4)?,
+                    })
+                },
+            )
+            .optional()?;
+        let Some(entry) = entry else {
+            return Ok(None);
+        };
+        let prev: Option<u32> = self.conn.query_row(
+            "SELECT MAX(sort) FROM dict_entry WHERE module_id = ?1 AND sort < ?2",
+            (module_id, sort),
+            |row| row.get(0),
+        )?;
+        let next: Option<u32> = self.conn.query_row(
+            "SELECT MIN(sort) FROM dict_entry WHERE module_id = ?1 AND sort > ?2",
+            (module_id, sort),
+            |row| row.get(0),
+        )?;
+        Ok(Some((entry, prev, next)))
+    }
+
+    /// Search a dictionary: headword, transliteration, and key hits rank
+    /// before body-text hits; matching is Unicode case-insensitive (done
+    /// here, since SQLite's LIKE only folds ASCII).
+    pub fn dictionary_search(
+        &self,
+        module_code: &str,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<DictHit>, LibraryError> {
+        let module_id = self.module_id(module_code)?;
+        let needle = query.to_lowercase();
+        if needle.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut stmt = self.conn.prepare(
+            "SELECT sort, key, headword, pron, text FROM dict_entry
+             WHERE module_id = ?1 ORDER BY sort",
+        )?;
+        let mut ranked: Vec<(u8, DictHit)> = Vec::new();
+        let rows = stmt.query_map([module_id], |row| {
+            Ok((
+                DictHit {
+                    sort: row.get(0)?,
+                    key: row.get(1)?,
+                    headword: row.get(2)?,
+                    pron: row.get(3)?,
+                },
+                row.get::<_, String>(4)?,
+            ))
+        })?;
+        for row in rows {
+            let (hit, text) = row?;
+            let rank = if hit.headword.to_lowercase().contains(&needle)
+                || hit.pron.to_lowercase().contains(&needle)
+                || hit.key.trim_start_matches('0') == needle.trim_start_matches('0')
+            {
+                0
+            } else if text.to_lowercase().contains(&needle) {
+                1
+            } else {
+                continue;
+            };
+            ranked.push((rank, hit));
+        }
+        ranked.sort_by_key(|(rank, hit)| (*rank, hit.sort));
+        Ok(ranked.into_iter().map(|(_, hit)| hit).take(limit).collect())
+    }
+
     /// Commentary entries of one chapter, ordered by starting verse.
     pub fn comments(
         &self,
@@ -361,7 +520,8 @@ impl Library {
         let mut stmt = self.conn.prepare(
             "SELECT code, title, language,
                     (SELECT COUNT(*) FROM verse v WHERE v.module_id = m.id)
-                    + (SELECT COUNT(*) FROM comment c WHERE c.module_id = m.id),
+                    + (SELECT COUNT(*) FROM comment c WHERE c.module_id = m.id)
+                    + (SELECT COUNT(*) FROM dict_entry d WHERE d.module_id = m.id),
                     (SELECT COUNT(*) FROM note n WHERE n.module_id = m.id),
                     kind
              FROM module m ORDER BY code",

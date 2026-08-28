@@ -18,6 +18,7 @@ class TypesetChapter extends StatelessWidget {
     this.lineHeightEm = 1.5,
     this.onMarkerTap,
     this.onPlainTap,
+    this.onWordLongPress,
   });
 
   final ChapterLayoutView layout;
@@ -29,6 +30,9 @@ class TypesetChapter extends StatelessWidget {
   /// to [onPlainTap] (the reading-mode toggle).
   final void Function(RunView run)? onMarkerTap;
   final VoidCallback? onPlainTap;
+
+  /// A long press on a word (ADR 0019): dictionary lookup.
+  final ValueChanged<RunView>? onWordLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -47,15 +51,28 @@ class TypesetChapter extends StatelessWidget {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTapUp: (details) {
-              final run = runAtOffset(
-                  layout.lines, scale, lineHeight, details.localPosition,
-                  slop: 6);
-              if (run != null && run.noteMarker && onMarkerTap != null) {
-                onMarkerTap!(run);
+              final marker = markerNear(
+                [
+                  for (var i = 0; i < layout.lines.length; i++)
+                    (line: layout.lines[i], top: i * lineHeight),
+                ],
+                scale,
+                fontSize * layout.numberScale,
+                details.localPosition,
+              );
+              if (marker != null && onMarkerTap != null) {
+                onMarkerTap!(marker);
               } else {
                 onPlainTap?.call();
               }
             },
+            onLongPressStart: onWordLongPress == null
+                ? null
+                : (details) {
+                    final run = runAtOffset(layout.lines, scale, lineHeight,
+                        details.localPosition);
+                    if (run != null) onWordLongPress!(run);
+                  },
             child: CustomPaint(
               size:
                   Size(constraints.maxWidth, layout.lines.length * lineHeight),

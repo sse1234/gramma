@@ -1,0 +1,324 @@
+import 'package:flutter/material.dart';
+
+import 'l10n.dart';
+import 'passage_preview.dart';
+import 'reader_pane.dart';
+import 'run_hit.dart';
+import 'settings.dart';
+import 'src/rust/api/library.dart';
+import 'src/rust/api/typeset.dart';
+import 'typeset_prose.dart';
+
+/// Dictionary/lexicon view (ADR 0019): carries its own module (a Strong's
+/// lexicon) and a lookup state instead of a position link. The state
+/// lives in the pane's anchor — "G26" shows that entry, "q:Liebe" shows
+/// search results — so the desk remembers and syncs it like any reading
+/// position. Long-pressing a word in any text or commentary view routes
+/// it here as a search; entries are typeset like everything else, with
+/// verse references previewing their passage.
+class DictionaryPane extends StatefulWidget {
+  const DictionaryPane({
+    super.key,
+    required this.module,
+    required this.modules,
+    required this.onModule,
+    required this.anchor,
+    required this.onAnchor,
+    required this.previewModule,
+    required this.readingMode,
+    required this.onToggleMode,
+    required this.badge,
+    required this.onOpenReference,
+    this.dragHandle,
+    this.onClose,
+  });
+
+  /// The dictionary module shown, and the installed dictionaries.
+  final String? module;
+  final List<ModuleView> modules;
+  final ValueChanged<String> onModule;
+
+  /// Lookup state: "G26" (an entry) or "q:term" (a search), or null.
+  final String? anchor;
+  final ValueChanged<String> onAnchor;
+
+  /// Module resolving verse references found in entries.
+  final String? previewModule;
+
+  final bool readingMode;
+  final VoidCallback onToggleMode;
+  final Widget? badge;
+
+  /// Navigate a text view to a reference (from a preview).
+  final ValueChanged<String> onOpenReference;
+  final Widget? dragHandle;
+  final VoidCallback? onClose;
+
+  @override
+  State<DictionaryPane> createState() => _DictionaryPaneState();
+}
+
+/// The entry sort key of an anchor like "G26", "26", or "00026".
+int? dictAnchorSort(String? anchor) {
+  if (anchor == null) return null;
+  final m = RegExp(r'^[Gg]?0*(\d+)$').firstMatch(anchor.trim());
+  return m == null ? null : int.tryParse(m.group(1)!);
+}
+
+/// The search term of an anchor like "q:Liebe".
+String? dictAnchorQuery(String? anchor) =>
+    anchor != null && anchor.startsWith('q:') ? anchor.substring(2) : null;
+
+class _DictionaryPaneState extends State<DictionaryPane> {
+  final TextEditingController _search = TextEditingController();
+  final Map<int, DictLayoutView> _layouts = {};
+  final Set<int> _pending = {};
+  String _signature = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _syncSearchField();
+  }
+
+  @override
+  void didUpdateWidget(DictionaryPane old) {
+    super.didUpdateWidget(old);
+    if (old.anchor != widget.anchor) _syncSearchField();
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _syncSearchField() {
+    final query = dictAnchorQuery(widget.anchor);
+    if (query != null && _search.text != query) _search.text = query;
+  }
+
+  void _submit(String raw) {
+    final input = raw.trim();
+    if (input.isEmpty) return;
+    final sort = dictAnchorSort(input);
+    widget.onAnchor(sort != null ? 'G$sort' : 'q:$input');
+  }
+
+  void _openPreview(String osis) {
+    final module = widget.previewModule;
+    if (module == null) return;
+    showPassagePreview(
+      context,
+      osis: osis,
+      moduleCode: module,
+      onOpen: () => widget.onOpenReference(osis),
+    );
+  }
+
+  void _ensureLayout(String module, int sort, double ems) {
+    if (_layouts.containsKey(sort) || _pending.contains(sort)) return;
+    _pending.add(sort);
+    layoutDictEntry(moduleCode: module, sort: sort, measureEms: ems)
+        .then((layout) {
+      if (!mounted) return;
+      setState(() {
+        _pending.remove(sort);
+        if (layout != null) _layouts[sort] = layout;
+      });
+    }).catchError((_) {
+      if (mounted) setState(() => _pending.remove(sort));
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!widget.readingMode) ...[
+          PaneHeader(
+            title: context.l10n.dictionaryTitle,
+            badge: widget.badge,
+            dragHandle: widget.dragHandle,
+            moduleCode: widget.module,
+            modules: [
+              for (final m in widget.modules)
+                (code: m.code, title: m.title),
+            ],
+            onModule: widget.modules.isEmpty ? null : widget.onModule,
+            followValue: null,
+            followOptions: const [],
+            onFollow: null,
+            onClose: widget.onClose,
+          ),
+          const SizedBox(height: 4),
+        ],
+        Expanded(child: _body(theme)),
+      ],
+    );
+  }
+
+  Widget _body(ThemeData theme) {
+    final module = widget.module;
+    if (module == null || widget.modules.isEmpty) {
+      return _hint(theme, context.l10n.noDictionaryModules);
+    }
+    final sort = dictAnchorSort(widget.anchor);
+    final query = dictAnchorQuery(widget.anchor);
+    final entry = sort == null ? null : _layouts[sort];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                key: const Key('dict-search'),
+                controller: _search,
+                decoration: InputDecoration(
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  hintText: context.l10n.dictionarySearchLabel,
+                ),
+                onSubmitted: _submit,
+              ),
+            ),
+            if (sort != null) ...[
+              IconButton(
+                key: const Key('dict-prev'),
+                icon: const Icon(Icons.chevron_left, size: 20),
+                onPressed: entry?.prevSort == null
+                    ? null
+                    : () => widget.onAnchor('G${entry!.prevSort}'),
+              ),
+              IconButton(
+                key: const Key('dict-next'),
+                icon: const Icon(Icons.chevron_right, size: 20),
+                onPressed: entry?.nextSort == null
+                    ? null
+                    : () => widget.onAnchor('G${entry!.nextSort}'),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 6),
+        Expanded(
+          child: sort != null
+              ? _entryView(theme, module, sort)
+              : query != null
+                  ? _resultsView(theme, module, query)
+                  : GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: widget.onToggleMode,
+                      child: _hint(theme, context.l10n.searchDictionaryHint),
+                    ),
+        ),
+      ],
+    );
+  }
+
+  Widget _resultsView(ThemeData theme, String module, String query) {
+    final List<DictHitView> hits;
+    try {
+      hits = dictSearch(moduleCode: module, query: query);
+    } catch (_) {
+      return _hint(theme, context.l10n.noDictionaryResults);
+    }
+    if (hits.isEmpty) {
+      return _hint(
+        theme,
+        context.l10n.noDictionaryResults,
+        key: const Key('dict-empty'),
+      );
+    }
+    final family = SettingsScope.of(context).fontFamily;
+    return ListView.builder(
+      key: const Key('dict-results'),
+      itemCount: hits.length,
+      itemBuilder: (context, index) {
+        final hit = hits[index];
+        return ListTile(
+          key: Key('dict-hit-${hit.sort}'),
+          dense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+          leading: Text(
+            hit.displayKey,
+            style: theme.textTheme.labelMedium
+                ?.copyWith(color: theme.colorScheme.primary),
+          ),
+          title: Text(hit.headword, style: TextStyle(fontFamily: family)),
+          subtitle: hit.pron.isEmpty ? null : Text(hit.pron),
+          onTap: () => widget.onAnchor('G${hit.sort}'),
+        );
+      },
+    );
+  }
+
+  Widget _entryView(ThemeData theme, String module, int sort) {
+    final settings = SettingsScope.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        // The Bible text's glyph size, exactly as in the commentary view
+        // (ADR 0018): parity by construction, free measure.
+        final effWidth =
+            width < settings.columnWidth ? width : settings.columnWidth;
+        final fontSize =
+            effWidth / settings.measureEms * settings.commentaryScale;
+        if (width <= 0 || fontSize <= 0) return const SizedBox.shrink();
+        final signature =
+            '$module|${settings.fontFamily}|${fontSize.toStringAsFixed(1)}|'
+            '${width.toStringAsFixed(0)}';
+        if (signature != _signature) {
+          _signature = signature;
+          _layouts.clear();
+          _pending.clear();
+        }
+        _ensureLayout(module, sort, width / fontSize);
+        final entry = _layouts[sort];
+        if (entry == null) {
+          return _pending.contains(sort)
+              ? const SizedBox.shrink()
+              : _hint(
+                  theme,
+                  context.l10n.noDictionaryResults,
+                  key: const Key('dict-missing'),
+                );
+        }
+        return SingleChildScrollView(
+          key: Key('dict-entry-${entry.sort}'),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 12),
+            child: TypesetProse(
+              layout: ProseLayout.ofDict(entry),
+              fontSize: fontSize,
+              lineHeightEm: settings.lineSpacing,
+              onLinkTap: _openPreview,
+              onPlainTap: widget.onToggleMode,
+              onWordLongPress: (run) {
+                final word = lookupWord(run);
+                if (word != null) widget.onAnchor('q:$word');
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _hint(ThemeData theme, String message, {Key? key}) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          message,
+          key: key,
+          style: theme.textTheme.bodyMedium,
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+}

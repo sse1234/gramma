@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `with_library`
+// These functions are ignored because they are not marked as `pub`: `display_key`, `with_library`
 
 void openLibrary({required String path}) =>
     RustLib.instance.api.crateApiLibraryOpenLibrary(path: path);
@@ -15,9 +15,20 @@ void openLibrary({required String path}) =>
 Future<ModuleView> importOsisFile({required String path}) =>
     RustLib.instance.api.crateApiLibraryImportOsisFile(path: path);
 
-/// Import a SWORD zCom commentary package (a CrossWire zip, ADR 0017).
+/// Import a SWORD package (a CrossWire zip): zCom commentaries
+/// (ADR 0017) and zLD dictionaries (ADR 0019), dispatched by driver.
 Future<ModuleView> importSwordFile({required String path}) =>
     RustLib.instance.api.crateApiLibraryImportSwordFile(path: path);
+
+/// Search a dictionary module: Strong numbers ("26", "G26"), headwords,
+/// transliterations, and body text (Unicode case-insensitive).
+List<DictHitView> dictSearch({
+  required String moduleCode,
+  required String query,
+}) => RustLib.instance.api.crateApiLibraryDictSearch(
+  moduleCode: moduleCode,
+  query: query,
+);
 
 /// Commentary entries of one chapter, ordered by starting verse.
 List<CommentView> chapterComments({
@@ -169,6 +180,37 @@ class CommentView {
           heading == other.heading &&
           text == other.text &&
           refs == other.refs;
+}
+
+/// A dictionary search hit (ADR 0019), ranked headword-first.
+class DictHitView {
+  final int sort;
+
+  /// User-facing key ("G26" for Strong's Greek).
+  final String displayKey;
+  final String headword;
+  final String pron;
+
+  const DictHitView({
+    required this.sort,
+    required this.displayKey,
+    required this.headword,
+    required this.pron,
+  });
+
+  @override
+  int get hashCode =>
+      sort.hashCode ^ displayKey.hashCode ^ headword.hashCode ^ pron.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DictHitView &&
+          runtimeType == other.runtimeType &&
+          sort == other.sort &&
+          displayKey == other.displayKey &&
+          headword == other.headword &&
+          pron == other.pron;
 }
 
 class ModuleView {
