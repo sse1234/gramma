@@ -40,7 +40,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get toolsTooltip => 'Werkzeuge';
 
   @override
-  String get readingPlanPartner => 'Leseplan · Partner';
+  String get readingPlan => 'Leseplan';
 
   @override
   String desksTooltip(String name) {
