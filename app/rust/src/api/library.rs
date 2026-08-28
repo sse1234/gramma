@@ -120,6 +120,7 @@ pub fn import_sword_file(path: String) -> anyhow::Result<ModuleView> {
     let info = match module {
         gramma_core::sword::SwordModule::Commentary(doc) => library.import_commentary(&doc)?,
         gramma_core::sword::SwordModule::Dictionary(doc) => library.import_dictionary(&doc)?,
+        gramma_core::sword::SwordModule::Bible(doc) => library.import_bible(&doc)?,
     };
     Ok(ModuleView {
         code: info.code,
@@ -166,6 +167,67 @@ pub fn dict_search(module_code: String, query: String) -> anyhow::Result<Vec<Dic
             })
             .collect()
     })
+}
+
+/// One concordance occurrence (ADR 0020): a verse whose byte range
+/// [start, end) is covered by the Strong number searched.
+pub struct OccurrenceView {
+    pub book_osis: String,
+    pub chapter: u16,
+    pub verse: u16,
+    pub start: u32,
+    pub end: u32,
+    pub text: String,
+}
+
+pub struct ConcordanceResult {
+    /// The Strong's-tagged module the occurrences come from, if any is
+    /// installed.
+    pub module: Option<String>,
+    pub hits: Vec<OccurrenceView>,
+}
+
+/// Every occurrence of a Strong number ("G26") in the first tagged
+/// Bible module — the concordance.
+#[flutter_rust_bridge::frb(sync)]
+pub fn concordance_of(strong: String, limit: u32) -> anyhow::Result<ConcordanceResult> {
+    with_library(|library| {
+        let Some(module) = library.strongs_module()? else {
+            return Ok(ConcordanceResult {
+                module: None,
+                hits: Vec::new(),
+            });
+        };
+        let hits = library
+            .concordance(&module, &strong, limit as usize)?
+            .into_iter()
+            .map(|o| OccurrenceView {
+                book_osis: o.book.info().osis.to_string(),
+                chapter: o.chapter,
+                verse: o.verse,
+                start: o.start,
+                end: o.end,
+                text: o.text,
+            })
+            .collect();
+        Ok(ConcordanceResult {
+            module: Some(module),
+            hits,
+        })
+    })
+}
+
+/// The Strong number(s) a word in a verse is linked to (ADR 0020).
+#[flutter_rust_bridge::frb(sync)]
+pub fn strongs_for(
+    module_code: String,
+    book_osis: String,
+    chapter: u16,
+    verse: u16,
+    word: String,
+) -> anyhow::Result<Vec<String>> {
+    let book = book_by_osis(&book_osis).ok_or_else(|| anyhow!("unknown book: {book_osis}"))?;
+    with_library(|library| library.strongs_for_word(&module_code, book, chapter, verse, &word))
 }
 
 /// Commentary entries of one chapter, ordered by starting verse.

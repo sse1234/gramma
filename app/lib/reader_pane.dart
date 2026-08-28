@@ -91,8 +91,10 @@ class ReaderPane extends StatefulWidget {
   final bool readingMode;
   final VoidCallback onToggleMode;
 
-  /// A long-pressed word, stripped for dictionary lookup (ADR 0019).
-  final ValueChanged<String>? onWordLookup;
+  /// A long-pressed word, stripped for dictionary lookup (ADR 0019),
+  /// with its verse context so tagged texts resolve Strong numbers
+  /// directly (ADR 0020).
+  final WordLookup? onWordLookup;
 
   /// The pane's identity badge, shown leftmost in the chrome.
   final Widget? badge;
@@ -576,9 +578,17 @@ class _ReaderPaneState extends State<ReaderPane> {
 
   /// A tapped inline note marker (ADR 0016): the footnote right where
   /// the reader's eye is, with in-popup reference navigation.
-  void _lookupRun(RunView run) {
+  void _lookupRun(int chapterIndex, RunView run) {
     final word = lookupWord(run);
-    if (word != null) widget.onWordLookup?.call(word);
+    if (word == null || chapterIndex >= _spine.length) return;
+    final chapter = _spine[chapterIndex];
+    widget.onWordLookup?.call(
+      word,
+      module: widget.spec.module,
+      bookOsis: chapter.bookOsis,
+      chapter: chapter.chapter,
+      verse: run.verse,
+    );
   }
 
   void _openNotePopup(int chapterIndex, int verse, String label) {
@@ -922,6 +932,7 @@ class _ReaderPaneState extends State<ReaderPane> {
           _openNotePopup(chapter, run.verse, run.text),
       onPlainTap: widget.onToggleMode,
       onWordLongPress: _lookupRun,
+
     );
   }
 
@@ -960,7 +971,7 @@ class _ReaderPaneState extends State<ReaderPane> {
               lineHeightEm: _lineSpacing,
               onMarkerTap: (run) => _openNotePopup(index, run.verse, run.text),
               onPlainTap: widget.onToggleMode,
-              onWordLongPress: _lookupRun,
+              onWordLongPress: (run) => _lookupRun(index, run),
             )
           else
             LayoutBuilder(
@@ -976,6 +987,16 @@ class _ReaderPaneState extends State<ReaderPane> {
 }
 
 typedef ModuleOption = ({String code, String title});
+
+/// A word lookup request (ADR 0019/0020): the stripped word, and — when
+/// coming from a Bible text — the verse it was pressed in.
+typedef WordLookup = void Function(
+  String word, {
+  String? module,
+  String? bookOsis,
+  int? chapter,
+  int? verse,
+});
 
 /// Shared pane chrome: badge, module and position-link selectors, the
 /// navigation cluster, and close/drag controls. Wide panes show everything

@@ -37,19 +37,32 @@ RunView? runAtOffset(
 }
 
 /// The note marker whose halo contains [position], nearest first.
-/// [lines] pairs each line with its top edge in pixels; [markerHeight]
-/// is the marker glyph size in pixels (markers paint top-aligned).
 RunView? markerNear(
   Iterable<({LineView line, double top})> lines,
   double scale,
   double markerHeight,
   Offset position,
-) {
+) =>
+    haloNear(lines, scale, markerHeight, position,
+        where: (run) => run.noteMarker);
+
+/// The small run (marker, label) whose halo contains [position], nearest
+/// first. [lines] pairs each line with its top edge in pixels;
+/// [glyphHeight] is the small glyph size in pixels (they paint
+/// top-aligned).
+RunView? haloNear(
+  Iterable<({LineView line, double top})> lines,
+  double scale,
+  double glyphHeight,
+  Offset position, {
+  required bool Function(RunView) where,
+}) {
+  final markerHeight = glyphHeight;
   RunView? best;
   var bestDistance = double.infinity;
   for (final entry in lines) {
     for (final run in entry.line.runs) {
-      if (!run.noteMarker) continue;
+      if (!where(run)) continue;
       final w = run.width * scale;
       final left = run.x * scale - markerPad * w;
       final right = run.x * scale + w + markerPad * w;

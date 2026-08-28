@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import 'l10n.dart';
@@ -6,6 +8,7 @@ import 'reader_pane.dart';
 import 'run_hit.dart';
 import 'settings.dart';
 import 'src/rust/api/library.dart';
+import 'src/rust/api/references.dart';
 import 'src/rust/api/typeset.dart';
 import 'typeset_prose.dart';
 
@@ -69,22 +72,59 @@ int? dictAnchorSort(String? anchor) {
 String? dictAnchorQuery(String? anchor) =>
     anchor != null && anchor.startsWith('q:') ? anchor.substring(2) : null;
 
+/// The Strong number of a concordance anchor like "c:G26".
+String? dictAnchorStrong(String? anchor) =>
+    anchor != null && anchor.startsWith('c:') ? anchor.substring(2) : null;
+
 class _DictionaryPaneState extends State<DictionaryPane> {
   final TextEditingController _search = TextEditingController();
   final Map<int, DictLayoutView> _layouts = {};
   final Set<int> _pending = {};
   String _signature = '';
 
+  /// The pane's own lookup history (ADR 0020): every anchor it showed,
+  /// navigated by the header arrows — entries, searches, concordances.
+  final List<String> _history = [];
+  int _cursor = -1;
+  int? _pendingCursor;
+
   @override
   void initState() {
     super.initState();
+    _record(widget.anchor);
     _syncSearchField();
   }
 
   @override
   void didUpdateWidget(DictionaryPane old) {
     super.didUpdateWidget(old);
-    if (old.anchor != widget.anchor) _syncSearchField();
+    if (old.anchor != widget.anchor) {
+      final pending = _pendingCursor;
+      if (pending != null &&
+          pending < _history.length &&
+          _history[pending] == widget.anchor) {
+        _cursor = pending;
+      } else {
+        _record(widget.anchor);
+      }
+      _pendingCursor = null;
+      _syncSearchField();
+    }
+  }
+
+  void _record(String? anchor) {
+    if (anchor == null) return;
+    if (_cursor >= 0 && _history[_cursor] == anchor) return;
+    _history.removeRange(_cursor + 1, _history.length);
+    _history.add(anchor);
+    _cursor = _history.length - 1;
+  }
+
+  void _goHistory(int delta) {
+    final target = _cursor + delta;
+    if (target < 0 || target >= _history.length) return;
+    _pendingCursor = target;
+    widget.onAnchor(_history[target]);
   }
 
   @override
@@ -167,7 +207,7 @@ class _DictionaryPaneState extends State<DictionaryPane> {
     }
     final sort = dictAnchorSort(widget.anchor);
     final query = dictAnchorQuery(widget.anchor);
-    final entry = sort == null ? null : _layouts[sort];
+    final strong = dictAnchorStrong(widget.anchor);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -185,35 +225,34 @@ class _DictionaryPaneState extends State<DictionaryPane> {
                 onSubmitted: _submit,
               ),
             ),
-            if (sort != null) ...[
-              IconButton(
-                key: const Key('dict-prev'),
-                icon: const Icon(Icons.chevron_left, size: 20),
-                onPressed: entry?.prevSort == null
-                    ? null
-                    : () => widget.onAnchor('G${entry!.prevSort}'),
-              ),
-              IconButton(
-                key: const Key('dict-next'),
-                icon: const Icon(Icons.chevron_right, size: 20),
-                onPressed: entry?.nextSort == null
-                    ? null
-                    : () => widget.onAnchor('G${entry!.nextSort}'),
-              ),
-            ],
+            // Back/forward through the pane's lookup history.
+            IconButton(
+              key: const Key('dict-prev'),
+              icon: const Icon(Icons.chevron_left, size: 20),
+              onPressed: _cursor > 0 ? () => _goHistory(-1) : null,
+            ),
+            IconButton(
+              key: const Key('dict-next'),
+              icon: const Icon(Icons.chevron_right, size: 20),
+              onPressed:
+                  _cursor < _history.length - 1 ? () => _goHistory(1) : null,
+            ),
           ],
         ),
         const SizedBox(height: 6),
         Expanded(
-          child: sort != null
-              ? _entryView(theme, module, sort)
-              : query != null
-                  ? _resultsView(theme, module, query)
-                  : GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: widget.onToggleMode,
-                      child: _hint(theme, context.l10n.searchDictionaryHint),
-                    ),
+          child: strong != null
+              ? _concordanceView(theme, strong)
+              : sort != null
+                  ? _entryView(theme, module, sort)
+                  : query != null
+                      ? _resultsView(theme, module, query)
+                      : GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTap: widget.onToggleMode,
+                          child:
+                              _hint(theme, context.l10n.searchDictionaryHint),
+                        ),
         ),
       ],
     );
@@ -253,6 +292,89 @@ class _DictionaryPaneState extends State<DictionaryPane> {
           onTap: () => widget.onAnchor('G${hit.sort}'),
         );
       },
+    );
+  }
+
+  /// The concordance (ADR 0020): every occurrence of [strong] in the
+  /// first Strong's-tagged Bible, each previewing its passage.
+  Widget _concordanceView(ThemeData theme, String strong) {
+    final ConcordanceResult result;
+    try {
+      result = concordanceOf(strong: strong, limit: 500);
+    } catch (_) {
+      return _hint(theme, context.l10n.noConcordanceSource);
+    }
+    if (result.module == null) {
+      return _hint(
+        theme,
+        context.l10n.noConcordanceSource,
+        key: const Key('no-concordance-source'),
+      );
+    }
+    if (result.hits.isEmpty) {
+      return _hint(
+        theme,
+        context.l10n.noDictionaryResults,
+        key: const Key('concordance-empty'),
+      );
+    }
+    final family = SettingsScope.of(context).fontFamily;
+    final refStyle = theme.textTheme.labelMedium
+        ?.copyWith(color: theme.colorScheme.primary);
+    final textStyle = theme.textTheme.bodyMedium
+        ?.copyWith(fontFamily: family, height: 1.3);
+    final strongStyle =
+        textStyle?.copyWith(fontWeight: FontWeight.w600);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Text(
+            '$strong · ${result.hits.length}',
+            key: const Key('concordance-count'),
+            style: theme.textTheme.titleSmall,
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            key: const Key('concordance-list'),
+            itemCount: result.hits.length,
+            itemBuilder: (context, index) {
+              final hit = result.hits[index];
+              final osis = '${hit.bookOsis}.${hit.chapter}.${hit.verse}';
+              final bytes = utf8.encode(hit.text);
+              String slice(int a, int b) =>
+                  utf8.decode(bytes.sublist(a.clamp(0, bytes.length),
+                      b.clamp(0, bytes.length)));
+              return InkWell(
+                key: Key('occ-$index'),
+                onTap: () => _openPreview(osis),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text.rich(
+                    TextSpan(children: [
+                      TextSpan(
+                        text: '${formatReference(osis: osis)}  ',
+                        style: refStyle,
+                      ),
+                      TextSpan(
+                          text: slice(0, hit.start), style: textStyle),
+                      TextSpan(
+                        text: slice(hit.start, hit.end),
+                        style: strongStyle,
+                      ),
+                      TextSpan(
+                          text: slice(hit.end, bytes.length),
+                          style: textStyle),
+                    ]),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -301,6 +423,8 @@ class _DictionaryPaneState extends State<DictionaryPane> {
                 final word = lookupWord(run);
                 if (word != null) widget.onAnchor('q:$word');
               },
+              onLabelTap: () =>
+                  widget.onAnchor('c:${entry.displayKey}'),
             ),
           ),
         );

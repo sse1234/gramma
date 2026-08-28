@@ -30,6 +30,29 @@ List<DictHitView> dictSearch({
   query: query,
 );
 
+/// Every occurrence of a Strong number ("G26") in the first tagged
+/// Bible module — the concordance.
+ConcordanceResult concordanceOf({required String strong, required int limit}) =>
+    RustLib.instance.api.crateApiLibraryConcordanceOf(
+      strong: strong,
+      limit: limit,
+    );
+
+/// The Strong number(s) a word in a verse is linked to (ADR 0020).
+List<String> strongsFor({
+  required String moduleCode,
+  required String bookOsis,
+  required int chapter,
+  required int verse,
+  required String word,
+}) => RustLib.instance.api.crateApiLibraryStrongsFor(
+  moduleCode: moduleCode,
+  bookOsis: bookOsis,
+  chapter: chapter,
+  verse: verse,
+  word: word,
+);
+
 /// Commentary entries of one chapter, ordered by starting verse.
 List<CommentView> chapterComments({
   required String moduleCode,
@@ -182,6 +205,26 @@ class CommentView {
           refs == other.refs;
 }
 
+class ConcordanceResult {
+  /// The Strong's-tagged module the occurrences come from, if any is
+  /// installed.
+  final String? module;
+  final List<OccurrenceView> hits;
+
+  const ConcordanceResult({this.module, required this.hits});
+
+  @override
+  int get hashCode => module.hashCode ^ hits.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ConcordanceResult &&
+          runtimeType == other.runtimeType &&
+          module == other.module &&
+          hits == other.hits;
+}
+
 /// A dictionary search hit (ADR 0019), ranked headword-first.
 class DictHitView {
   final int sort;
@@ -312,6 +355,47 @@ class NoteView {
           label == other.label &&
           text == other.text &&
           refs == other.refs;
+}
+
+/// One concordance occurrence (ADR 0020): a verse whose byte range
+/// [start, end) is covered by the Strong number searched.
+class OccurrenceView {
+  final String bookOsis;
+  final int chapter;
+  final int verse;
+  final int start;
+  final int end;
+  final String text;
+
+  const OccurrenceView({
+    required this.bookOsis,
+    required this.chapter,
+    required this.verse,
+    required this.start,
+    required this.end,
+    required this.text,
+  });
+
+  @override
+  int get hashCode =>
+      bookOsis.hashCode ^
+      chapter.hashCode ^
+      verse.hashCode ^
+      start.hashCode ^
+      end.hashCode ^
+      text.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OccurrenceView &&
+          runtimeType == other.runtimeType &&
+          bookOsis == other.bookOsis &&
+          chapter == other.chapter &&
+          verse == other.verse &&
+          start == other.start &&
+          end == other.end &&
+          text == other.text;
 }
 
 class VerseView {

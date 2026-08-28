@@ -50,7 +50,7 @@ class TypesetColumn extends StatelessWidget {
   final VoidCallback? onPlainTap;
 
   /// A long press on a word (ADR 0019): dictionary lookup.
-  final ValueChanged<RunView>? onWordLongPress;
+  final void Function(int chapter, RunView run)? onWordLongPress;
 
   final List<ColumnRow> rows;
   final int rowCount;
@@ -112,7 +112,9 @@ class TypesetColumn extends StatelessWidget {
                 final run = hit == null
                     ? null
                     : runInLine(hit.line, scale, details.localPosition.dx);
-                if (run != null) onWordLongPress!(run);
+                if (hit != null && run != null) {
+                  onWordLongPress!(hit.chapter, run);
+                }
               },
         child: CustomPaint(
           size: Size.fromHeight(rowCount * lineHeight),

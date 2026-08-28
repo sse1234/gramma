@@ -61,6 +61,7 @@ pub struct SwordCommentary {
 pub enum SwordModule {
     Commentary(SwordCommentary),
     Dictionary(SwordDictionary),
+    Bible(SwordBible),
 }
 
 /// A lexicon/dictionary (zLD, ADR 0019): keyed entries in sort order.
@@ -201,7 +202,8 @@ pub fn read_sword_zip(path: &Path) -> Result<SwordModule, SwordError> {
             conf, &idx, &dat, &zdx, &zdt,
         )?));
     }
-    ensure(&conf, "zCom", "OSIS")?;
+    let is_text = conf.mod_drv.eq_ignore_ascii_case("zText");
+    ensure(&conf, if is_text { "zText" } else { "zCom" }, "OSIS")?;
     let mut testaments = Vec::new();
     for t in ["ot", "nt"] {
         let base = format!("{}/{t}", conf.data_path);
@@ -214,6 +216,9 @@ pub fn read_sword_zip(path: &Path) -> Result<SwordModule, SwordError> {
         };
         testaments.push(Testament { bzs, bzv, bzz });
     }
+    if is_text {
+        return Ok(SwordModule::Bible(parse_ztext_parsed(conf, &testaments)?));
+    }
     Ok(SwordModule::Commentary(parse_zcom_parsed(
         conf,
         &testaments,
@@ -223,7 +228,7 @@ pub fn read_sword_zip(path: &Path) -> Result<SwordModule, SwordError> {
 pub fn read_zcom_zip(path: &Path) -> Result<SwordCommentary, SwordError> {
     match read_sword_zip(path)? {
         SwordModule::Commentary(c) => Ok(c),
-        SwordModule::Dictionary(_) => Err(SwordError::Unsupported("expected a commentary".into())),
+        _ => Err(SwordError::Unsupported("expected a commentary".into())),
     }
 }
 
@@ -657,4 +662,291 @@ fn parse_tei_entry(sort: u32, key: &str, fragment: &str) -> Result<Option<DictEn
         pron,
         text: text.out,
     }))
+}
+
+// ---- zText Bibles with Strong's word links (ADR 0020) ----
+
+/// A Bible text imported from a zText module: verses with word-level
+/// Strong's links — the raw material of the concordance.
+pub struct SwordBible {
+    pub code: String,
+    pub title: String,
+    pub language: String,
+    pub verses: Vec<BibleVerse>,
+    pub notes: Vec<BibleNote>,
+}
+
+pub struct BibleVerse {
+    pub book: BookId,
+    pub chapter: u16,
+    pub verse: u16,
+    /// Normalized verse text.
+    pub text: String,
+    pub links: Vec<WordLink>,
+}
+
+/// A Strong's link covering a byte range of the verse text ("G2316").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WordLink {
+    pub start: u32,
+    pub end: u32,
+    pub strong: String,
+}
+
+pub struct BibleNote {
+    pub book: BookId,
+    pub chapter: u16,
+    pub verse: u16,
+    pub seq: u16,
+    pub offset: u32,
+    pub text: String,
+}
+
+/// Parse a zText Bible from its configuration and testament files.
+pub fn parse_ztext(conf: &str, testaments: &[Testament]) -> Result<SwordBible, SwordError> {
+    let conf = parse_conf(conf)?;
+    ensure(&conf, "zText", "OSIS")?;
+    parse_ztext_parsed(conf, testaments)
+}
+
+fn parse_ztext_parsed(conf: Conf, testaments: &[Testament]) -> Result<SwordBible, SwordError> {
+    let mut verses: Vec<BibleVerse> = Vec::new();
+    let mut notes: Vec<BibleNote> = Vec::new();
+    for t in testaments {
+        let blocks: Vec<(u32, u32)> = t
+            .bzs
+            .as_chunks::<12>()
+            .0
+            .iter()
+            .map(|c| {
+                (
+                    u32::from_le_bytes(c[0..4].try_into().unwrap()),
+                    u32::from_le_bytes(c[4..8].try_into().unwrap()),
+                )
+            })
+            .collect();
+        let mut cache: HashMap<u32, Vec<u8>> = HashMap::new();
+        // Verse identity comes from the slot walk: book and chapter
+        // milestones occupy their own slots (verified against the KJV
+        // module: chapter ends are embedded, never separate slots), and
+        // every following slot is the next verse of the chapter.
+        let mut book: Option<BookId> = None;
+        let mut chapter: u16 = 0;
+        let mut verse: u16 = 0;
+        for slot in t.bzv.as_chunks::<10>().0 {
+            let block = u32::from_le_bytes(slot[0..4].try_into().unwrap());
+            let offset = u32::from_le_bytes(slot[4..8].try_into().unwrap());
+            let size = u16::from_le_bytes(slot[8..10].try_into().unwrap());
+            if size == 0 {
+                // An empty slot inside a chapter still occupies its
+                // verse position (the leading testament slot does not).
+                if book.is_some() && chapter > 0 {
+                    verse += 1;
+                }
+                continue;
+            }
+            let data = match cache.entry(block) {
+                std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+                std::collections::hash_map::Entry::Vacant(e) => {
+                    let (start, compressed) = *blocks
+                        .get(block as usize)
+                        .ok_or_else(|| SwordError::Corrupt(format!("block {block}")))?;
+                    let raw = t
+                        .bzz
+                        .get(start as usize..(start + compressed) as usize)
+                        .ok_or_else(|| SwordError::Corrupt(format!("block {block} bounds")))?;
+                    let mut out = Vec::new();
+                    ZlibDecoder::new(raw).read_to_end(&mut out)?;
+                    e.insert(out)
+                }
+            };
+            let bytes = data
+                .get(offset as usize..(offset as usize + size as usize))
+                .ok_or_else(|| SwordError::Corrupt("verse slot bounds".into()))?;
+            let fragment = std::str::from_utf8(bytes).map_err(|_| SwordError::Encoding)?;
+            let parsed = parse_bible_fragment(fragment)?;
+            if let Some(marker) = parsed.book_marker {
+                // Non-canonical books stay None: their verse slots are
+                // skipped entirely (ADR 0010).
+                book = marker;
+                chapter = 0;
+                verse = 0;
+                continue;
+            }
+            if let Some(c) = parsed.chapter_marker {
+                chapter = c;
+                verse = 0;
+                continue;
+            }
+            let Some(book) = book else { continue };
+            if chapter == 0 {
+                continue; // importer milestones and other preamble
+            }
+            verse += 1;
+            if parsed.text.is_empty() {
+                continue;
+            }
+            for (index, (note_offset, note_text)) in parsed.notes.into_iter().enumerate() {
+                notes.push(BibleNote {
+                    book,
+                    chapter,
+                    verse,
+                    seq: index as u16 + 1,
+                    offset: note_offset,
+                    text: note_text,
+                });
+            }
+            verses.push(BibleVerse {
+                book,
+                chapter,
+                verse,
+                text: parsed.text,
+                links: parsed.links,
+            });
+        }
+    }
+    if verses.is_empty() {
+        return Err(SwordError::Empty);
+    }
+    Ok(SwordBible {
+        code: conf.code,
+        title: conf.title,
+        language: conf.language,
+        verses,
+        notes,
+    })
+}
+
+struct BibleFragment {
+    /// Some(book) marks a canonical book slot, Some(None) a skipped one.
+    book_marker: Option<Option<BookId>>,
+    chapter_marker: Option<u16>,
+    text: String,
+    links: Vec<WordLink>,
+    notes: Vec<(u32, String)>,
+}
+
+/// One verse (or structural) fragment: `w` elements carry Strong's
+/// lemmas, notes and titles are excluded from the text (notes captured),
+/// everything else unwraps to its text.
+fn parse_bible_fragment(fragment: &str) -> Result<BibleFragment, SwordError> {
+    let mut reader = Reader::from_str(fragment);
+    reader.config_mut().check_end_names = false;
+    let mut out = BibleFragment {
+        book_marker: None,
+        chapter_marker: None,
+        text: String::new(),
+        links: Vec::new(),
+        notes: Vec::new(),
+    };
+    let mut text = TextBuilder::new();
+    let mut skip_depth: u32 = 0;
+    let mut note_depth: u32 = 0;
+    let mut note_text = TextBuilder::new();
+    let mut note_offset: u32 = 0;
+    let mut w_depth: u32 = 0;
+    let mut w_start: usize = 0;
+    let mut w_strongs: Vec<String> = Vec::new();
+
+    fn strongs_of(e: &BytesStart) -> Vec<String> {
+        attr(e, b"lemma")
+            .map(|lemma| {
+                lemma
+                    .split_whitespace()
+                    .filter_map(|part| part.strip_prefix("strong:"))
+                    .map(|s| s.to_string())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    loop {
+        let event = reader.read_event()?;
+        match &event {
+            Event::Start(e) | Event::Empty(e) => {
+                let empty = matches!(event, Event::Empty(_));
+                match e.local_name().as_ref() {
+                    b"div" => {
+                        if attr(e, b"type").as_deref() == Some("book")
+                            && attr(e, b"eID").is_none()
+                            && let Some(id) = attr(e, b"osisID")
+                        {
+                            out.book_marker = Some(book_by_osis(&id));
+                        }
+                    }
+                    b"chapter" => {
+                        if attr(e, b"eID").is_none()
+                            && let Some(id) = attr(e, b"osisID")
+                            && let Some(number) = id.rsplit('.').next()
+                            && let Ok(number) = number.parse::<u16>()
+                        {
+                            out.chapter_marker = Some(number);
+                        }
+                    }
+                    b"w" if !empty => {
+                        if w_depth == 0 && note_depth == 0 && skip_depth == 0 {
+                            text.flush_separator();
+                            w_start = text.out.len();
+                            w_strongs = strongs_of(e);
+                        }
+                        w_depth += 1;
+                    }
+                    b"note" if !empty => {
+                        if note_depth == 0 {
+                            note_offset = text.out.len() as u32;
+                            note_text = TextBuilder::new();
+                        }
+                        note_depth += 1;
+                    }
+                    b"title" if !empty => skip_depth += 1,
+                    b"lb" | b"milestone" if empty && note_depth == 0 && skip_depth == 0 => {
+                        text.push_text(" ");
+                    }
+                    _ => {}
+                }
+            }
+            Event::End(e) => match e.local_name().as_ref() {
+                b"w" => {
+                    w_depth = w_depth.saturating_sub(1);
+                    if w_depth == 0 && note_depth == 0 && skip_depth == 0 {
+                        let end = text.out.len();
+                        if end > w_start {
+                            for strong in w_strongs.drain(..) {
+                                out.links.push(WordLink {
+                                    start: w_start as u32,
+                                    end: end as u32,
+                                    strong,
+                                });
+                            }
+                        }
+                    }
+                }
+                b"note" => {
+                    note_depth = note_depth.saturating_sub(1);
+                    if note_depth == 0 && !note_text.out.is_empty() {
+                        out.notes
+                            .push((note_offset, std::mem::take(&mut note_text.out)));
+                    }
+                }
+                b"title" => skip_depth = skip_depth.saturating_sub(1),
+                _ => {}
+            },
+            Event::Text(t) => {
+                let content = t
+                    .xml_content(quick_xml::XmlVersion::Implicit1_0)
+                    .map_err(quick_xml::Error::from)?;
+                if skip_depth > 0 {
+                    // structural titles are not verse text
+                } else if note_depth > 0 {
+                    note_text.push_text(&content);
+                } else {
+                    text.push_text(&content);
+                }
+            }
+            Event::Eof => break,
+            _ => {}
+        }
+    }
+    out.text = text.out;
+    Ok(out)
 }

@@ -66,7 +66,7 @@ class CommentaryPane extends StatefulWidget {
   final VoidCallback? onClose;
 
   /// A long-pressed word, stripped for dictionary lookup (ADR 0019).
-  final ValueChanged<String>? onWordLookup;
+  final WordLookup? onWordLookup;
 
   @override
   State<CommentaryPane> createState() => _CommentaryPaneState();

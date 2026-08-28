@@ -112,6 +112,7 @@ void main() {
     await importOsisFile(path: _fixture);
     await importSwordFile(path: 'test/fixtures/commentary.sword.zip');
     await importSwordFile(path: 'test/fixtures/dictionary.sword.zip');
+    await importSwordFile(path: 'test/fixtures/bible.sword.zip');
     _freshUserStore();
   });
 
@@ -716,9 +717,10 @@ void main() {
 
   /// Center of the first run whose text contains [word] in the painted
   /// vertical chapter — recomputed from the deterministic layout.
-  Future<Offset> wordPoint(WidgetTester tester, int chapter, String word) async {
+  Future<Offset> wordPoint(WidgetTester tester, int chapter, String word,
+      {String module = 'FixDe'}) async {
     final layout = await tester.runAsync(() => layoutChapter(
-        moduleCode: 'FixDe',
+        moduleCode: module,
         bookOsis: 'Gen',
         chapter: chapter,
         measureEms: 26));
@@ -769,12 +771,49 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('ἀγάπη')), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('höchste Form')), findsOneWidget);
 
-    // Browse: next reaches the neighbor entry, prev returns.
-    await tester.tap(find.byKey(const Key('dict-next')));
-    await _settle(
-        tester, () => _found(find.byKey(const Key('dict-entry-3'))));
-    expect(find.bySemanticsLabel(RegExp('οὐρανός')), findsOneWidget);
+    // Tapping the Strong label (halo mechanics, ADR 0020) opens the
+    // concordance of that number in the tagged Bible fixture.
+    final entryWidth =
+        tester.getSize(find.byKey(const Key('dict-entry-2'))).width;
+    final entryFontSize = (entryWidth < 400.0 ? entryWidth : 400.0) / 26.0;
+    late DictLayoutView? entry2;
+    await tester.runAsync(() async {
+      entry2 = await layoutDictEntry(
+        moduleCode: 'WbTest',
+        sort: 2,
+        measureEms: entryWidth / entryFontSize,
+      );
+    });
+    final label = entry2!.lines.first.runs
+        .firstWhere((run) => run.verseNumber);
+    final labelScale = entryFontSize / entry2!.unitsPerEm;
+    final entryOrigin = tester.getTopLeft(find.descendant(
+      of: find.byKey(const Key('dict-entry-2')),
+      matching: find.byType(CustomPaint),
+    ));
+    await tester.tapAt(entryOrigin +
+        Offset((label.x + label.width / 2) * labelScale,
+            entryFontSize * entry2!.numberScale * 0.5));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('concordance-list')), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(find.byKey(const Key('concordance-count')))
+          .data,
+      'G2 · 1',
+    );
+    expect(find.textContaining('Love'), findsWidgets,
+        reason: 'the occurrence shows its verse with the word bold');
+
+    // The header arrows walk the pane's lookup history.
     await tester.tap(find.byKey(const Key('dict-prev')));
+    await _settle(
+        tester, () => _found(find.byKey(const Key('dict-entry-2'))));
+    await tester.tap(find.byKey(const Key('dict-prev')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('dict-results')), findsOneWidget,
+        reason: 'history returns to the search results');
+    await tester.tap(find.byKey(const Key('dict-next')));
     await _settle(
         tester, () => _found(find.byKey(const Key('dict-entry-2'))));
 
@@ -846,6 +885,31 @@ void main() {
     final field =
         tester.widget<TextField>(find.byKey(const Key('dict-search')));
     expect(field.controller!.text, 'Himmel');
+  });
+
+  testWidgets('in a tagged text a long-pressed word resolves its Strong',
+      (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(700, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+
+    await tester.tap(find.byKey(const Key('module-select')).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Testbibel mit Strongs').last);
+    await _settleLayouts(tester);
+
+    await tester
+        .longPressAt(await wordPoint(tester, 1, 'heaven', module: 'KjvTest'));
+    await _settle(
+        tester, () => _found(find.byKey(const Key('dict-entry-3'))));
+    expect(find.bySemanticsLabel(RegExp('οὐρανός')), findsOneWidget,
+        reason: 'the tagged word opened its lexicon entry directly');
+    semantics.dispose();
   });
 
   testWidgets('desk history: back, forward, and the dropdown', (tester) async {
