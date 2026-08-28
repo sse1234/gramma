@@ -10,6 +10,7 @@ RunView _run(int verse) => RunView(
       noteMarker: false,
       headingLevel: 0,
       verse: verse,
+      offset: 0,
     );
 
 void main() {

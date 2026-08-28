@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'annotations.dart';
 import 'run_hit.dart';
 import 'run_paint.dart';
 import 'settings.dart';
@@ -18,7 +19,13 @@ class TypesetChapter extends StatelessWidget {
     this.lineHeightEm = 1.5,
     this.onMarkerTap,
     this.onPlainTap,
-    this.onWordLongPress,
+    this.onSelectStart,
+    this.onSelectExtend,
+    this.onSelectEnd,
+    this.onRunTap,
+    this.marks = const [],
+    this.paneModule,
+    this.selection,
   });
 
   final ChapterLayoutView layout;
@@ -31,8 +38,21 @@ class TypesetChapter extends StatelessWidget {
   final void Function(RunView run)? onMarkerTap;
   final VoidCallback? onPlainTap;
 
-  /// A long press on a word (ADR 0019): dictionary lookup.
-  final ValueChanged<RunView>? onWordLongPress;
+  /// Selection gestures (ADR 0023): a steady long press anchors on the
+  /// word under the finger; dragging in the same touch cycle extends;
+  /// release finalizes. The pane owns the selection state.
+  final ValueChanged<RunView>? onSelectStart;
+  final ValueChanged<RunView>? onSelectExtend;
+  final VoidCallback? onSelectEnd;
+
+  /// A tap that resolved to a word run (marks open their note popup);
+  /// taps hitting nothing still fall to [onPlainTap].
+  final ValueChanged<RunView>? onRunTap;
+
+  /// Color marks to wash behind the text, pre-resolved to theme colors.
+  final List<(NoteMark, Color)> marks;
+  final String? paneModule;
+  final VerseSelection? selection;
 
   @override
   Widget build(BuildContext context) {
@@ -62,17 +82,39 @@ class TypesetChapter extends StatelessWidget {
               );
               if (marker != null && onMarkerTap != null) {
                 onMarkerTap!(marker);
+                return;
+              }
+              final run = runAtOffset(
+                  layout.lines, scale, lineHeight, details.localPosition);
+              if (run != null &&
+                  !run.verseNumber &&
+                  !run.noteMarker &&
+                  onRunTap != null) {
+                onRunTap!(run);
               } else {
                 onPlainTap?.call();
               }
             },
-            onLongPressStart: onWordLongPress == null
+            onLongPressStart: onSelectStart == null
                 ? null
                 : (details) {
                     final run = runAtOffset(layout.lines, scale, lineHeight,
                         details.localPosition);
-                    if (run != null) onWordLongPress!(run);
+                    if (run != null && !run.verseNumber && !run.noteMarker) {
+                      onSelectStart!(run);
+                    }
                   },
+            onLongPressMoveUpdate: onSelectExtend == null
+                ? null
+                : (details) {
+                    final run = runAtOffset(layout.lines, scale, lineHeight,
+                        details.localPosition);
+                    if (run != null && !run.verseNumber && !run.noteMarker) {
+                      onSelectExtend!(run);
+                    }
+                  },
+            onLongPressEnd:
+                onSelectEnd == null ? null : (_) => onSelectEnd!(),
             child: CustomPaint(
               size:
                   Size(constraints.maxWidth, layout.lines.length * lineHeight),
@@ -85,6 +127,11 @@ class TypesetChapter extends StatelessWidget {
                 numberColor: scheme.primary,
                 weightEm: weightEm,
                 family: family,
+                marks: marks,
+                paneModule: paneModule,
+                selection: selection,
+                selectionColor: scheme.primary.withValues(
+                    alpha: theme.brightness == Brightness.light ? 0.22 : 0.34),
               ),
             ),
           ),
@@ -104,6 +151,10 @@ class _ChapterPainter extends CustomPainter {
     required this.numberColor,
     required this.weightEm,
     required this.family,
+    required this.marks,
+    required this.paneModule,
+    required this.selection,
+    required this.selectionColor,
   });
 
   final ChapterLayoutView layout;
@@ -118,6 +169,35 @@ class _ChapterPainter extends CustomPainter {
 
   /// The reading typeface (user setting).
   final String family;
+
+  final List<(NoteMark, Color)> marks;
+  final String? paneModule;
+  final VerseSelection? selection;
+  final Color selectionColor;
+
+  /// Washes behind one line: user marks, then the live selection.
+  void _paintWashes(Canvas canvas, LineView line, double y) {
+    void wash(bool Function(RunView) covers, Color color) {
+      for (final (start, end) in coveredSpans(line, covers)) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTRB(start * scale - 2, y - fontSize * 0.06,
+                end * scale + 2, y + fontSize * 1.12),
+            const Radius.circular(3),
+          ),
+          Paint()..color = color,
+        );
+      }
+    }
+
+    for (final (mark, color) in marks) {
+      wash((run) => markCoversRun(mark, run, paneModule), color);
+    }
+    final sel = selection;
+    if (sel != null) {
+      wash(sel.coversRun, selectionColor);
+    }
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -135,6 +215,7 @@ class _ChapterPainter extends CustomPainter {
     final subSectionStyle = textStyle.copyWith(fontStyle: FontStyle.italic);
     for (var i = 0; i < layout.lines.length; i++) {
       final y = i * lineHeight;
+      _paintWashes(canvas, layout.lines[i], y);
       for (final run in layout.lines[i].runs) {
         final style = run.verseNumber
             ? numberStyle
@@ -159,6 +240,8 @@ class _ChapterPainter extends CustomPainter {
         old.textColor != textColor ||
         old.numberColor != numberColor ||
         old.weightEm != weightEm ||
-        old.family != family;
+        old.family != family ||
+        !identical(old.marks, marks) ||
+        old.selection != selection;
   }
 }

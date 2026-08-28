@@ -53,3 +53,13 @@ Color bookCategoryColor(int category, Brightness brightness) {
       ? hcl(h, 42, 85)
       : hcl(h, 34, 32);
 }
+
+/// Text-marker washes (ADR 0023): eight evenly spaced HCL hues, light
+/// enough (high luminance, moderate chroma) that typeset text stays
+/// fully readable on top in both themes.
+const markColorCount = 8;
+
+Color markColor(int index, Brightness brightness) {
+  final h = 15 + (index % markColorCount) * 45.0;
+  return brightness == Brightness.light ? hcl(h, 48, 87) : hcl(h, 40, 34);
+}

@@ -45,6 +45,10 @@ pub struct RunOut {
     /// 0018): tapping the run resolves the entry's reference at this
     /// index. None for plain text.
     pub link: Option<u32>,
+    /// Byte offset of this run's first fragment within its verse's
+    /// normalized text (ADR 0023: word-precise annotation anchors).
+    /// Zero for non-word runs and prose layouts.
+    pub offset: u32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -59,6 +63,7 @@ struct BoxMeta {
     verse: u16,
     heading_level: u8,
     link: Option<u32>,
+    offset: u32,
 }
 
 /// Lay out verses as justified paragraphs at `line_width` font units,
@@ -155,6 +160,7 @@ fn layout_heading(
             verse,
             heading_level: level,
             link: None,
+            offset: 0,
         }));
     }
     finish_paragraph(&mut items);
@@ -226,6 +232,7 @@ fn layout_paragraph(
                 verse: *number,
                 heading_level: 0,
                 link: None,
+                offset: 0,
             }),
         );
         // Never break between a verse number and its first word: an infinite
@@ -268,6 +275,7 @@ fn layout_paragraph(
                         verse: *number,
                         heading_level: 0,
                         link: None,
+                        offset: (word_start + fragment_start) as u32,
                     }),
                 );
                 if offset < word.len() {
@@ -349,6 +357,7 @@ fn push_marker(
         verse,
         heading_level: 0,
         link: None,
+        offset: 0,
     }));
 }
 
@@ -375,6 +384,7 @@ fn set_line(
             verse: u16,
             heading_level: u8,
             link: Option<u32>,
+            offset: u32,
         },
         Space {
             stretch: Scaled,
@@ -399,6 +409,7 @@ fn set_line(
                         verse: m.verse,
                         heading_level: m.heading_level,
                         link: m.link,
+                        offset: m.offset,
                     }),
                 }
             }
@@ -468,6 +479,7 @@ fn set_line(
                 verse,
                 heading_level,
                 link,
+                offset,
             } => {
                 runs.push(RunOut {
                     text: text.clone(),
@@ -478,6 +490,7 @@ fn set_line(
                     heading_level: *heading_level,
                     verse: *verse,
                     link: *link,
+                    offset: *offset,
                 });
                 x += width;
             }
@@ -569,6 +582,7 @@ fn push_label(
         verse,
         heading_level: 0,
         link: None,
+        offset: 0,
     }));
     items.push(Item::Penalty {
         width: 0,
@@ -631,6 +645,7 @@ fn prose_paragraph(
                 verse,
                 heading_level: 0,
                 link: link_at(word_start + fragment_start, word_start + offset),
+                offset: 0,
             }));
             if offset < word.len() {
                 items.push(Item::Penalty {

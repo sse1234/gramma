@@ -336,3 +336,31 @@ fn no_grotesque_lines_across_fonts_and_measures() {
         }
     }
 }
+
+/// Word runs carry their byte offset within the verse (ADR 0023), and a
+/// hyphenation split's second fragment keeps its own mid-word offset —
+/// so annotation ranges resolve exactly even across line breaks.
+#[test]
+fn word_runs_carry_verse_offsets() {
+    let verses = [(1u16, GEN_1_2)];
+    let lines = layout(&verses, 14);
+    let mut seen = Vec::new();
+    for line in &lines {
+        for run in &line.runs {
+            if !run.verse_number && !run.note_marker {
+                seen.push((run.offset as usize, run.text.clone()));
+            }
+        }
+    }
+    // Every unhyphenated run's text appears at its offset in the verse.
+    for (offset, text) in &seen {
+        let clean = text.trim_end_matches('-');
+        assert!(
+            GEN_1_2[*offset..].starts_with(clean)
+                || GEN_1_2[*offset..].starts_with(&clean.replace('-', "")),
+            "run {text:?} not at offset {offset}"
+        );
+    }
+    // Offsets are strictly increasing within the verse.
+    assert!(seen.windows(2).all(|w| w[0].0 < w[1].0), "{seen:?}");
+}

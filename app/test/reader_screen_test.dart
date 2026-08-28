@@ -881,6 +881,10 @@ void main() {
 
     await tester.longPressAt(await wordPoint(tester, 1, 'Himmel'));
     await tester.pumpAndSettle();
+    expect(find.byKey(const Key('selection-bar')), findsOneWidget,
+        reason: 'a steady long press enters selection mode');
+    await tester.tap(find.byKey(const Key('selection-dictionary')));
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('dict-search')), findsOneWidget,
         reason: 'a dictionary view was created for the lookup');
     expect(find.byKey(const Key('dict-results')), findsOneWidget);
@@ -925,6 +929,8 @@ void main() {
 
     await tester
         .longPressAt(await wordPoint(tester, 1, 'heaven', module: 'KjvTest'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('selection-dictionary')));
     await _settle(
         tester, () => _found(find.byKey(const Key('dict-entry-3'))));
     expect(find.bySemanticsLabel(RegExp('οὐρανός')), findsOneWidget,
@@ -1119,6 +1125,95 @@ void main() {
       find.byKey(const Key('current-position')).first,
     );
     expect(position.data, '1. Mose 3');
+  });
+
+  testWidgets('annotations: mark, note, edit, and cross-module verses',
+      (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(700, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+
+    // Hold-and-release on a word: selection mode with the word selected.
+    await tester.longPressAt(await wordPoint(tester, 1, 'Himmel'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('selection-bar')), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.byKey(const Key('selection-label'))).data,
+      '1Mo 1,1',
+    );
+
+    // Mark it with color 3 and a note.
+    await tester.tap(find.byKey(const Key('selection-mark')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('mark-color-3')));
+    await tester.enterText(
+        find.byKey(const Key('mark-text')), 'Meine Notiz');
+    await tester.tap(find.byKey(const Key('mark-save')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('selection-bar')), findsNothing,
+        reason: 'saving exits selection mode');
+    expect(userKeys(prefix: 'note/'), hasLength(1));
+
+    // Tapping the marked word opens the note for editing.
+    await tester.tapAt(await wordPoint(tester, 1, 'Himmel'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('mark-text')))
+          .controller!
+          .text,
+      'Meine Notiz',
+    );
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // Hold-and-swipe: a passage selection across verses.
+    final start = await wordPoint(tester, 1, 'Anfang');
+    final end = await wordPoint(tester, 1, 'wüst');
+    final gesture = await tester.startGesture(start);
+    await tester.pump(const Duration(milliseconds: 700));
+    await gesture.moveTo(end);
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<Text>(find.byKey(const Key('selection-label'))).data,
+      '1Mo 1,1–2',
+    );
+    expect(
+      tester
+          .widget<IconButton>(find.byKey(const Key('selection-dictionary')))
+          .onPressed,
+      isNull,
+      reason: 'the dictionary needs a single word',
+    );
+    await tester.tap(find.byKey(const Key('selection-mark')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('mark-save')));
+    await tester.pumpAndSettle();
+    expect(userKeys(prefix: 'note/'), hasLength(2));
+
+    // In another translation the mark covers whole verses: any word of
+    // verse 1 opens the note popup.
+    await tester.tap(find.byKey(const Key('module-select')).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Testbibel mit Strongs').last);
+    await _settleLayouts(tester);
+    await tester
+        .tapAt(await wordPoint(tester, 1, 'beginning', module: 'KjvTest'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('mark-text')), findsOneWidget,
+        reason: 'verse-level coverage in a foreign module');
+    await tester.tap(find.byKey(const Key('mark-delete')));
+    await tester.pumpAndSettle();
+    final remaining = [
+      for (final k in userKeys(prefix: 'note/')) userGet(key: k)!
+    ].where((v) => v.isNotEmpty);
+    expect(remaining, hasLength(1), reason: 'delete tombstones the mark');
   });
 
   testWidgets('desk history: back, forward, and the dropdown', (tester) async {
