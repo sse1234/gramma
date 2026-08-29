@@ -345,6 +345,16 @@ class AppLocalizationsDe extends AppLocalizations {
   String get keepScreenOnSubtitle => 'Das Display schläft beim Lesen nie ein';
 
   @override
+  String get notesTitle => 'Notizen';
+
+  @override
+  String get noNotesYet =>
+      'Noch keine Markierungen oder Notizen — halte ein Wort im Text gedrückt, um zu beginnen.';
+
+  @override
+  String get pureMark => 'Markierung';
+
+  @override
   String get trueBlack => 'Echtes Schwarz im dunklen Design';
 
   @override

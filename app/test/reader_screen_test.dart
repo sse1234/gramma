@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gramma/footnotes_pane.dart';
+import 'package:gramma/annotations.dart';
 import 'package:gramma/reader_pane.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -94,6 +95,8 @@ var _storeCounter = 0;
 void _freshUserStore() {
   final dir = Directory.systemTemp.createTempSync('gramma-user');
   openUserStore(path: '${dir.path}/user-${_storeCounter++}.db');
+  // The annotations cache outlives the swapped store.
+  Annotations.invalidate();
 }
 
 void main() {
@@ -1219,6 +1222,83 @@ void main() {
       for (final k in userKeys(prefix: 'note/')) userGet(key: k)!
     ].where((v) => v.isNotEmpty);
     expect(remaining, hasLength(1), reason: 'delete tombstones the mark');
+  });
+
+  testWidgets('notes overview: canonical list, jump, edit, and delete',
+      (tester) async {
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('add-notes')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('note-row-0')), findsNothing,
+        reason: 'a fresh store shows the empty state');
+
+    // Two marks, saved out of canonical order — the open pane hears the
+    // change through the store's revision notifier.
+    NoteMark mark(String id, int chapter, String text) => NoteMark(
+          id: id,
+          module: 'FixDe',
+          bookOsis: 'Gen',
+          chapter: chapter,
+          verseStart: 1,
+          verseEnd: 1,
+          startOffset: 0,
+          endOffset: 1 << 30,
+          colorIndex: 2,
+          text: text,
+          created: '2026-08-29T0$chapter:00:00Z',
+        );
+    Annotations.save(mark('n-later', 2, 'Später'));
+    Annotations.save(mark('n-first', 1, ''));
+    await tester.pumpAndSettle();
+
+    // Canonical order: Gen 1 before Gen 2; a pure color mark is labeled.
+    expect(
+      find.descendant(
+          of: find.byKey(const Key('note-row-0')),
+          matching: find.text('1Mo 1,1')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+          of: find.byKey(const Key('note-row-1')),
+          matching: find.text('Später')),
+      findsOneWidget,
+    );
+
+    // Tapping a row jumps the text view and enters the desk history.
+    await _settle(tester, () => _found(find.textContaining('1Mo 1')));
+    await tester.tap(find.byKey(const Key('note-row-1')));
+    await tester.pumpAndSettle();
+    final back =
+        tester.widget<IconButton>(find.byKey(const Key('nav-back')).first);
+    expect(back.onPressed, isNotNull,
+        reason: 'the note jump entered the desk history');
+
+    // Edit through the popup: the row shows the new text.
+    await tester.tap(find.byKey(const Key('note-edit-0')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const Key('mark-text')), 'Jetzt mit Text');
+    await tester.tap(find.byKey(const Key('mark-save')));
+    await tester.pumpAndSettle();
+    expect(find.text('Jetzt mit Text'), findsOneWidget);
+
+    // Delete removes the row.
+    await tester.tap(find.byKey(const Key('note-edit-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('mark-delete')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('note-row-1')), findsNothing);
+    expect(find.text('Später'), findsNothing);
   });
 
   testWidgets('desk history: back, forward, and the dropdown', (tester) async {

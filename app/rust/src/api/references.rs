@@ -30,6 +30,15 @@ pub fn format_reference(osis: String) -> String {
         .unwrap_or(osis)
 }
 
+/// Canonical position of a book (0-based) for sorting annotation lists;
+/// unknown books sort last.
+#[flutter_rust_bridge::frb(sync)]
+pub fn book_sort_index(osis: String) -> u32 {
+    gramma_core::reference::book_by_osis(&osis)
+        .map(|b| b.index() as u32)
+        .unwrap_or(u32::MAX)
+}
+
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
     flutter_rust_bridge::setup_default_user_utils();

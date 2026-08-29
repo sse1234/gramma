@@ -9,6 +9,7 @@ import 'dictionary_pane.dart';
 import 'desks.dart';
 import 'l10n.dart';
 import 'footnotes_pane.dart';
+import 'notes_pane.dart';
 import 'reading_plan.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -414,6 +415,7 @@ class _ReaderScreenState extends State<ReaderScreen>
         case PaneKind.dictionary:
         case PaneKind.book:
         case PaneKind.devotional:
+        case PaneKind.notes:
           final source = _layout.allPanes
               .where((p) => p.kind == PaneKind.text)
               .firstOrNull;
@@ -648,6 +650,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                 PaneKind.dictionary => Icons.translate_outlined,
                 PaneKind.book => Icons.auto_stories_outlined,
                 PaneKind.devotional => Icons.today_outlined,
+                PaneKind.notes => Icons.edit_note_outlined,
                 PaneKind.text => Icons.menu_book_outlined,
               },
               size: 20,
@@ -858,6 +861,11 @@ class _ReaderScreenState extends State<ReaderScreen>
                 key: const Key('add-devotional'),
                 value: PaneKind.devotional,
                 child: Text(context.l10n.devotionalView),
+              ),
+              PopupMenuItem(
+                key: const Key('add-notes'),
+                value: PaneKind.notes,
+                child: Text(context.l10n.notesTitle),
               ),
             ],
           ),
@@ -1079,6 +1087,16 @@ class _ReaderScreenState extends State<ReaderScreen>
           badge: badge,
           onOpenReference: (osis) => _openReference(spec, osis),
           onWordLookup: _lookupWord,
+          dragHandle: _dragHandle(spec),
+          onClose: closable ? () => _closePane(spec.id) : null,
+        );
+      case PaneKind.notes:
+        return NotesPane(
+          key: ValueKey('pane-${spec.id}'),
+          readingMode: settings.readingMode,
+          onToggleMode: toggleMode,
+          badge: badge,
+          onOpenReference: (osis) => _openReference(spec, osis),
           dragHandle: _dragHandle(spec),
           onClose: closable ? () => _closePane(spec.id) : null,
         );

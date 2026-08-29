@@ -692,6 +692,24 @@ abstract class AppLocalizations {
   /// **'The display never sleeps while reading'**
   String get keepScreenOnSubtitle;
 
+  /// No description provided for @notesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Notes'**
+  String get notesTitle;
+
+  /// No description provided for @noNotesYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No marks or notes yet — long-press a word in the text to begin.'**
+  String get noNotesYet;
+
+  /// No description provided for @pureMark.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark'**
+  String get pureMark;
+
   /// No description provided for @trueBlack.
   ///
   /// In en, this message translates to:

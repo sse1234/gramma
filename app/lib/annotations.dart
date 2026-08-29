@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show ValueNotifier;
+
 import 'run_hit.dart' show lookupWordText;
 import 'src/rust/api/typeset.dart';
 import 'src/rust/api/user.dart';
@@ -111,6 +113,10 @@ bool markCoversRun(NoteMark mark, RunView run, String? paneModule) {
 class Annotations {
   static List<NoteMark>? _cache;
 
+  /// Bumped on every change (save, delete, sync invalidation) so open
+  /// overviews stay current across panes.
+  static final ValueNotifier<int> revision = ValueNotifier(0);
+
   static List<NoteMark> all() {
     final cached = _cache;
     if (cached != null) return cached;
@@ -137,15 +143,20 @@ class Annotations {
   static void save(NoteMark mark) {
     userSet(key: 'note/${mark.id}', value: jsonEncode(mark.toJson()));
     _cache = null;
+    revision.value++;
   }
 
   static void delete(String id) {
     userSet(key: 'note/$id', value: '');
     _cache = null;
+    revision.value++;
   }
 
   /// Drop the cache after external changes (a sync pull).
-  static void invalidate() => _cache = null;
+  static void invalidate() {
+    _cache = null;
+    revision.value++;
+  }
 
   static String newId() =>
       'n${DateTime.now().toUtc().microsecondsSinceEpoch}-${deviceId()}';

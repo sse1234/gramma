@@ -66,6 +66,12 @@ of weight.
   one chapter (the osis schema supports ranges, lifting this later is
   cheap). A notes overview pane (list of all annotations, jumpable)
   is the designated follow-up arc.
+  *Amendment (2026-08-29): delivered as its own pane kind — every
+  mark in canonical order with its color, reference, note text, and
+  origin module; tapping jumps the desk's text view (entering the
+  desk history), an edit action reopens the note popup. The store
+  gained a revision notifier so open overviews stay current across
+  panes and sync pulls.*
 - Word offsets are byte positions into the origin module's verse
   text; re-importing a revised text can shift them — the canonical
   verse reference keeps the annotation meaningful, the wash degrades
