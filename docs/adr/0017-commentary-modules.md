@@ -13,8 +13,8 @@ stepping stone toward dictionaries and concordances: verse-addressed
 prose that accompanies the text rather than being the text. The
 Kingcomments (GerKingComments) ship as a SWORD zCom package — a publicly
 documented CrossWire container format, so reading it is a clean-room
-implementation of an open spec (unlike CLV, which stays untouched
-without permission, ADR 0002).
+implementation of an open spec (unlike proprietary publisher formats,
+which stay untouched without permission, ADR 0002).
 
 A zCom module stores, per testament, a block index (`.bzs`), a verse
 index (`.bzv`), and zlib-compressed blocks (`.bzz`). Verse slots follow

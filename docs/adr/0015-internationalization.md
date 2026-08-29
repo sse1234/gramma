@@ -15,7 +15,7 @@ release, contributors must also be able to add languages without
 touching Dart code.
 
 The distinction that matters: **content** (module texts, book names,
-footnotes, the Bibelliga plan labels) already speaks the language of its
+footnotes, reading-plan labels) already speaks the language of its
 source and never goes through UI translation. Only the **chrome** —
 menus, dialogs, tooltips, settings, snackbars — is internationalized.
 

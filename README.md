@@ -60,9 +60,10 @@ road to release.
 The repository contains **code only** — no Bible texts, no publisher
 content. Users import their own SWORD modules (e.g. from the
 [CrossWire Bible Society](https://crosswire.org/)) or OSIS files;
-module licenses are the modules' own. Content from CLV Verlag awaits
-the publisher's permission before any support ships (see ADR 0002) —
-the same ask-first stance applies to all third-party content.
+module licenses are the modules' own. Support for proprietary
+publisher content ships only with the publisher's permission
+(see ADR 0002) — the ask-first stance applies to all third-party
+content.
 
 - Code: [MIT](LICENSE)
 - Bundled fonts (Literata, Gentium Plus, Gentium Book Plus):

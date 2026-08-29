@@ -8,7 +8,7 @@ Accepted (supersedes the asset-discovery mechanism described in ADR 0024)
 
 ## Context
 
-ADR 0024 removed the Bibelliga plan from the repository and left the
+ADR 0024 removed the original reading plan from the repository and left the
 reading-plan feature dormant, discovering plans among bundled assets.
 That made a plan a build-time artifact: using one privately meant
 tweaking local builds, and no user could ever add a plan of their own.
@@ -27,7 +27,7 @@ races an asset load. The bundled-asset mechanism is deleted.
 ## Consequences
 
 - Anyone can write and share a plan file; gramma ships none until
-  licensing questions (Bibelliga, ADR 0024) are settled — and when
+  licensing questions (ADR 0024) are settled — and when
   permission arrives, the plan ships as a downloadable file or a
   first-run import, not as a build asset.
 - Plans are per-device library content like modules, not synced

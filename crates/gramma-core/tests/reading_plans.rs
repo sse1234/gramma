@@ -3,19 +3,19 @@
 
 use gramma_core::library::Library;
 
-const PLAN: &str = r#"{"name":"Bibelliga","source":"366 Tage durch die Bibel","days":[[{"label":"1. Mose 1-2","osis":"Gen.1"},{"label":"Psalm 1","osis":"Ps.1"}],[{"label":"Matthäus 1","osis":"Matt.1"}]]}"#;
+const PLAN: &str = r#"{"name":"Jahresplan","source":"366 Tage durch die Bibel","days":[[{"label":"1. Mose 1-2","osis":"Gen.1"},{"label":"Psalm 1","osis":"Ps.1"}],[{"label":"Matthäus 1","osis":"Matt.1"}]]}"#;
 
 #[test]
 fn plans_import_replace_and_list() {
     let mut library = Library::open_in_memory().unwrap();
     let info = library.import_plan(PLAN).unwrap();
-    assert_eq!(info.name, "Bibelliga");
+    assert_eq!(info.name, "Jahresplan");
     assert_eq!(info.source, "366 Tage durch die Bibel");
     assert_eq!(info.days, 2);
 
     let plans = library.plans().unwrap();
     assert_eq!(plans.len(), 1);
-    assert_eq!(plans[0].name, "Bibelliga");
+    assert_eq!(plans[0].name, "Jahresplan");
     assert_eq!(plans[0].json, PLAN, "the JSON is stored verbatim");
 
     // Re-import replaces, never duplicates.
@@ -32,7 +32,7 @@ fn plans_import_replace_and_list() {
         .into_iter()
         .map(|p| p.name)
         .collect();
-    assert_eq!(names, ["Advent", "Bibelliga"]);
+    assert_eq!(names, ["Advent", "Jahresplan"]);
 }
 
 #[test]

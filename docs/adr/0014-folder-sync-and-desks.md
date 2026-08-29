@@ -99,5 +99,5 @@ The engine is portable Rust; folder access is the per-platform part.
   only the newer arrangement. Acceptable for one person's desks; notes
   keep per-note granularity, and finer merging (per-pane keys) remains
   open behind the same wire format.
-- The CLV constraint (ADR 0002) is untouched: only user data syncs,
+- The publisher-format constraint (ADR 0002) is untouched: only user data syncs,
   never module content.
