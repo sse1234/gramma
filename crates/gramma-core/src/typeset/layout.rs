@@ -521,6 +521,15 @@ pub struct ProseParagraph<'a> {
     pub links: Vec<(usize, usize, u32)>,
 }
 
+/// How prose sets at the measure (ADR 0026): justified stretches
+/// spaces to the measure, ragged keeps every space natural.
+#[derive(Debug, Clone, Copy)]
+pub struct ProseSetting {
+    pub justify: bool,
+    /// Measure in font units.
+    pub line_width: Scaled,
+}
+
 /// Lay out one prose entry — a commentary section — with the same
 /// engine and voice as the Bible text: an optional label set like a
 /// verse number and bound to what follows, an optional level-1 heading
@@ -537,9 +546,12 @@ pub fn layout_prose(
     verse: u16,
     measure: &impl TextMeasure,
     hyphenator: Option<&Standard>,
-    justify: bool,
-    line_width: Scaled,
+    setting: ProseSetting,
 ) -> Vec<LineOut> {
+    let ProseSetting {
+        justify,
+        line_width,
+    } = setting;
     let mut lines: Vec<LineOut> = Vec::new();
     let mut label = label;
     if let Some(heading) = heading {

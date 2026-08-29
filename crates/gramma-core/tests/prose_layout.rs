@@ -3,7 +3,7 @@
 //! heading line, justified paragraphs, and reference words carrying a
 //! link index so the painted text stays tappable (ADR 0016).
 
-use gramma_core::typeset::layout::{LineOut, ProseParagraph, RunOut, layout_prose};
+use gramma_core::typeset::layout::{LineOut, ProseParagraph, ProseSetting, RunOut, layout_prose};
 use gramma_core::typeset::paragraph::TextMeasure;
 use gramma_core::typeset::shape::FontMeasure;
 use hyphenation::{Language, Load, Standard};
@@ -47,8 +47,10 @@ fn entry_with_heading_label_links_and_paragraphs() {
         19,
         &m,
         Some(&german()),
-        true,
-        width,
+        ProseSetting {
+            justify: true,
+            line_width: width,
+        },
     );
 
     // The heading line: label first, set like a verse number, then the
@@ -110,7 +112,18 @@ fn ragged_prose_keeps_natural_spaces_on_every_line() {
     let width = 10 * m.units_per_em() as i64;
     let (space, _, _) = m.space();
 
-    let ragged = layout_prose(None, None, &paragraphs, 0, &m, None, false, width);
+    let ragged = layout_prose(
+        None,
+        None,
+        &paragraphs,
+        0,
+        &m,
+        None,
+        ProseSetting {
+            justify: false,
+            line_width: width,
+        },
+    );
     assert!(ragged.len() > 1, "the narrow measure breaks into lines");
     for line in &ragged {
         for pair in line.runs.windows(2) {
@@ -126,15 +139,23 @@ fn ragged_prose_keeps_natural_spaces_on_every_line() {
     }
 
     // The justified engine, for contrast, stretches gaps to the measure.
-    let justified = layout_prose(None, None, &paragraphs, 0, &m, None, true, width);
-    let stretched = justified
-        .iter()
-        .take(justified.len() - 1)
-        .any(|line| {
-            line.runs
-                .windows(2)
-                .any(|p| p[1].x - (p[0].x + p[0].width) > space as f64 + 0.5)
-        });
+    let justified = layout_prose(
+        None,
+        None,
+        &paragraphs,
+        0,
+        &m,
+        None,
+        ProseSetting {
+            justify: true,
+            line_width: width,
+        },
+    );
+    let stretched = justified.iter().take(justified.len() - 1).any(|line| {
+        line.runs
+            .windows(2)
+            .any(|p| p[1].x - (p[0].x + p[0].width) > space as f64 + 0.5)
+    });
     assert!(stretched, "justification stretches at least one gap");
 }
 
@@ -146,7 +167,18 @@ fn label_without_heading_binds_to_the_first_word() {
     }];
     let m = measure();
     let width = 22 * m.units_per_em() as i64;
-    let lines = layout_prose(Some("3"), None, &paragraphs, 3, &m, None, true, width);
+    let lines = layout_prose(
+        Some("3"),
+        None,
+        &paragraphs,
+        3,
+        &m,
+        None,
+        ProseSetting {
+            justify: true,
+            line_width: width,
+        },
+    );
     let first = &lines[0];
     assert!(first.runs[0].verse_number);
     assert_eq!(first.runs[0].text, "3");
