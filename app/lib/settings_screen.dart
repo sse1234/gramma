@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dropbox_sync.dart';
 import 'l10n.dart';
 import 'icloud.dart';
+import 'mac_bookmarks.dart';
 import 'reader_pane.dart' show StrongsBadge;
 import 'settings.dart';
 import 'sync_transport.dart';
@@ -71,11 +72,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _applySyncFolder(String? path) async {
+  /// [bookmark] marks a picker-chosen folder: under the Mac sandbox its
+  /// grant is carried across launches by a security-scoped bookmark
+  /// (ADR 0027); every other source clears the stored one.
+  Future<void> _applySyncFolder(String? path, {bool bookmark = false}) async {
     final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
+    final settings = SettingsScope.of(context);
     try {
       configureSync(dir: path);
+      if (path != null && bookmark) {
+        await rememberMacSyncFolder(settings, path);
+      } else {
+        forgetMacSyncFolder(settings);
+      }
       final changed = path == null ? const <String>[] : await pullSync();
       if (!mounted) return;
       setState(() => _syncDir = path);
@@ -92,9 +102,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _useICloud() async {
     final messenger = ScaffoldMessenger.of(context);
-    final path = Platform.isIOS
-        ? await icloudContainerPath()
-        : macIcloudContainerPath();
+    final path = await icloudContainerPath();
     if (!mounted) return;
     if (path == null) {
       messenger.showSnackBar(SnackBar(
@@ -111,7 +119,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final path = await getDirectoryPath();
     if (path == null || !mounted) return;
     _clearDropbox(SettingsScope.of(context));
-    _applySyncFolder(path);
+    _applySyncFolder(path, bookmark: true);
   }
 
   Future<void> _enterSyncFolder() async {

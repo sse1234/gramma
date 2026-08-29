@@ -2,8 +2,26 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Unsandboxed for direct distribution (ADR 0014): sync reads and
-	     writes a user-chosen folder across launches. Sandboxing with
-	     security-scoped bookmarks can return before an App Store push. -->
+	<!-- App Store sandbox (ADR 0027): the sync folder is reached through
+	     the picker's grant, carried across launches by a security-scoped
+	     bookmark; the iCloud container through its entitlement. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.io.sse.gramma</string>
+	</array>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudDocuments</string>
+	</array>
+	<key>com.apple.developer.ubiquity-container-identifiers</key>
+	<array>
+		<string>iCloud.io.sse.gramma</string>
+	</array>
 </dict>
 </plist>

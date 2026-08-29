@@ -357,6 +357,19 @@ class SettingsController extends ChangeNotifier {
     WakelockPlus.toggle(enable: _keepScreenOn).ignore();
   }
 
+  /// The security-scoped bookmark for the Mac sync folder (ADR 0027);
+  /// device-local by nature, so it lives in prefs, not the synced
+  /// store. No listener notification: nothing visible depends on it.
+  String? get macSyncBookmark => _prefs.getString('macSyncBookmark');
+
+  void setMacSyncBookmark(String? value) {
+    if (value == null) {
+      _prefs.remove('macSyncBookmark');
+    } else {
+      _prefs.setString('macSyncBookmark', value);
+    }
+  }
+
   void setThemeMode(ThemeMode mode) {
     _themeMode = mode;
     _prefs.setString('themeMode', mode.name);
