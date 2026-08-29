@@ -4,7 +4,7 @@ import 'dart:convert';
 /// footnotes and commentary views (ADR 0017) are receivers only; the
 /// dictionary view (ADR 0019) receives looked-up words; book and
 /// devotional views (ADR 0021) read their own module by section or day.
-enum PaneKind { text, footnotes, commentary, dictionary, book, devotional }
+enum PaneKind { text, footnotes, commentary, dictionary, book, devotional, notes }
 
 /// Weights are user-dragged and persisted; anything non-finite or
 /// non-positive (from a corrupted store or a historical resize bug) resets

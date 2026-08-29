@@ -15,6 +15,11 @@ ParseOutcome parseReference({required String input}) =>
 String formatReference({required String osis}) =>
     RustLib.instance.api.crateApiReferencesFormatReference(osis: osis);
 
+/// Canonical position of a book (0-based) for sorting annotation lists;
+/// unknown books sort last.
+int bookSortIndex({required String osis}) =>
+    RustLib.instance.api.crateApiReferencesBookSortIndex(osis: osis);
+
 /// Outcome of parsing user input as a Bible reference: exactly one of the two
 /// fields is set.
 class ParseOutcome {
