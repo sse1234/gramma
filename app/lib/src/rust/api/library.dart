@@ -20,6 +20,13 @@ Future<ModuleView> importOsisFile({required String path}) =>
 Future<ModuleView> importSwordFile({required String path}) =>
     RustLib.instance.api.crateApiLibraryImportSwordFile(path: path);
 
+/// Import a reading plan from a JSON file in the `assets/plans` schema.
+Future<PlanImportView> importPlanFile({required String path}) =>
+    RustLib.instance.api.crateApiLibraryImportPlanFile(path: path);
+
+/// All imported reading plans, ordered by name.
+List<PlanView> plans() => RustLib.instance.api.crateApiLibraryPlans();
+
 /// Search a dictionary module: Strong numbers ("26", "G26"), headwords,
 /// transliterations, and body text (Unicode case-insensitive).
 List<DictHitView> dictSearch({
@@ -444,6 +451,56 @@ class OccurrenceView {
           start == other.start &&
           end == other.end &&
           text == other.text;
+}
+
+/// The outcome of a reading-plan import, for the confirmation message.
+class PlanImportView {
+  final String name;
+  final String source;
+  final int days;
+
+  const PlanImportView({
+    required this.name,
+    required this.source,
+    required this.days,
+  });
+
+  @override
+  int get hashCode => name.hashCode ^ source.hashCode ^ days.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PlanImportView &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          source == other.source &&
+          days == other.days;
+}
+
+/// One imported reading plan; the app decodes the JSON itself.
+class PlanView {
+  final String name;
+  final String source;
+  final String json;
+
+  const PlanView({
+    required this.name,
+    required this.source,
+    required this.json,
+  });
+
+  @override
+  int get hashCode => name.hashCode ^ source.hashCode ^ json.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PlanView &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          source == other.source &&
+          json == other.json;
 }
 
 /// One lexical search hit (ADR 0022, Tier 0).

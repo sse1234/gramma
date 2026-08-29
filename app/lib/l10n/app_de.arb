@@ -53,6 +53,7 @@
   "noDevotionalModules": "Importiere eine Tagesandacht (SWORD-Zip-Paket), um diese Ansicht zu nutzen",
   "tableOfContents": "Inhaltsverzeichnis",
   "today": "Heute",
+  "importedPlan": "Leseplan {name} importiert ({days} Tage)",
   "importedBook": "{title} importiert ({entries} Abschnitte)",
   "importedDevotional": "{title} importiert ({entries} Andachten)",
   "noDictionaryModules": "Importiere ein Wörterbuch (SWORD-Zip-Paket), um diese Ansicht zu nutzen",

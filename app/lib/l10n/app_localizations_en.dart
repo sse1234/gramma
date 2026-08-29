@@ -184,6 +184,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tableOfContents => 'Table of contents';
 
   @override
+  String importedPlan(String name, int days) {
+    return 'Imported reading plan $name ($days days)';
+  }
+
+  @override
   String importedBook(String title, int entries) {
     return 'Imported $title ($entries sections)';
   }

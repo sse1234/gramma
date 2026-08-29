@@ -16,6 +16,8 @@ pub enum LibraryError {
     Osis(#[from] OsisError),
     #[error("unknown module: {0}")]
     UnknownModule(String),
+    #[error("not a reading plan: {0}")]
+    Plan(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -156,6 +158,11 @@ CREATE TABLE IF NOT EXISTS book_section(
   heading TEXT,
   text TEXT NOT NULL,
   PRIMARY KEY(module_id, ordinal)
+) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS plan(
+  name TEXT PRIMARY KEY,
+  source TEXT NOT NULL,
+  json TEXT NOT NULL
 ) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS comment_ref(
   module_id INTEGER NOT NULL REFERENCES module(id) ON DELETE CASCADE,
@@ -1104,4 +1111,74 @@ impl Library {
             |row| row.get(0),
         )?)
     }
+
+    /// Import a reading plan from its JSON (the `assets/plans` schema):
+    /// validated here, stored verbatim, keyed by name — a re-import
+    /// replaces the plan.
+    pub fn import_plan(&mut self, json: &str) -> Result<PlanInfo, LibraryError> {
+        let bad = |what: &str| LibraryError::Plan(what.to_string());
+        let value: serde_json::Value =
+            serde_json::from_str(json).map_err(|e| bad(&format!("invalid JSON: {e}")))?;
+        let name = value
+            .get("name")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| bad("missing plan name"))?;
+        let source = value.get("source").and_then(|v| v.as_str()).unwrap_or("");
+        let days = value
+            .get("days")
+            .and_then(|v| v.as_array())
+            .filter(|d| !d.is_empty())
+            .ok_or_else(|| bad("missing days"))?;
+        for day in days {
+            let refs = day.as_array().ok_or_else(|| bad("day is not a list"))?;
+            for r in refs {
+                for field in ["label", "osis"] {
+                    r.get(field)
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| bad(&format!("reading without {field}")))?;
+                }
+            }
+        }
+        self.conn.execute(
+            "INSERT OR REPLACE INTO plan(name, source, json) VALUES (?1, ?2, ?3)",
+            rusqlite::params![name, source, json],
+        )?;
+        Ok(PlanInfo {
+            name: name.to_string(),
+            source: source.to_string(),
+            days: days.len() as u32,
+        })
+    }
+
+    /// All imported reading plans, ordered by name.
+    pub fn plans(&self) -> Result<Vec<PlanRecord>, LibraryError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT name, source, json FROM plan ORDER BY name")?;
+        let rows = stmt.query_map([], |row| {
+            Ok(PlanRecord {
+                name: row.get(0)?,
+                source: row.get(1)?,
+                json: row.get(2)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+}
+
+/// The outcome of a plan import, for the confirmation message.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlanInfo {
+    pub name: String,
+    pub source: String,
+    pub days: u32,
+}
+
+/// One stored reading plan; the app decodes `json` itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlanRecord {
+    pub name: String,
+    pub source: String,
+    pub json: String,
 }

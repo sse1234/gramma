@@ -120,6 +120,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<OccurrenceView> dco_decode_list_occurrence_view(dynamic raw);
 
   @protected
+  List<PlanView> dco_decode_list_plan_view(dynamic raw);
+
+  @protected
   Uint32List dco_decode_list_prim_u_32_strict(dynamic raw);
 
   @protected
@@ -163,6 +166,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ParseOutcome dco_decode_parse_outcome(dynamic raw);
+
+  @protected
+  PlanImportView dco_decode_plan_import_view(dynamic raw);
+
+  @protected
+  PlanView dco_decode_plan_view(dynamic raw);
 
   @protected
   RunView dco_decode_run_view(dynamic raw);
@@ -295,6 +304,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<PlanView> sse_decode_list_plan_view(SseDeserializer deserializer);
+
+  @protected
   Uint32List sse_decode_list_prim_u_32_strict(SseDeserializer deserializer);
 
   @protected
@@ -344,6 +356,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ParseOutcome sse_decode_parse_outcome(SseDeserializer deserializer);
+
+  @protected
+  PlanImportView sse_decode_plan_import_view(SseDeserializer deserializer);
+
+  @protected
+  PlanView sse_decode_plan_view(SseDeserializer deserializer);
 
   @protected
   RunView sse_decode_run_view(SseDeserializer deserializer);
@@ -517,6 +535,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_plan_view(List<PlanView> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_prim_u_32_strict(
     Uint32List self,
     SseSerializer serializer,
@@ -581,6 +602,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_parse_outcome(ParseOutcome self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_plan_import_view(
+    PlanImportView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_plan_view(PlanView self, SseSerializer serializer);
 
   @protected
   void sse_encode_run_view(RunView self, SseSerializer serializer);

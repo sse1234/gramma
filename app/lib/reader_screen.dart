@@ -56,9 +56,6 @@ class _ReaderScreenState extends State<ReaderScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    ReadingPlan.loadBundled().then((plan) {
-      if (mounted && plan != null) setState(() => _plan = plan);
-    });
   }
 
   @override
@@ -72,6 +69,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     super.didChangeDependencies();
     if (_initialized) return;
     _modules = modules();
+    _plans = ReadingPlan.fromLibrary();
     try {
       syncNow();
     } catch (_) {
@@ -337,11 +335,9 @@ class _ReaderScreenState extends State<ReaderScreen>
     await exportLabels(directory.path);
   }
 
-  ReadingPlan? _plan;
+  List<ReadingPlan> _plans = const [];
 
-  Future<void> _openReadingPlan() async {
-    final plan = _plan;
-    if (plan == null) return;
+  Future<void> _openReadingPlan(ReadingPlan plan) async {
     await showReadingPlan(context, plan: plan, onOpen: _openOsis);
   }
 
@@ -502,12 +498,13 @@ class _ReaderScreenState extends State<ReaderScreen>
         // iOS/macOS match on UTIs, the other platforms on extensions.
         // SWORD commentary packages (ADR 0017) arrive as zip files.
         XTypeGroup(
-          label: 'OSIS XML / SWORD',
-          extensions: ['xml', 'osis', 'zip'],
+          label: 'OSIS XML / SWORD / Plan',
+          extensions: ['xml', 'osis', 'zip', 'json'],
           uniformTypeIdentifiers: [
             'public.xml',
             'public.text',
             'public.zip-archive',
+            'public.json',
           ],
         ),
       ],
@@ -516,6 +513,15 @@ class _ReaderScreenState extends State<ReaderScreen>
     final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
     try {
+      // Reading plans arrive as JSON files (ADR 0025).
+      if (file.path.toLowerCase().endsWith('.json')) {
+        final plan = await importPlanFile(path: file.path);
+        setState(() => _plans = ReadingPlan.fromLibrary());
+        messenger.showSnackBar(SnackBar(
+            content:
+                Text(l10n.importedPlan(plan.name, plan.days.toInt()))));
+        return;
+      }
       final imported = file.path.toLowerCase().endsWith('.zip')
           ? await importSwordFile(path: file.path)
           : await importOsisFile(path: file.path);
@@ -772,10 +778,10 @@ class _ReaderScreenState extends State<ReaderScreen>
                 value: _openSearch,
                 child: Text(context.l10n.searchTool),
               ),
-              if (_plan case final plan?)
+              for (final (i, plan) in _plans.indexed)
                 PopupMenuItem(
-                  key: const Key('tool-plan'),
-                  value: _openReadingPlan,
+                  key: Key('tool-plan-$i'),
+                  value: () => _openReadingPlan(plan),
                   child:
                       Text('${context.l10n.readingPlan} · ${plan.name}'),
                 ),
