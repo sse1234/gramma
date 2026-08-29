@@ -24,7 +24,7 @@ highlights) is small, personal, and must sync (ADR 0004).
 ## Consequences
 
 - Fully functional with zero network access.
-- New content formats (e.g. CLV, pending permission) only require a new
+- New content formats (e.g. a publisher's, pending permission) only require a new
   importer, not storage or rendering changes.
 - Content licensing boundaries are respected structurally: user data and
   licensed content never share a database file.
