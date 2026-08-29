@@ -116,6 +116,8 @@ fn library_persists_across_reopen() {
     }
     let library = Library::open(&db).unwrap();
     assert_eq!(library.modules().unwrap().len(), 1);
+    // Windows refuses to delete an open database — close it first.
+    drop(library);
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
