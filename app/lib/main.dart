@@ -64,6 +64,7 @@ class GrammaApp extends StatelessWidget {
       listenable: settings,
       builder: (context, _) => MaterialApp(
         title: 'gramma',
+        debugShowCheckedModeBanner: false,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         locale: settings.localeOverride,
