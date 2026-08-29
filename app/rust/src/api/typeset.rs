@@ -6,7 +6,7 @@ use std::sync::{Mutex, OnceLock, RwLock};
 use anyhow::anyhow;
 use gramma_core::reference::{book_by_osis, scan_references};
 use gramma_core::typeset::layout::{
-    layout_prose, layout_verses, ProseParagraph, VERSE_NUMBER_SCALE_PERCENT,
+    layout_prose, layout_verses, ProseParagraph, ProseSetting, VERSE_NUMBER_SCALE_PERCENT,
 };
 use gramma_core::typeset::shape::FontMeasure;
 use hyphenation::{Language, Load, Standard};
@@ -234,8 +234,10 @@ pub fn layout_comments(
                 c.verse_start,
                 measure,
                 hyphenator,
-                true,
-                measure_units,
+                ProseSetting {
+                    justify: true,
+                    line_width: measure_units,
+                },
             );
             let plain_text = match &c.heading {
                 Some(h) => format!("{label} {h}. {}", c.text.replace("\n\n", " ")),
@@ -370,8 +372,10 @@ fn entry_layout(
         0,
         measure,
         None,
-        justify,
-        measure_units,
+        ProseSetting {
+            justify,
+            line_width: measure_units,
+        },
     );
     let plain_text = format!("{display} {heading}. {}", entry.text.replace("\n\n", " "));
     DictLayoutView {
@@ -479,8 +483,10 @@ pub fn layout_book_section(
         0,
         measure,
         None,
-        true,
-        measure_units,
+        ProseSetting {
+            justify: true,
+            line_width: measure_units,
+        },
     );
     let plain_text = format!("{heading}. {}", section.text.replace("\n\n", " "));
     Ok(Some(BookLayoutView {
