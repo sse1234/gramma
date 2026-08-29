@@ -53,7 +53,7 @@ void main() {
 
     forgetMacSyncFolder(settings);
     expect(settings.macSyncBookmark, isNull);
-  });
+  }, skip: !Platform.isMacOS ? 'exercises the macOS platform channel' : null);
 
   test('startup resolve follows a moved folder and refreshes staleness',
       () async {
@@ -71,7 +71,7 @@ void main() {
     expect(calls.single.method, 'resolve');
     expect(syncDir(), newDir.path, reason: 'sync follows the moved folder');
     expect(settings.macSyncBookmark, 'fresh');
-  });
+  }, skip: !Platform.isMacOS ? 'exercises the macOS platform channel' : null);
 
   test('a failing resolve leaves the configuration untouched', () async {
     final dir = Directory.systemTemp.createTempSync('gramma-bm');
@@ -86,7 +86,7 @@ void main() {
     await restoreMacSyncAccess(settings);
     expect(syncDir(), sync.path);
     expect(settings.macSyncBookmark, 'stored');
-  });
+  }, skip: !Platform.isMacOS ? 'exercises the macOS platform channel' : null);
 
   test('without a bookmark the startup restore is a no-op', () async {
     final settings = SettingsController(prefs);
