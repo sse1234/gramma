@@ -121,7 +121,12 @@ void main() {
   });
 
   tearDownAll(() async {
-    await tempDir.delete(recursive: true);
+    try {
+      await tempDir.delete(recursive: true);
+    } on FileSystemException {
+      // Windows refuses to delete the library while the Rust side still
+      // holds the connection; the OS temp dir is reaped anyway.
+    }
   });
 
   testWidgets('shows the imported module and its first chapter', (tester) async {
