@@ -140,6 +140,53 @@ pub fn import_sword_file(path: String) -> anyhow::Result<ModuleView> {
     })
 }
 
+/// The outcome of a reading-plan import, for the confirmation message.
+pub struct PlanImportView {
+    pub name: String,
+    pub source: String,
+    pub days: u32,
+}
+
+/// One imported reading plan; the app decodes the JSON itself.
+pub struct PlanView {
+    pub name: String,
+    pub source: String,
+    pub json: String,
+}
+
+/// Import a reading plan from a JSON file in the `assets/plans` schema.
+pub fn import_plan_file(path: String) -> anyhow::Result<PlanImportView> {
+    let json = std::fs::read_to_string(&path).with_context(|| format!("read {path}"))?;
+    let mut guard = LIBRARY.lock().unwrap();
+    let library = guard
+        .as_mut()
+        .ok_or_else(|| anyhow!("library not opened"))?;
+    let info = library.import_plan(&json)?;
+    Ok(PlanImportView {
+        name: info.name,
+        source: info.source,
+        days: info.days,
+    })
+}
+
+/// All imported reading plans, ordered by name.
+#[flutter_rust_bridge::frb(sync)]
+pub fn plans() -> anyhow::Result<Vec<PlanView>> {
+    let guard = LIBRARY.lock().unwrap();
+    let library = guard
+        .as_ref()
+        .ok_or_else(|| anyhow!("library not opened"))?;
+    Ok(library
+        .plans()?
+        .into_iter()
+        .map(|p| PlanView {
+            name: p.name,
+            source: p.source,
+            json: p.json,
+        })
+        .collect())
+}
+
 /// A dictionary search hit (ADR 0019), ranked headword-first.
 pub struct DictHitView {
     pub sort: u32,

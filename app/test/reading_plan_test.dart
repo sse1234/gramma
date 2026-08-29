@@ -30,9 +30,6 @@ void main() {
     expect(plan.days[1].single.label, 'Matthäus 1');
   });
 
-  test('no plan is bundled until its licensing is settled', () async {
-    expect(await ReadingPlan.loadBundled(), isNull);
-  });
 
   test('garbage decodes to null', () {
     expect(ReadingPlan.decode(''), isNull);

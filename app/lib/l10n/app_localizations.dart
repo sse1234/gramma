@@ -410,6 +410,12 @@ abstract class AppLocalizations {
   /// **'Table of contents'**
   String get tableOfContents;
 
+  /// No description provided for @importedPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported reading plan {name} ({days} days)'**
+  String importedPlan(String name, int days);
+
   /// No description provided for @importedBook.
   ///
   /// In en, this message translates to:

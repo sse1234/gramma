@@ -1490,20 +1490,63 @@ void main() {
     );
   });
 
-  testWidgets('the reading-plan tool stays hidden with no plan bundled',
+  testWidgets('reading plans import as JSON and land in the tools menu',
       (tester) async {
-    // The Bibelliga plan is out of the repository until its licensing
-    // is settled; the menu entry appears only for a discovered plan.
     _freshUserStore();
     _phoneViewport(tester);
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await _settleLayouts(tester);
+    // With no plan imported, the tools menu offers none.
     await tester.tap(find.byKey(const Key('tools-menu')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('tool-search')), findsOneWidget);
-    expect(find.byKey(const Key('tool-plan')), findsNothing);
+    expect(find.byKey(const Key('tool-plan-0')), findsNothing);
     await tester.tapAt(const Offset(5, 5));
     await tester.pumpAndSettle();
+
+    // Import a plan (ADR 0025) and start the app fresh — plan
+    // discovery is part of startup, synchronous from the library.
+    final planFile = File('${Directory.systemTemp.path}/gramma-test-plan.json');
+    planFile.writeAsStringSync(jsonEncode({
+      'name': 'Testplan',
+      'source': 'zwei Tage',
+      'days': [
+        [
+          {'label': 'Erster Tag', 'osis': 'Gen.1'},
+        ],
+        [
+          {'label': 'Zweiter Tag', 'osis': 'Gen.1'},
+        ],
+      ],
+    }));
+    addTearDown(() => planFile.deleteSync());
+    // The bridge call is real async — run it outside the test's
+    // fake-async zone, like the setUpAll imports.
+    final imported = await tester
+        .runAsync(() => importPlanFile(path: planFile.path));
+    expect((imported!.name, imported.days.toInt()), ('Testplan', 2));
+
+    // Tear the tree down so the reader starts fresh — plan discovery
+    // is part of startup.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('tools-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tool-plan-0')));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<Text>(find.byKey(const Key('plan-title'))).data,
+      startsWith('Testplan — Day'),
+    );
+    await tester.tap(find.byKey(const Key('plan-ref-0')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('plan-title')), findsNothing,
+        reason: 'opening a reading closes the popup');
+    final back =
+        tester.widget<IconButton>(find.byKey(const Key('nav-back')).first);
+    expect(back.onPressed, isNotNull,
+        reason: 'the plan jump entered the desk history');
   });
 
   testWidgets('switching the typeface re-typesets the reader',

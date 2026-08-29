@@ -58,6 +58,8 @@
   "noDevotionalModules": "Import a daily devotional (a SWORD zip package) to use this view",
   "tableOfContents": "Table of contents",
   "today": "Today",
+  "importedPlan": "Imported reading plan {name} ({days} days)",
+  "@importedPlan": {"placeholders": {"name": {"type": "String"}, "days": {"type": "int"}}},
   "importedBook": "Imported {title} ({entries} sections)",
   "@importedBook": {"placeholders": {"title": {"type": "String"}, "entries": {"type": "int"}}},
   "importedDevotional": "Imported {title} ({entries} readings)",
