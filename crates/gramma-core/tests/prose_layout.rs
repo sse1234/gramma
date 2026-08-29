@@ -4,6 +4,7 @@
 //! link index so the painted text stays tappable (ADR 0016).
 
 use gramma_core::typeset::layout::{LineOut, ProseParagraph, RunOut, layout_prose};
+use gramma_core::typeset::paragraph::TextMeasure;
 use gramma_core::typeset::shape::FontMeasure;
 use hyphenation::{Language, Load, Standard};
 
@@ -46,6 +47,7 @@ fn entry_with_heading_label_links_and_paragraphs() {
         19,
         &m,
         Some(&german()),
+        true,
         width,
     );
 
@@ -94,6 +96,49 @@ fn entry_with_heading_label_links_and_paragraphs() {
 }
 
 #[test]
+fn ragged_prose_keeps_natural_spaces_on_every_line() {
+    // Dictionary entries (ADR 0026): narrow columns and dense special
+    // characters read better side-aligned — every space stays at its
+    // natural width, and no line paints past the measure.
+    let text = "Zorn Gnade Treue Wahrheit Erbarmen Segen Friede \
+                Hoffnung Geduld Demut Milde Langmut";
+    let paragraphs = [ProseParagraph {
+        text,
+        links: Vec::new(),
+    }];
+    let m = measure();
+    let width = 10 * m.units_per_em() as i64;
+    let (space, _, _) = m.space();
+
+    let ragged = layout_prose(None, None, &paragraphs, 0, &m, None, false, width);
+    assert!(ragged.len() > 1, "the narrow measure breaks into lines");
+    for line in &ragged {
+        for pair in line.runs.windows(2) {
+            let gap = pair[1].x - (pair[0].x + pair[0].width);
+            assert!(
+                (gap - space as f64).abs() < 0.5,
+                "ragged gap stays natural, got {gap} vs {space}"
+            );
+        }
+        if let Some(last) = line.runs.last() {
+            assert!(last.x + last.width <= width as f64 + 1.0);
+        }
+    }
+
+    // The justified engine, for contrast, stretches gaps to the measure.
+    let justified = layout_prose(None, None, &paragraphs, 0, &m, None, true, width);
+    let stretched = justified
+        .iter()
+        .take(justified.len() - 1)
+        .any(|line| {
+            line.runs
+                .windows(2)
+                .any(|p| p[1].x - (p[0].x + p[0].width) > space as f64 + 0.5)
+        });
+    assert!(stretched, "justification stretches at least one gap");
+}
+
+#[test]
 fn label_without_heading_binds_to_the_first_word() {
     let paragraphs = [ProseParagraph {
         text: "Licht wird.",
@@ -101,7 +146,7 @@ fn label_without_heading_binds_to_the_first_word() {
     }];
     let m = measure();
     let width = 22 * m.units_per_em() as i64;
-    let lines = layout_prose(Some("3"), None, &paragraphs, 3, &m, None, width);
+    let lines = layout_prose(Some("3"), None, &paragraphs, 3, &m, None, true, width);
     let first = &lines[0];
     assert!(first.runs[0].verse_number);
     assert_eq!(first.runs[0].text, "3");

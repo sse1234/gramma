@@ -524,9 +524,12 @@ pub struct ProseParagraph<'a> {
 /// Lay out one prose entry — a commentary section — with the same
 /// engine and voice as the Bible text: an optional label set like a
 /// verse number and bound to what follows, an optional level-1 heading
-/// directly above its body, and justified, hyphenated paragraphs
-/// separated by one blank line. All runs carry `verse` for position
-/// granularity and reference words carry their link index.
+/// directly above its body, and hyphenated paragraphs separated by one
+/// blank line. All runs carry `verse` for position granularity and
+/// reference words carry their link index. With `justify` off, lines
+/// break at the same measure but every space keeps its natural width —
+/// side-aligned setting for narrow, character-dense content like
+/// dictionary entries (ADR 0026).
 pub fn layout_prose(
     label: Option<&str>,
     heading: Option<&str>,
@@ -534,6 +537,7 @@ pub fn layout_prose(
     verse: u16,
     measure: &impl TextMeasure,
     hyphenator: Option<&Standard>,
+    justify: bool,
     line_width: Scaled,
 ) -> Vec<LineOut> {
     let mut lines: Vec<LineOut> = Vec::new();
@@ -558,6 +562,7 @@ pub fn layout_prose(
             verse,
             measure,
             hyphenator,
+            justify,
             line_width,
         ));
     }
@@ -598,15 +603,27 @@ fn prose_paragraph(
     verse: u16,
     measure: &impl TextMeasure,
     hyphenator: Option<&Standard>,
+    justify: bool,
     line_width: Scaled,
 ) -> Vec<LineOut> {
     let mut items: Vec<Item> = Vec::new();
     let mut meta: Vec<Option<BoxMeta>> = Vec::new();
     let (space_width, stretch, shrink) = measure.space();
-    let space = Item::Glue {
-        width: space_width,
-        stretch,
-        shrink,
+    // Ragged setting: spaces may stretch freely for the breaker (the
+    // slack lands in the right margin, as with TeX's \raggedright),
+    // and set_line later keeps them at natural width.
+    let space = if justify {
+        Item::Glue {
+            width: space_width,
+            stretch,
+            shrink,
+        }
+    } else {
+        Item::Glue {
+            width: space_width,
+            stretch: line_width,
+            shrink: 0,
+        }
     };
     if let Some(label) = label {
         push_label(&mut items, &mut meta, measure, label, verse);
@@ -677,7 +694,7 @@ fn prose_paragraph(
                 line.start,
                 line.end,
                 line_width,
-                line_no == last_index,
+                !justify || line_no == last_index,
             )
         })
         .collect()

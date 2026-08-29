@@ -234,6 +234,7 @@ pub fn layout_comments(
                 c.verse_start,
                 measure,
                 hyphenator,
+                true,
                 measure_units,
             );
             let plain_text = match &c.heading {
@@ -349,6 +350,7 @@ fn entry_layout(
     prev_sort: Option<u32>,
     next_sort: Option<u32>,
     label: Option<&str>,
+    justify: bool,
     measure_units: i64,
 ) -> DictLayoutView {
     let scanned = scan_references(&entry.text, None);
@@ -368,6 +370,7 @@ fn entry_layout(
         0,
         measure,
         None,
+        justify,
         measure_units,
     );
     let plain_text = format!("{display} {heading}. {}", entry.text.replace("\n\n", " "));
@@ -401,12 +404,16 @@ pub fn layout_dict_entry(
     };
     let measure_units = (measure_ems * measure.units_per_em() as f64) as i64;
     let display = super::library::display_key(&entry.key, entry.sort);
+    // Dictionary entries set ragged (ADR 0026): the column is narrow
+    // and the text dense with special characters — justification has
+    // nothing to offer here.
     Ok(Some(entry_layout(
         measure,
         entry,
         prev_sort,
         next_sort,
         Some(&display),
+        false,
         measure_units,
     )))
 }
@@ -425,7 +432,7 @@ pub fn layout_devotional_day(
     let measure_units = (measure_ems * measure.units_per_em() as f64) as i64;
     Ok(entries
         .into_iter()
-        .map(|entry| entry_layout(measure, entry, None, None, None, measure_units))
+        .map(|entry| entry_layout(measure, entry, None, None, None, true, measure_units))
         .collect())
 }
 
@@ -472,6 +479,7 @@ pub fn layout_book_section(
         0,
         measure,
         None,
+        true,
         measure_units,
     );
     let plain_text = format!("{heading}. {}", section.text.replace("\n\n", " "));
