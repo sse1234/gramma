@@ -30,5 +30,7 @@ fn store_persists_across_reopen() {
     }
     let store = UserStore::open(&db).unwrap();
     assert_eq!(store.get("layout").unwrap().as_deref(), Some("persisted"));
+    // Windows refuses to delete an open database — close it first.
+    drop(store);
     std::fs::remove_dir_all(&dir).unwrap();
 }
