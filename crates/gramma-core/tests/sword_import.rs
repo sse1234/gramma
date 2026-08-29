@@ -226,8 +226,11 @@ fn reads_a_real_package_when_provided() {
         }
         SwordModule::Bible(doc) => {
             assert!(doc.verses.len() > 20000, "only {} verses", doc.verses.len());
+            // Untagged translations (GerMenge, for one) carry no word
+            // links at all; a tagged module must carry a dense set.
             let links: usize = doc.verses.iter().map(|v| v.links.len()).sum();
-            assert!(links > 100000, "only {links} word links");
+            let tagged = links > 0;
+            assert!(!tagged || links > 100000, "only {links} word links");
             for v in &doc.verses {
                 for l in &v.links {
                     assert!(v.text.is_char_boundary(l.start as usize));
@@ -251,7 +254,7 @@ fn reads_a_real_package_when_provided() {
                 john316.text
             );
             assert!(
-                john316.links.iter().any(|l| l.strong == "G3439"),
+                !tagged || john316.links.iter().any(|l| l.strong == "G3439"),
                 "monogenes is linked in John 3:16"
             );
             println!(
@@ -261,6 +264,17 @@ fn reads_a_real_package_when_provided() {
                 links,
                 doc.notes.len()
             );
+            // Superscription sanity: how Psalm 3 opens shows whether
+            // canonical titles landed in the right verses.
+            if let Some(psalms) = gramma_core::reference::book_by_osis("Ps") {
+                for v in doc
+                    .verses
+                    .iter()
+                    .filter(|v| v.book == psalms && v.chapter == 3 && v.verse <= 2)
+                {
+                    println!("  Ps 3:{} | {}", v.verse, v.text);
+                }
+            }
         }
     }
 }
@@ -485,9 +499,33 @@ const SLOT_V2: &str = concat!(
     r#"<w lemma="strong:G3772">And heaven</w> "#,
     r#"<w lemma="lemma.TR:untagged">was</w> void."#,
 );
+// A psalm superscription in the GerMenge manner: the canonical title
+// element opens here and closes inside the NEXT verse slot, so each
+// fragment alone is unbalanced. The editorial heading (x-s2) stays a
+// title; the canonical superscription is Luther-versification verse text.
+const SLOT_V3: &str = concat!(
+    r#"<div type="x-milestone" subType="x-preverse" sID="pv1"/>"#,
+    r#"<title type="x-s2">Morning song</title> "#,
+    r#"<lg sID="g1"/> <lg eID="g1"/> <title canonical="true" type="psalm"> "#,
+    r#"<div type="x-milestone" subType="x-preverse" eID="pv1"/>"#,
+    r#"A Psalm of David, when he fled. "#,
+);
+const SLOT_V4: &str = concat!(
+    r#"Help me, <w lemma="strong:G2316">LORD</w>,</title> "#,
+    r#"<lg sID="g2"/> <l level="1" sID="g3"/>how many rise against me! "#,
+    r#"<l eID="g3" level="1"/>"#,
+);
 
 fn bible_testament() -> Testament {
-    let slots = [SLOT_IMPORTER, SLOT_BOOK, SLOT_CHAPTER, SLOT_V1, SLOT_V2];
+    let slots = [
+        SLOT_IMPORTER,
+        SLOT_BOOK,
+        SLOT_CHAPTER,
+        SLOT_V1,
+        SLOT_V2,
+        SLOT_V3,
+        SLOT_V4,
+    ];
     let block: String = slots.concat();
     let mut z = ZlibEncoder::new(Vec::new(), Compression::default());
     z.write_all(block.as_bytes()).unwrap();
@@ -519,7 +557,7 @@ fn bible_testament() -> Testament {
 fn parses_a_synthetic_ztext_bible() {
     let doc = parse_ztext(BIBLE_CONF, &[bible_testament()]).unwrap();
     assert_eq!(doc.code, "KjvTest");
-    assert_eq!(doc.verses.len(), 2);
+    assert_eq!(doc.verses.len(), 4);
     let v1 = &doc.verses[0];
     assert_eq!(
         (v1.book, v1.chapter, v1.verse),
@@ -552,6 +590,22 @@ fn parses_a_synthetic_ztext_bible() {
     assert_eq!(v2.verse, 2);
     assert_eq!(v2.text, "And heaven was void.");
     assert_eq!(v2.links.len(), 1, "lemma without strong: yields no link");
+
+    // The superscription pair: unbalanced title tags across the two
+    // fragments must not fail the parse, the editorial heading is not
+    // verse text, and the canonical superscription is.
+    let v3 = &doc.verses[2];
+    assert_eq!(v3.verse, 3);
+    assert_eq!(v3.text, "A Psalm of David, when he fled.");
+    let v4 = &doc.verses[3];
+    assert_eq!(v4.verse, 4);
+    assert_eq!(v4.text, "Help me, LORD, how many rise against me!");
+    assert_eq!(v4.links.len(), 1);
+    assert_eq!(
+        &v4.text[v4.links[0].start as usize..v4.links[0].end as usize],
+        "LORD",
+        "links survive a stray close tag earlier in the fragment"
+    );
 }
 
 #[test]
@@ -561,7 +615,7 @@ fn bible_imports_with_concordance_and_word_resolution() {
     let info = library.import_bible(&doc).unwrap();
     assert_eq!(
         (info.kind.as_str(), info.verses, info.notes),
-        ("bible", 2, 1)
+        ("bible", 4, 1)
     );
 
     // The concordance: every occurrence of a Strong number, in order.
