@@ -98,6 +98,8 @@
   "fontWeightLightMode": "Strichstärke · helles Design",
   "fontWeightDarkMode": "Strichstärke · dunkles Design",
   "weightNatural": "natürlich",
+  "keepScreenOn": "Bildschirm anlassen",
+  "keepScreenOnSubtitle": "Das Display schläft beim Lesen nie ein",
   "trueBlack": "Echtes Schwarz im dunklen Design",
   "trueBlackSubtitle": "Hintergrund bleibt tiefschwarz; der Kontrastregler dimmt nur den Text.",
   "contrast": "Kontrast",

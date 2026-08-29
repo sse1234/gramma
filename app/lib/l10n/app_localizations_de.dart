@@ -339,6 +339,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get weightNatural => 'natürlich';
 
   @override
+  String get keepScreenOn => 'Bildschirm anlassen';
+
+  @override
+  String get keepScreenOnSubtitle => 'Das Display schläft beim Lesen nie ein';
+
+  @override
   String get trueBlack => 'Echtes Schwarz im dunklen Design';
 
   @override

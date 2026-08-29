@@ -554,6 +554,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 value: settings.trueBlackDark,
                 onChanged: settings.setTrueBlackDark,
               ),
+              if (SettingsController.keepScreenOnAvailable)
+                SwitchListTile(
+                  key: const Key('keep-screen-on'),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(context.l10n.keepScreenOn),
+                  subtitle: Text(context.l10n.keepScreenOnSubtitle),
+                  value: settings.keepScreenOn,
+                  onChanged: settings.setKeepScreenOn,
+                ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(context.l10n.contrast),
