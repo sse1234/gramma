@@ -89,10 +89,13 @@ Future<BookLayoutView?> layoutBookSection({
 /// canonical measure. This makes global line numbering possible, which the
 /// multi-column reader chunks into viewport-sized columns — layout itself
 /// never depends on the viewport.
-Future<Uint32List> moduleLineCounts({
+/// Per chapter, one byte per laid-out line: 0 = content, 1 = heading,
+/// 2 = blank. Line counts are the row lengths; the kinds feed the
+/// column plan's heading keep-with-next rule (ADR 0026).
+Future<List<Uint8List>> moduleLineKinds({
   required String moduleCode,
   required int measureEms,
-}) => RustLib.instance.api.crateApiTypesetModuleLineCounts(
+}) => RustLib.instance.api.crateApiTypesetModuleLineKinds(
   moduleCode: moduleCode,
   measureEms: measureEms,
 );

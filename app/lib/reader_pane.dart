@@ -145,6 +145,10 @@ class _ReaderPaneState extends State<ReaderPane> {
   ModuleView? _active;
   List<ChapterRefView> _spine = const [];
   List<int>? _lineCounts;
+
+  /// Per chapter, one entry per text line: 0 content, 1 heading, 2 blank
+  /// (ADR 0026 — the column plan keeps headings with their text).
+  List<List<int>>? _rowKinds;
   final Map<int, ChapterLayoutView> _layouts = {};
   final Set<int> _loading = {};
 
@@ -271,7 +275,11 @@ class _ReaderPaneState extends State<ReaderPane> {
   String? _anchorEndString() {
     final plan = _hPlan;
     if (plan != null && plan.totalLines > 0) {
-      final lastLine = (_anchorLine + _hColumns * plan.linesPerColumn - 1)
+      final lastColumn = (plan.columnOfLine(_anchorLine) + _hColumns - 1)
+          .clamp(0, plan.columnCount - 1);
+      final lastLine = (plan.firstLineOfColumn(lastColumn) +
+              plan.linesInColumn(lastColumn) -
+              1)
           .clamp(0, plan.totalLines - 1);
       final chapter = plan.chapterOfLine(lastLine);
       final local = lastLine - plan.blockStart(chapter) - _headingLines;
@@ -361,6 +369,7 @@ class _ReaderPaneState extends State<ReaderPane> {
       textLines: counts,
       headingLines: _headingLines,
       linesPerColumn: linesPerColumn,
+      rowKinds: _rowKinds,
     );
   }
 
@@ -377,6 +386,7 @@ class _ReaderPaneState extends State<ReaderPane> {
       _layouts.clear();
       _loading.clear();
       _lineCounts = null;
+      _rowKinds = null;
       _anchorLine = 0;
       _topChapter = 0;
       _hParams = null;
@@ -388,11 +398,12 @@ class _ReaderPaneState extends State<ReaderPane> {
     if (active.code != widget.spec.module) {
       widget.onModule(active.code);
     }
-    moduleLineCounts(moduleCode: active.code, measureEms: _measure!)
-        .then((counts) {
+    moduleLineKinds(moduleCode: active.code, measureEms: _measure!)
+        .then((kinds) {
       if (!mounted || _active?.code != active.code) return;
       setState(() {
-        _lineCounts = counts.map((c) => c.toInt()).toList();
+        _rowKinds = kinds;
+        _lineCounts = [for (final k in kinds) k.length];
         _restoreAnchor();
       });
       // The vertical list was built before the counts arrived, sitting at
@@ -428,17 +439,19 @@ class _ReaderPaneState extends State<ReaderPane> {
       _layouts.clear();
       _loading.clear();
       _lineCounts = null;
+      _rowKinds = null;
       _hParams = null;
       _hPlan = null;
       _anchorLine = 0;
     });
     final active = _active;
     if (active == null) return;
-    moduleLineCounts(moduleCode: active.code, measureEms: _measure!)
-        .then((counts) {
+    moduleLineKinds(moduleCode: active.code, measureEms: _measure!)
+        .then((kinds) {
       if (!mounted || _active?.code != active.code) return;
       setState(() {
-        _lineCounts = counts.map((c) => c.toInt()).toList();
+        _rowKinds = kinds;
+        _lineCounts = [for (final k in kinds) k.length];
         final plan = _linePlan();
         if (plan != null && keepChapter < _spine.length) {
           _anchorLine = plan.blockStart(keepChapter);
@@ -1095,7 +1108,7 @@ class _ReaderPaneState extends State<ReaderPane> {
   ) {
     final rows = <ColumnRow>[];
     final first = plan.firstLineOfColumn(column);
-    for (var row = 0; row < plan.linesPerColumn; row++) {
+    for (var row = 0; row < plan.linesInColumn(column); row++) {
       final located = plan.locate(first + row);
       if (located == null) break;
       final (:chapter, :local) = located;

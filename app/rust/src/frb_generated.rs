@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 531825910;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1220404229;
 
 // Section: executor
 
@@ -799,7 +799,7 @@ fn wire__crate__api__typeset__layout_dict_entry_impl(
         },
     )
 }
-fn wire__crate__api__typeset__module_line_counts_impl(
+fn wire__crate__api__typeset__module_line_kinds_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -807,7 +807,7 @@ fn wire__crate__api__typeset__module_line_counts_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "module_line_counts",
+            debug_name: "module_line_kinds",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -827,7 +827,7 @@ fn wire__crate__api__typeset__module_line_counts_impl(
             move |context| {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || {
-                        let output_ok = crate::api::typeset::module_line_counts(
+                        let output_ok = crate::api::typeset::module_line_kinds(
                             api_module_code,
                             api_measure_ems,
                         )?;
@@ -1617,6 +1617,18 @@ impl SseDecode for Vec<crate::api::typeset::LineView> {
     }
 }
 
+impl SseDecode for Vec<Vec<u8>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<Vec<u8>>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::library::ModuleView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1674,18 +1686,6 @@ impl SseDecode for Vec<crate::api::library::PlanView> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::library::PlanView>::sse_decode(deserializer));
-        }
-        return ans_;
-    }
-}
-
-impl SseDecode for Vec<u32> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(<u32>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -2012,7 +2012,7 @@ fn pde_ffi_dispatcher_primary_impl(
             wire__crate__api__typeset__layout_devotional_day_impl(port, ptr, rust_vec_len, data_len)
         }
         21 => wire__crate__api__typeset__layout_dict_entry_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__typeset__module_line_counts_impl(port, ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__typeset__module_line_kinds_impl(port, ptr, rust_vec_len, data_len),
         28 => wire__crate__api__library__search_verses_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
@@ -2786,6 +2786,16 @@ impl SseEncode for Vec<crate::api::typeset::LineView> {
     }
 }
 
+impl SseEncode for Vec<Vec<u8>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <Vec<u8>>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::library::ModuleView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -2832,16 +2842,6 @@ impl SseEncode for Vec<crate::api::library::PlanView> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::library::PlanView>::sse_encode(item, serializer);
-        }
-    }
-}
-
-impl SseEncode for Vec<u32> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(self.len() as _, serializer);
-        for item in self {
-            <u32>::sse_encode(item, serializer);
         }
     }
 }

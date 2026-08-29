@@ -72,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 531825910;
+  int get rustContentHash => -1220404229;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -170,7 +170,7 @@ abstract class RustLibApi extends BaseApi {
     required double measureEms,
   });
 
-  Future<Uint32List> crateApiTypesetModuleLineCounts({
+  Future<List<Uint8List>> crateApiTypesetModuleLineKinds({
     required String moduleCode,
     required int measureEms,
   });
@@ -847,7 +847,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<Uint32List> crateApiTypesetModuleLineCounts({
+  Future<List<Uint8List>> crateApiTypesetModuleLineKinds({
     required String moduleCode,
     required int measureEms,
   }) {
@@ -865,19 +865,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_list_prim_u_32_strict,
+          decodeSuccessData: sse_decode_list_list_prim_u_8_strict,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiTypesetModuleLineCountsConstMeta,
+        constMeta: kCrateApiTypesetModuleLineKindsConstMeta,
         argValues: [moduleCode, measureEms],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiTypesetModuleLineCountsConstMeta =>
+  TaskConstMeta get kCrateApiTypesetModuleLineKindsConstMeta =>
       const TaskConstMeta(
-        debugName: "module_line_counts",
+        debugName: "module_line_kinds",
         argNames: ["moduleCode", "measureEms"],
       );
 
@@ -1471,6 +1471,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<Uint8List> dco_decode_list_list_prim_u_8_strict(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_list_prim_u_8_strict).toList();
+  }
+
+  @protected
   List<ModuleView> dco_decode_list_module_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_module_view).toList();
@@ -1498,12 +1504,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<PlanView> dco_decode_list_plan_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_plan_view).toList();
-  }
-
-  @protected
-  Uint32List dco_decode_list_prim_u_32_strict(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw as Uint32List;
   }
 
   @protected
@@ -2080,6 +2080,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<Uint8List> sse_decode_list_list_prim_u_8_strict(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <Uint8List>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_list_prim_u_8_strict(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<ModuleView> sse_decode_list_module_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -2141,13 +2155,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ans_.add(sse_decode_plan_view(deserializer));
     }
     return ans_;
-  }
-
-  @protected
-  Uint32List sse_decode_list_prim_u_32_strict(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var len_ = sse_decode_i_32(deserializer);
-    return deserializer.buffer.getUint32List(len_);
   }
 
   @protected
@@ -2703,6 +2710,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_list_prim_u_8_strict(
+    List<Uint8List> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_list_prim_u_8_strict(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_module_view(
     List<ModuleView> self,
     SseSerializer serializer,
@@ -2760,16 +2779,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     for (final item in self) {
       sse_encode_plan_view(item, serializer);
     }
-  }
-
-  @protected
-  void sse_encode_list_prim_u_32_strict(
-    Uint32List self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.length, serializer);
-    serializer.buffer.putUint32List(self);
   }
 
   @protected

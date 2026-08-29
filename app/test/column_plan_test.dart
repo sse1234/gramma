@@ -65,4 +65,102 @@ void main() {
     expect(p.totalLines, 3);
     expect(p.columnCount, 1);
   });
+
+  // Keep-with-next (ADR 0026): a heading group at a column's foot with
+  // fewer than three content rows beneath moves to the next column.
+  // Row kinds per text line: 0 = content, 1 = heading, 2 = blank.
+
+  test('a section heading near the column foot moves over', () {
+    // Global lines: 0,1 chapter heading rows; text rows at 2..10 with a
+    // blank + heading at global 6,7. Column of 8 would leave the heading
+    // with no content rows beneath — it breaks early instead.
+    final p = ColumnPlan(
+      textLines: const [8],
+      headingLines: 2,
+      linesPerColumn: 8,
+      rowKinds: const [
+        [0, 0, 0, 0, 2, 1, 0, 0],
+      ],
+    );
+    expect(p.totalLines, 10);
+    expect(p.firstLineOfColumn(1), 7, reason: 'break lands before the heading');
+    expect(p.columnOfLine(6), 0, reason: 'the blank spacer stays behind');
+    expect(p.columnOfLine(7), 1);
+    expect(p.columnCount, 2);
+    expect(p.linesInColumn(0), 7);
+    expect(p.linesInColumn(1), 3);
+  });
+
+  test('a chapter title block near the column foot moves over', () {
+    // Two chapters; the second block's title rows would land on the last
+    // rows of column 0 — the whole block start moves to column 1.
+    final p = ColumnPlan(
+      textLines: const [5, 6],
+      headingLines: 2,
+      linesPerColumn: 8,
+      rowKinds: const [
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0],
+      ],
+    );
+    expect(p.totalLines, 15);
+    expect(p.firstLineOfColumn(1), 7, reason: 'the block heading moves whole');
+    expect(p.columnCount, 2);
+  });
+
+  test('a heading with three content rows beneath stays', () {
+    final p = ColumnPlan(
+      textLines: const [7],
+      headingLines: 0,
+      linesPerColumn: 7,
+      rowKinds: const [
+        [0, 0, 2, 1, 0, 0, 0],
+      ],
+    );
+    expect(p.columnCount, 1);
+    expect(p.linesInColumn(0), 7);
+  });
+
+  test('a heading at the column top never pushes', () {
+    // The group already heads its column; with only two content rows in
+    // the tiny column there is nothing better than staying.
+    final p = ColumnPlan(
+      textLines: const [5],
+      headingLines: 0,
+      linesPerColumn: 3,
+      rowKinds: const [
+        [1, 0, 0, 0, 0],
+      ],
+    );
+    expect(p.firstLineOfColumn(1), 3, reason: 'uniform break, no pushing');
+    expect(p.columnCount, 2);
+  });
+
+  test('subheadings directly after a heading move as one group', () {
+    // heading, subheading at global 5,6 with one content row before the
+    // uniform break: the whole group moves.
+    final p = ColumnPlan(
+      textLines: const [10],
+      headingLines: 0,
+      linesPerColumn: 8,
+      rowKinds: const [
+        [0, 0, 0, 0, 2, 1, 1, 0, 0, 0],
+      ],
+    );
+    expect(p.firstLineOfColumn(1), 5, reason: 'group of two heading rows moves');
+    expect(p.columnCount, 2);
+    expect(p.linesInColumn(1), 5);
+  });
+
+  test('without row kinds the plan stays uniform', () {
+    final p = ColumnPlan(
+      textLines: const [8],
+      headingLines: 2,
+      linesPerColumn: 8,
+    );
+    expect(p.firstLineOfColumn(1), 8);
+    expect(p.columnCount, 2);
+    expect(p.linesInColumn(0), 8);
+    expect(p.linesInColumn(1), 2);
+  });
 }

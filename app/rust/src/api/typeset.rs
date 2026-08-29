@@ -502,7 +502,10 @@ pub fn layout_book_section(
 /// canonical measure. This makes global line numbering possible, which the
 /// multi-column reader chunks into viewport-sized columns — layout itself
 /// never depends on the viewport.
-pub fn module_line_counts(module_code: String, measure_ems: u16) -> anyhow::Result<Vec<u32>> {
+/// Per chapter, one byte per laid-out line: 0 = content, 1 = heading,
+/// 2 = blank. Line counts are the row lengths; the kinds feed the
+/// column plan's heading keep-with-next rule (ADR 0026).
+pub fn module_line_kinds(module_code: String, measure_ems: u16) -> anyhow::Result<Vec<Vec<u8>>> {
     let measure = active_measure()?;
     let (contents, german) = with_library(|library| {
         let contents = library.contents(&module_code)?;
@@ -533,16 +536,27 @@ pub fn module_line_counts(module_code: String, measure_ems: u16) -> anyhow::Resu
             .iter()
             .map(|h| (h.verse, h.level, h.text.as_str()))
             .collect();
+        let lines = layout_verses(
+            &refs,
+            &note_refs,
+            &heading_refs,
+            measure,
+            hyphenator,
+            measure_units,
+        );
         counts.push(
-            layout_verses(
-                &refs,
-                &note_refs,
-                &heading_refs,
-                measure,
-                hyphenator,
-                measure_units,
-            )
-            .len() as u32,
+            lines
+                .iter()
+                .map(|line| {
+                    if line.runs.is_empty() {
+                        2u8
+                    } else if line.runs.iter().any(|r| r.heading_level > 0) {
+                        1
+                    } else {
+                        0
+                    }
+                })
+                .collect(),
         );
     }
     Ok(counts)
