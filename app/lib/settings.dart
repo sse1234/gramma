@@ -1,6 +1,9 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'palette.dart';
 
@@ -49,6 +52,8 @@ class SettingsController extends ChangeNotifier {
     _measureEms = _prefs.getInt('measureEms') ?? defaultMeasureEms;
     _trueBlackDark = _prefs.getBool('trueBlackDark') ?? false;
     _readingMode = _prefs.getBool('readingMode') ?? false;
+    _keepScreenOn = _prefs.getBool('keepScreenOn') ?? false;
+    _applyWakelock();
     _defaultModule = _prefs.getString('defaultModule');
     _tone = ToneTheme.values
             .where((t) => t.name == _prefs.getString('tone'))
@@ -108,6 +113,7 @@ class SettingsController extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
   bool _trueBlackDark = false;
   bool _readingMode = false;
+  bool _keepScreenOn = false;
   String? _defaultModule;
   ToneTheme _tone = ToneTheme.paper;
   double _footnoteScale = 1.0;
@@ -330,6 +336,25 @@ class SettingsController extends ChangeNotifier {
     _trueBlackDark = value;
     _prefs.setBool('trueBlackDark', value);
     notifyListeners();
+  }
+
+  /// Keep-screen-on is a mobile concern: desktops manage their own
+  /// display sleep, and the plugin is absent under flutter_test.
+  static bool get keepScreenOnAvailable =>
+      !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+  bool get keepScreenOn => _keepScreenOn;
+
+  void setKeepScreenOn(bool value) {
+    _keepScreenOn = value;
+    _prefs.setBool('keepScreenOn', value);
+    _applyWakelock();
+    notifyListeners();
+  }
+
+  void _applyWakelock() {
+    if (!keepScreenOnAvailable) return;
+    WakelockPlus.toggle(enable: _keepScreenOn).ignore();
   }
 
   void setThemeMode(ThemeMode mode) {

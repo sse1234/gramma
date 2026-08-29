@@ -273,4 +273,16 @@ void main() {
     expect(controller.columnAdvance,
         lessThan(SettingsController.defaultColumnAdvance));
   });
+
+  test('keep-screen-on persists and hides off mobile', () async {
+    final controller = await _controller();
+    expect(controller.keepScreenOn, isFalse);
+    controller.setKeepScreenOn(true);
+    expect(controller.keepScreenOn, isTrue);
+    final reloaded =
+        SettingsController(await SharedPreferences.getInstance());
+    expect(reloaded.keepScreenOn, isTrue);
+    // The test host is a desktop: the switch stays out of the screen.
+    expect(SettingsController.keepScreenOnAvailable, isFalse);
+  });
 }

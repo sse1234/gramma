@@ -112,6 +112,8 @@
   "fontWeightLightMode": "Font weight · light mode",
   "fontWeightDarkMode": "Font weight · dark mode",
   "weightNatural": "natural",
+  "keepScreenOn": "Keep the screen on",
+  "keepScreenOnSubtitle": "The display never sleeps while reading",
   "trueBlack": "True black in dark mode",
   "trueBlackSubtitle": "Keep the background fully black; contrast dims only the text.",
   "contrast": "Contrast",

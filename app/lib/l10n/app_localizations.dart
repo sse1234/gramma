@@ -680,6 +680,18 @@ abstract class AppLocalizations {
   /// **'natural'**
   String get weightNatural;
 
+  /// No description provided for @keepScreenOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep the screen on'**
+  String get keepScreenOn;
+
+  /// No description provided for @keepScreenOnSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'The display never sleeps while reading'**
+  String get keepScreenOnSubtitle;
+
   /// No description provided for @trueBlack.
   ///
   /// In en, this message translates to:
