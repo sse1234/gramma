@@ -415,11 +415,23 @@ impl TextBuilder {
     }
 }
 
+/// A reader for one container entry: SWORD entries are fragments cut
+/// out of a whole-document stream, so element balance stops at entry
+/// boundaries — GerMenge's psalm superscriptions, for one, open their
+/// `title` in the superscription verse and close it in the next.
+/// Mismatched and unmatched end tags must not fail the parse.
+fn fragment_reader(fragment: &str) -> Reader<&[u8]> {
+    let mut reader = Reader::from_str(fragment);
+    let config = reader.config_mut();
+    config.check_end_names = false;
+    config.allow_unmatched_ends = true;
+    reader
+}
+
 /// Parse one OSIS fragment into an entry; structural fragments (no
 /// `annotateRef`, or a non-canonical book) yield `None`.
 fn parse_fragment(fragment: &str) -> Result<Option<CommentaryEntry>, SwordError> {
-    let mut reader = Reader::from_str(fragment);
-    reader.config_mut().check_end_names = false;
+    let mut reader = fragment_reader(fragment);
     let mut range: Option<(BookId, u16, u16, u16)> = None;
     let mut annotated = false;
     let mut heading: Option<String> = None;
@@ -662,8 +674,7 @@ fn parse_zld_parsed(
 /// One TEI `entryFree` fragment: `orth` is the headword, `pron` the
 /// transliteration, `def` the body with `<lb/>` as paragraph breaks.
 fn parse_tei_entry(sort: u32, key: &str, fragment: &str) -> Result<Option<DictEntry>, SwordError> {
-    let mut reader = Reader::from_str(fragment);
-    reader.config_mut().check_end_names = false;
+    let mut reader = fragment_reader(fragment);
     let mut headword = String::new();
     let mut pron = String::new();
     let mut in_orth = false;
@@ -876,11 +887,11 @@ struct BibleFragment {
 }
 
 /// One verse (or structural) fragment: `w` elements carry Strong's
-/// lemmas, notes and titles are excluded from the text (notes captured),
-/// everything else unwraps to its text.
+/// lemmas, notes and editorial titles are excluded from the text (notes
+/// captured), canonical titles (psalm superscriptions) count as verse
+/// text, everything else unwraps to its text.
 fn parse_bible_fragment(fragment: &str) -> Result<BibleFragment, SwordError> {
-    let mut reader = Reader::from_str(fragment);
-    reader.config_mut().check_end_names = false;
+    let mut reader = fragment_reader(fragment);
     let mut out = BibleFragment {
         book_marker: None,
         chapter_marker: None,
@@ -947,7 +958,12 @@ fn parse_bible_fragment(fragment: &str) -> Result<BibleFragment, SwordError> {
                         }
                         note_depth += 1;
                     }
-                    b"title" if !empty => skip_depth += 1,
+                    // A canonical title is a psalm superscription —
+                    // verse text under Luther versification. Only
+                    // editorial titles are excluded.
+                    b"title" if !empty && attr(e, b"canonical").as_deref() != Some("true") => {
+                        skip_depth += 1;
+                    }
                     b"lb" | b"milestone" if empty && note_depth == 0 && skip_depth == 0 => {
                         text.push_text(" ");
                     }
@@ -1165,8 +1181,7 @@ fn parse_genbook_parsed(
 /// A book section body: the first `title` becomes the heading, `p`
 /// elements become paragraphs, references keep their display text.
 fn parse_book_fragment(fragment: &str) -> Result<(Option<String>, String), SwordError> {
-    let mut reader = Reader::from_str(fragment);
-    reader.config_mut().check_end_names = false;
+    let mut reader = fragment_reader(fragment);
     let mut heading: Option<String> = None;
     let mut heading_capture = false;
     let mut heading_text = String::new();
@@ -1234,8 +1249,7 @@ fn parse_devotional_entry(key: &str, fragment: &str) -> Result<Vec<DictEntry>, S
     if day_sort == 0 {
         return Ok(Vec::new());
     }
-    let mut reader = Reader::from_str(fragment);
-    reader.config_mut().check_end_names = false;
+    let mut reader = fragment_reader(fragment);
     let mut entries: Vec<DictEntry> = Vec::new();
     let mut headword = String::new();
     let mut heading_capture = false;
