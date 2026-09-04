@@ -24,7 +24,7 @@ right to use, like a document viewer opens your own files.
    from the [CrossWire Bible Society](https://crosswire.org/) —
    the King James Version, Luther 1912, or the Menge-Bibel — or use
    our [sample files](https://github.com/sse1234/gramma/releases/tag/samples)
-   (KJV, Menge, and a sample reading plan).
+   (ASV, Menge, and a sample reading plan).
 2. In gramma, open **Settings → Import** (or the import button in the
    toolbar) and choose the downloaded `.zip` (SWORD module), `.xml`
    (OSIS), or `.json` (reading plan) file.
