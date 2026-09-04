@@ -30,14 +30,21 @@ Attach the screen recording as item 1.
    German- and English-speaking. It is completely free, open source
    (MIT), with no ads, analytics, accounts, or purchases.
 
-4. SETUP: The app ships without Bible texts (licensing is the
-   users' own responsibility; public-domain modules are freely
-   available). To try it: open Settings → Import (or the import
-   action in the toolbar), and choose any SWORD module zip from the
-   CrossWire Bible Society, e.g. the public-domain King James
-   Version: https://www.crosswire.org/ftpmirror/pub/sword/packages/rawzip/KJV.zip
-   Download that file, import it, and every feature is available
-   offline. No credentials are needed anywhere in the app.
+4. SETUP AND SAMPLE FILES: The app ships without Bible texts
+   (licensing is the users' own responsibility; public-domain modules
+   are freely available). Sample files, hosted permanently by us for
+   review:
+   - https://github.com/sse1234/gramma/releases/download/samples/GerMenge.zip
+     (Menge-Bibel, German, public domain)
+   - https://github.com/sse1234/gramma/releases/download/samples/ASV.zip
+     (American Standard Version, English, public domain)
+   - https://github.com/sse1234/gramma/releases/download/samples/sample-reading-plan.json
+     (a reading plan in the app's format)
+   To try the app: download a file, open Settings → Import (or the
+   import button in the toolbar), and choose it. Every feature is then
+   available offline. No credentials are needed anywhere in the app.
+   Support page with a getting-started guide and FAQ:
+   https://sse1234.github.io/gramma/support/
 
 5. EXTERNAL SERVICES: None. The app runs fully offline and operates
    no server. The optional device-to-device sync writes end-to-end-
