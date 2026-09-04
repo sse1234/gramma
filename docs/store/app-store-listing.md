@@ -4,7 +4,8 @@ One record serves iOS and macOS (Connect localizations: en-US, de-DE).
 Category: Reference. Price: Free. In-app purchases: none.
 Privacy label: **Data Not Collected**. Privacy policy URL:
 https://github.com/sse1234/gramma/blob/main/PRIVACY.md
-Support URL: https://github.com/sse1234/gramma
+Support URL: https://sse1234.github.io/gramma/support/
+Marketing URL: https://github.com/sse1234/gramma
 
 ## Name
 
