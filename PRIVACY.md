@@ -40,4 +40,4 @@
 
 ---
 
-Contact · Kontakt: mail@sse.io
+Contact · Kontakt: grammaapp@sse.io
