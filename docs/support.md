@@ -9,7 +9,7 @@ permalink: /support/
 
 ## Contact
 
-- **E-Mail:** [mail@sse.io](mailto:mail@sse.io) — questions, problems,
+- **E-Mail:** [grammaapp@sse.io](mailto:grammaapp@sse.io) — questions, problems,
   feature requests. We answer within a few days.
 - **Bug reports and feature requests** may also go to the public
   [issue tracker](https://github.com/sse1234/gramma/issues) (a free
@@ -60,7 +60,7 @@ every device at the same folder; only your devices hold the key.
 
 ## Kontakt
 
-- **E-Mail:** [mail@sse.io](mailto:mail@sse.io) — Fragen, Probleme,
+- **E-Mail:** [grammaapp@sse.io](mailto:grammaapp@sse.io) — Fragen, Probleme,
   Wünsche. Antwort innerhalb weniger Tage.
 - **Fehlerberichte und Feature-Wünsche** gern auch im öffentlichen
   [Issue-Tracker](https://github.com/sse1234/gramma/issues) (dafür ist
