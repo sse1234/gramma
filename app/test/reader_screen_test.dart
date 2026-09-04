@@ -13,6 +13,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gramma/desks.dart';
 import 'package:gramma/typeset_chapter.dart';
 import 'package:gramma/typeset_prose.dart';
+import 'package:gramma/l10n.dart';
+import 'package:gramma/notes_pane.dart';
 import 'package:gramma/main.dart';
 import 'package:gramma/pane_model.dart';
 import 'package:gramma/search_tool.dart';
@@ -1299,6 +1301,62 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('note-row-1')), findsNothing);
     expect(find.text('Später'), findsNothing);
+  });
+
+  testWidgets('notes overview in a narrow pane: reference stays, long-press edits',
+      (tester) async {
+    // A phone-width column beside a text pane leaves the notes pane
+    // around 200 logical px: the module chip and edit button give way.
+    _freshUserStore();
+    Annotations.save(NoteMark(
+      id: 'n-phone',
+      module: 'FixDe',
+      bookOsis: 'Gen',
+      chapter: 1,
+      verseStart: 1,
+      verseEnd: 1,
+      startOffset: 0,
+      endOffset: 1 << 30,
+      colorIndex: 1,
+      text: 'Handynotiz',
+      created: '2026-08-29T09:00:00Z',
+    ));
+    var opened = '';
+    await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 220,
+            height: 600,
+            child: NotesPane(
+              readingMode: false,
+              onToggleMode: () {},
+              badge: null,
+              onOpenReference: (osis) => opened = osis,
+            ),
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+          of: find.byKey(const Key('note-row-0')),
+          matching: find.text('1Mo 1,1')),
+      findsOneWidget,
+      reason: 'the reference owns the compact row',
+    );
+    expect(find.byKey(const Key('note-edit-0')), findsNothing);
+    await tester.tap(find.byKey(const Key('note-row-0')));
+    await tester.pumpAndSettle();
+    expect(opened, 'Gen.1.1');
+    await tester.longPress(find.byKey(const Key('note-row-0')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('mark-text')), findsOneWidget,
+        reason: 'long-press opens the note popup');
   });
 
   testWidgets('desk history: back, forward, and the dropdown', (tester) async {

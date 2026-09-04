@@ -34,6 +34,10 @@ class NotesPane extends StatefulWidget {
   State<NotesPane> createState() => _NotesPaneState();
 }
 
+/// Below this pane width (logical px) rows drop their module chip and
+/// edit button so the reference stays readable on phones.
+const compactWidth = 300.0;
+
 class _NotesPaneState extends State<NotesPane> {
   @override
   void initState() {
@@ -118,53 +122,70 @@ class _NotesPaneState extends State<NotesPane> {
                       ),
                     ),
                   )
-                : ListView.builder(
-                    itemCount: marks.length,
-                    itemBuilder: (context, i) {
-                      final mark = marks[i];
-                      return ListTile(
-                        key: Key('note-row-$i'),
-                        leading: Container(
-                          width: 16,
-                          height: 16,
-                          decoration: BoxDecoration(
-                            color: markColor(
-                                mark.colorIndex, theme.brightness),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        title: Row(
-                          children: [
-                            Expanded(
-                              child: Text(_label(mark),
-                                  overflow: TextOverflow.ellipsis),
-                            ),
-                            Text(
-                              mark.module,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant),
-                            ),
-                          ],
-                        ),
-                        subtitle: mark.text.isEmpty
-                            ? Text(
-                                context.l10n.pureMark,
-                                style: const TextStyle(
-                                    fontStyle: FontStyle.italic),
-                              )
-                            : Text(
-                                mark.text,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      // Phone-width panes: the reference owns the row;
+                      // the module chip and edit button give way
+                      // (long-press edits instead).
+                      final compact =
+                          constraints.maxWidth < compactWidth;
+                      return ListView.builder(
+                        itemCount: marks.length,
+                        itemBuilder: (context, i) {
+                          final mark = marks[i];
+                          final muted = theme.textTheme.labelSmall
+                              ?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant);
+                          return ListTile(
+                            key: Key('note-row-$i'),
+                            dense: compact,
+                            leading: Container(
+                              width: 16,
+                              height: 16,
+                              decoration: BoxDecoration(
+                                color: markColor(
+                                    mark.colorIndex, theme.brightness),
+                                shape: BoxShape.circle,
                               ),
-                        trailing: IconButton(
-                          key: Key('note-edit-$i'),
-                          icon: const Icon(Icons.edit_outlined, size: 18),
-                          visualDensity: VisualDensity.compact,
-                          onPressed: () => _edit(mark),
-                        ),
-                        onTap: () => widget.onOpenReference(
-                            '${mark.bookOsis}.${mark.chapter}.${mark.verseStart}'),
+                            ),
+                            title: compact
+                                ? Text(_label(mark),
+                                    overflow: TextOverflow.ellipsis)
+                                : Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(_label(mark),
+                                            overflow:
+                                                TextOverflow.ellipsis),
+                                      ),
+                                      Text(mark.module, style: muted),
+                                    ],
+                                  ),
+                            subtitle: mark.text.isEmpty
+                                ? Text(
+                                    context.l10n.pureMark,
+                                    style: const TextStyle(
+                                        fontStyle: FontStyle.italic),
+                                  )
+                                : Text(
+                                    mark.text,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                            trailing: compact
+                                ? null
+                                : IconButton(
+                                    key: Key('note-edit-$i'),
+                                    icon: const Icon(Icons.edit_outlined,
+                                        size: 18),
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: () => _edit(mark),
+                                  ),
+                            onTap: () => widget.onOpenReference(
+                                '${mark.bookOsis}.${mark.chapter}.${mark.verseStart}'),
+                            onLongPress: () => _edit(mark),
+                          );
+                        },
                       );
                     },
                   ),
