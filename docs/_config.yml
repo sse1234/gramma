@@ -1,0 +1,6 @@
+title: gramma
+description: Bible study with book-grade typography — free, offline, open source
+theme: jekyll-theme-minimal
+show_downloads: false
+exclude:
+  - adr/README.md
