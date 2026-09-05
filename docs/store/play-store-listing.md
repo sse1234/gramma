@@ -40,6 +40,31 @@ signing key; ours is the upload key).
 The Play version code is the pubspec build number (`version:
 1.0.1+4` → versionCode 4); every upload needs a higher one.
 
+### Uploading from the command line
+
+The Gradle Play Publisher plugin talks to the Android Publisher API
+with a service account (invited in Play Console → Users and
+permissions with release + store-presence rights). Its JSON key stays
+outside the repo; `app/android/play.properties` (gitignored) names it:
+
+```
+serviceAccountFile=/path/to/play-service-account.json
+track=alpha
+```
+
+Then, after `flutter build appbundle --release`:
+
+```
+cd app/android && ./gradlew :app:publishReleaseBundle \
+  --artifact-dir ../build/app/outputs/bundle/release
+```
+
+Releases land as **drafts** on the configured track with the notes
+from `app/src/main/play/release-notes/<locale>/default.txt`; rolling
+out is done in the Console (or with `--release-status completed`).
+Content rating, data safety, target audience and Play App Signing
+enrolment remain Console-only.
+
 ## Release notes (max 500 characters per language)
 
 ### 1.0.1 (versionCode 4)
