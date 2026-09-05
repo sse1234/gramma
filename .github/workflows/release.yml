@@ -32,6 +32,7 @@ jobs:
     name: Linux ${{ matrix.arch }}
     needs: version
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: x64
@@ -43,10 +44,18 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - uses: subosito/flutter-action@v2
+      - name: Flutter (x64, SDK archive)
+        if: matrix.arch == 'x64'
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+      - name: Flutter (arm64, from git — no arm64 SDK archive)
+        if: matrix.arch == 'arm64'
+        run: |
+          git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$HOME/flutter"
+          echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
+          "$HOME/flutter/bin/flutter" --version
       - name: Build dependencies
         run: |
           sudo apt-get update
@@ -64,6 +73,7 @@ jobs:
     name: Windows ${{ matrix.arch }}
     needs: version
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: x64
