@@ -51,9 +51,24 @@ merely "text on a screen".
   (iCloud Drive, Syncthing, Nextcloud, a USB stick) — no gramma
   server, no account.
 
-Platforms exercised today: macOS, iOS/iPadOS, Android (a 2015 tablet
-is a supported reality, not a footnote). Windows and Linux are on the
-road to release.
+Platforms: macOS, iOS/iPadOS, Android (a 2015 tablet is a supported
+reality, not a footnote), Windows and Linux (x64 and ARM64 each).
+
+## Download
+
+- **iOS / iPadOS / macOS**: App Store ("gramma Bible").
+- **Android**: Google Play (closed test while the listing goes through
+  Google's new-account process).
+- **Windows and Linux**: the [GitHub releases](https://github.com/sse1234/gramma/releases)
+  carry a zip (Windows) and a tarball plus AppImage (Linux) for x64
+  and ARM64, built by the release workflow from the tagged source.
+  The Windows build is not code-signed yet, so SmartScreen warns on
+  first launch ("More info" → "Run anyway"); on Linux, mark the
+  AppImage executable or unpack the tarball and run `gramma`.
+
+Sample content to try it with (public-domain Bibles, a reading plan)
+is in the [`samples` release](https://github.com/sse1234/gramma/releases/tag/samples).
+Changes per version are in [CHANGELOG.md](CHANGELOG.md).
 
 ## Content and licensing
 
@@ -104,9 +119,9 @@ After changing the bridge API in `app/rust/src/api/`, regenerate
 bindings with `flutter_rust_bridge_codegen generate` (run inside
 `app/`).
 
-## Roadmap to release
+## Roadmap
 
-Windows and Linux bring-up (x86 and arm), an annotations overview
-pane, and tiered semantic search: today's lexical tier runs anywhere;
-a dense-retrieval tier (on-device embeddings) follows for devices
-that can carry it.
+A macOS build outside the App Store (Developer ID, notarized) and
+Windows code signing; Flathub and winget listings; tiered semantic
+search: today's lexical tier runs anywhere, a dense-retrieval tier
+(on-device embeddings) follows for devices that can carry it.
