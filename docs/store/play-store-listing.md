@@ -37,6 +37,29 @@ app/android/key.properties, both device-local — BACK THEM UP).
 Enroll in Play App Signing on first upload (Google holds the app
 signing key; ours is the upload key).
 
+The Play version code is the pubspec build number (`version:
+1.0.1+4` → versionCode 4); every upload needs a higher one.
+
+## Release notes (max 500 characters per language)
+
+### 1.0.1 (versionCode 4)
+
+en-US:
+
+> Reading position no longer jumps when showing or hiding the menus.
+> Footnote markers run a–z through the chapter; tapping one lists the
+> whole chapter's footnotes. Keyboard paging follows the view you last
+> used. Dictionary entries set ragged-right. Optional keep-screen-on.
+> Reading plans import from JSON.
+
+de-DE:
+
+> Die Leseposition springt beim Ein- und Ausblenden der Menüs nicht
+> mehr. Fußnoten sind kapitelweise a–z gezählt; ein Tipp zeigt alle
+> Fußnoten des Kapitels. Tastatur-Blättern folgt der zuletzt benutzten
+> Ansicht. Wörterbucheinträge im Flattersatz. Optional Bildschirm
+> anlassen. Lesepläne als JSON importierbar.
+
 ## New personal accounts
 
 Personal Play Console accounts created after Nov 2023 must run a
