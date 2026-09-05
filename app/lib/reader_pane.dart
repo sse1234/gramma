@@ -5,7 +5,6 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'annotations.dart';
 import 'column_plan.dart';
-import 'footnotes_pane.dart' show visibleFootnotes;
 import 'mark_popup.dart';
 import 'palette.dart';
 import 'l10n.dart';
@@ -179,6 +178,8 @@ class _ReaderPaneState extends State<ReaderPane> {
   /// layout tick emits unconditionally so the desk (history, followers)
   /// always knows the starting position.
   bool _announced = false;
+  String? _lastAnchor;
+  String? _lastAnchorEnd;
 
   /// First visible verse of the top chapter (verse-level link granularity);
   /// null when unknown (layout not loaded yet).
@@ -292,11 +293,21 @@ class _ReaderPaneState extends State<ReaderPane> {
     return verse == null ? base : '$base.$verse';
   }
 
+  /// Announces the visible range whenever either end moved. The end can
+  /// move without the start's verse changing (a column of one long verse
+  /// paged past), so callers report every scroll and the strings decide.
   void _emitPosition() {
     if (_suppressEmit || _topChapter >= _spine.length) return;
+    final anchor = _anchorString();
+    final anchorEnd = _anchorEndString();
+    if (_announced && anchor == _lastAnchor && anchorEnd == _lastAnchorEnd) {
+      return;
+    }
     _announced = true;
-    widget.onAnchor(_anchorString());
-    widget.onAnchorEnd(_anchorEndString());
+    _lastAnchor = anchor;
+    _lastAnchorEnd = anchorEnd;
+    widget.onAnchor(anchor);
+    widget.onAnchorEnd(anchorEnd);
   }
 
   /// Last visible position: exact in column mode (last line of the last
@@ -549,13 +560,13 @@ class _ReaderPaneState extends State<ReaderPane> {
         verse = _verseAtLine(top, 0);
       }
     }
-    if (!_announced || top != _topChapter || verse != _visibleVerse) {
+    if (top != _topChapter || verse != _visibleVerse) {
       setState(() {
         _topChapter = top;
         _visibleVerse = verse;
       });
-      _emitPosition();
     }
+    _emitPosition();
   }
 
   void _onHorizontalScroll() {
@@ -572,13 +583,13 @@ class _ReaderPaneState extends State<ReaderPane> {
     final top = plan.chapterOfLine(line.clamp(0, plan.totalLines - 1));
     final local = line - plan.blockStart(top) - _headingLines;
     final verse = local >= 0 ? _verseAtLine(top, local) : _verseAtLine(top, 0);
-    if (!_announced || top != _topChapter || verse != _visibleVerse) {
+    if (top != _topChapter || verse != _visibleVerse) {
       setState(() {
         _topChapter = top;
         _visibleVerse = verse;
       });
-      _emitPosition();
     }
+    _emitPosition();
   }
 
   void _applyRemoteAnchor(String osis) {
@@ -592,6 +603,9 @@ class _ReaderPaneState extends State<ReaderPane> {
     _jumpToChapter(index, verse: verse);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _suppressEmit = false;
+      // Announce where the follower actually landed (its visible range
+      // feeds footnotes views and its own persisted position).
+      if (mounted) _emitPosition();
     });
   }
 
@@ -823,39 +837,27 @@ class _ReaderPaneState extends State<ReaderPane> {
     final active = _active;
     if (active == null || chapterIndex >= _spine.length) return;
     final entry = _spine[chapterIndex];
-    // Every footnote on the visible page, the tapped one selected
-    // (ADR 0028); a marker just outside the estimated range still opens
-    // on its own.
-    var entries = visibleFootnotes(
-      _spine,
-      active.code,
-      _anchorString(),
-      _anchorEndString(),
-    );
-    var selected = entries.indexWhere(
-      (e) =>
-          e.chapter.bookOsis == entry.bookOsis &&
-          e.chapter.chapter == entry.chapter &&
-          e.note.verse == verse &&
-          e.note.label == label,
-    );
-    if (selected < 0) {
-      final note = chapterNotes(
+    // The whole chapter's footnotes (ADR 0028), the tapped one selected
+    // and scrolled into view — letters run through the chapter, so the
+    // list reads as a table of the page's markers.
+    final entries = [
+      for (final note in chapterNotes(
         moduleCode: active.code,
         bookOsis: entry.bookOsis,
         chapter: entry.chapter,
-      ).where((n) => n.verse == verse && n.label == label).firstOrNull;
-      if (note == null) return;
-      entries = [(chapter: entry, note: note)];
-      selected = 0;
-    }
-    if (!mounted) return;
+      ))
+        (chapter: entry, note: note),
+    ];
+    final selected = entries.indexWhere(
+      (e) => e.note.verse == verse && e.note.label == label,
+    );
+    if (selected < 0 || !mounted) return;
     final settings = SettingsScope.of(context);
     showNotePopup(
       context,
       entries: entries,
       selected: selected,
-      title: context.l10n.footnotesTitle,
+      title: '${context.l10n.footnotesTitle} · ${entry.heading}',
       previewModule: settings.defaultModule ?? active.code,
       onOpenReference: (osis) {
         final index = _indexOfOsis(osis.split('-').first);
@@ -955,74 +957,79 @@ class _ReaderPaneState extends State<ReaderPane> {
     // shifted below the floating header (its bottom rows clip away), so
     // the anchor line stays visible and tappable; chrome hidden: no shift.
     final shift = _chromeShift;
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: ClipRect(
-            child: Transform.translate(
-              offset: Offset(0, shift),
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: widget.onToggleMode,
-                child: _spine.isEmpty
-                    ? Center(
-                        child: Text(
-                          context.l10n.importToBegin,
-                          style: theme.textTheme.bodyLarge,
+    return ScrollConfiguration(
+      // No scrollbars (ADR 0028): the thumb's hit band at the column
+      // edge swallowed taps on end-of-line footnote markers.
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: ClipRect(
+              child: Transform.translate(
+                offset: Offset(0, shift),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: widget.onToggleMode,
+                  child: _spine.isEmpty
+                      ? Center(
+                          child: Text(
+                            context.l10n.importToBegin,
+                            style: theme.textTheme.bodyLarge,
+                          ),
+                        )
+                      : LayoutBuilder(
+                          builder: (context, constraints) {
+                            _vViewportH = constraints.maxHeight;
+                            final effWidth = constraints.maxWidth < _columnWidth
+                                ? constraints.maxWidth
+                                : _columnWidth;
+                            _vLineHeightPx =
+                                effWidth / (_measure ?? 26) * _lineSpacing;
+                            final columns = _columnsFor(constraints.maxWidth);
+                            final Widget reader;
+                            if (columns >= 2 && _linePlan() != null) {
+                              reader = _horizontalReader(constraints, columns);
+                            } else {
+                              _hPlan = null;
+                              _hParams = null;
+                              reader = _verticalReader();
+                            }
+                            // The selection bar floats over the content: adding
+                            // it to the layout would change the column height
+                            // mid-gesture and shift the text under the finger.
+                            return Stack(
+                              children: [
+                                reader,
+                                if (_selection != null)
+                                  Positioned(
+                                    left: 0,
+                                    right: 0,
+                                    bottom: _chromeShift,
+                                    child: _selectionBar(theme),
+                                  ),
+                              ],
+                            );
+                          },
                         ),
-                      )
-                    : LayoutBuilder(
-                        builder: (context, constraints) {
-                          _vViewportH = constraints.maxHeight;
-                          final effWidth = constraints.maxWidth < _columnWidth
-                              ? constraints.maxWidth
-                              : _columnWidth;
-                          _vLineHeightPx =
-                              effWidth / (_measure ?? 26) * _lineSpacing;
-                          final columns = _columnsFor(constraints.maxWidth);
-                          final Widget reader;
-                          if (columns >= 2 && _linePlan() != null) {
-                            reader = _horizontalReader(constraints, columns);
-                          } else {
-                            _hPlan = null;
-                            _hParams = null;
-                            reader = _verticalReader();
-                          }
-                          // The selection bar floats over the content: adding
-                          // it to the layout would change the column height
-                          // mid-gesture and shift the text under the finger.
-                          return Stack(
-                            children: [
-                              reader,
-                              if (_selection != null)
-                                Positioned(
-                                  left: 0,
-                                  right: 0,
-                                  bottom: _chromeShift,
-                                  child: _selectionBar(theme),
-                                ),
-                            ],
-                          );
-                        },
-                      ),
+                ),
               ),
             ),
           ),
-        ),
-        if (!widget.readingMode)
-          Positioned(
-            top: widget.chromeInset,
-            left: 0,
-            right: 0,
-            child: Material(
-              color: theme.colorScheme.surface,
-              child: SizedBox(
-                height: ReaderPane.chromeHeight,
-                child: Align(alignment: Alignment.topCenter, child: header),
+          if (!widget.readingMode)
+            Positioned(
+              top: widget.chromeInset,
+              left: 0,
+              right: 0,
+              child: Material(
+                color: theme.colorScheme.surface,
+                child: SizedBox(
+                  height: ReaderPane.chromeHeight,
+                  child: Align(alignment: Alignment.topCenter, child: header),
+                ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1097,36 +1104,33 @@ class _ReaderPaneState extends State<ReaderPane> {
         }
         return KeyEventResult.ignored;
       },
-      child: MouseRegion(
-        onEnter: (_) => _focus.requestFocus(),
-        child: Listener(
-          key: const ValueKey('columns-active'),
-          onPointerDown: (_) => _focus.requestFocus(),
-          onPointerSignal: (event) {
-            // Discrete mouse wheels page by whole columns (trackpads scroll
-            // through the pan-zoom gesture path and the snap physics instead).
-            if (event is PointerScrollEvent &&
-                event.scrollDelta.dy != 0 &&
-                _hController!.hasClients) {
-              _onWheel(event.scrollDelta.dy);
-            }
-          },
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: sidePadding),
-            child: ListView.builder(
-              key: Key('horizontal-reader-$params'),
-              controller: _hController,
-              scrollDirection: Axis.horizontal,
-              physics: ColumnSnapPhysics(
-                stride: stride,
-                advance: _columnAdvance,
-              ),
-              itemExtent: stride,
-              itemCount: plan.columnCount,
-              itemBuilder: (context, column) => Padding(
-                padding: const EdgeInsets.only(right: _gutter),
-                child: _columnItem(plan, column, scale, fontSize, lineHeight),
-              ),
+      child: Listener(
+        key: const ValueKey('columns-active'),
+        onPointerDown: (_) => _focus.requestFocus(),
+        onPointerSignal: (event) {
+          // Acting in a view — click, drag, or wheel — makes it the
+          // keyboard's target; hovering alone does not.
+          _focus.requestFocus();
+          // Discrete mouse wheels page by whole columns (trackpads scroll
+          // through the pan-zoom gesture path and the snap physics instead).
+          if (event is PointerScrollEvent &&
+              event.scrollDelta.dy != 0 &&
+              _hController!.hasClients) {
+            _onWheel(event.scrollDelta.dy);
+          }
+        },
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: sidePadding),
+          child: ListView.builder(
+            key: Key('horizontal-reader-$params'),
+            controller: _hController,
+            scrollDirection: Axis.horizontal,
+            physics: ColumnSnapPhysics(stride: stride, advance: _columnAdvance),
+            itemExtent: stride,
+            itemCount: plan.columnCount,
+            itemBuilder: (context, column) => Padding(
+              padding: const EdgeInsets.only(right: _gutter),
+              child: _columnItem(plan, column, scale, fontSize, lineHeight),
             ),
           ),
         ),

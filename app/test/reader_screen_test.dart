@@ -70,9 +70,9 @@ Future<void> _settle(WidgetTester tester, bool Function() done) async {
 }
 
 Future<void> _settleLayouts(WidgetTester tester) => _settle(
-      tester,
-      () => find.byKey(const Key('chapter-placeholder')).evaluate().isEmpty,
-    );
+  tester,
+  () => find.byKey(const Key('chapter-placeholder')).evaluate().isEmpty,
+);
 
 /// Pin a phone-like viewport so the reader stays in vertical mode.
 void _phoneViewport(WidgetTester tester) {
@@ -135,7 +135,9 @@ void main() {
     }
   });
 
-  testWidgets('shows the imported module and its first chapter', (tester) async {
+  testWidgets('shows the imported module and its first chapter', (
+    tester,
+  ) async {
     _freshUserStore();
     _phoneViewport(tester);
     final semantics = tester.ensureSemantics();
@@ -180,8 +182,9 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('jumping in horizontal mode scrolls the target into view',
-      (tester) async {
+  testWidgets('jumping in horizontal mode scrolls the target into view', (
+    tester,
+  ) async {
     // Short viewport: few lines per column, so the fixture spans enough
     // columns to leave real scroll distance.
     tester.view.physicalSize = const Size(1200, 420);
@@ -194,9 +197,8 @@ void main() {
       tester,
       () => _found(find.byKey(const ValueKey('columns-active'))),
     );
-    String label() => tester
-        .widget<Text>(find.byKey(const Key('current-position')))
-        .data!;
+    String label() =>
+        tester.widget<Text>(find.byKey(const Key('current-position'))).data!;
     expect(label(), '1. Mose 1');
     await _selectRef(tester, book: 'Exod', chapter: 1);
     // The label follows the leftmost visible column; the jump must move it
@@ -209,8 +211,9 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('narrowing the window falls back to one vertical column',
-      (tester) async {
+  testWidgets('narrowing the window falls back to one vertical column', (
+    tester,
+  ) async {
     _desktopViewport(tester);
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await _settle(
@@ -282,12 +285,16 @@ void main() {
     expect(find.text('Footnotes'), findsOneWidget);
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await tester.pump();
-    expect(find.text('Footnotes'), findsOneWidget,
-        reason: 'restored from the user store');
+    expect(
+      find.text('Footnotes'),
+      findsOneWidget,
+      reason: 'restored from the user store',
+    );
   });
 
-  testWidgets('horizontal scrolling settles on a column boundary',
-      (tester) async {
+  testWidgets('horizontal scrolling settles on a column boundary', (
+    tester,
+  ) async {
     _freshUserStore();
     tester.view.physicalSize = const Size(1200, 420);
     tester.view.devicePixelRatio = 1.0;
@@ -325,8 +332,9 @@ void main() {
       tester,
       () => _found(find.byKey(const ValueKey('columns-active'))),
     );
-    final center =
-        tester.getCenter(find.byKey(const ValueKey('columns-active')));
+    final center = tester.getCenter(
+      find.byKey(const ValueKey('columns-active')),
+    );
     final pointer = TestPointer(1, PointerDeviceKind.mouse);
     pointer.hover(center);
     await tester.sendEventToBinding(pointer.scroll(const Offset(0, 50)));
@@ -336,24 +344,19 @@ void main() {
     expect(list.controller!.offset, moreOrLessEquals(stride, epsilon: 1));
     await tester.sendEventToBinding(pointer.scroll(const Offset(0, 50)));
     await tester.pumpAndSettle();
-    expect(
-      list.controller!.offset,
-      moreOrLessEquals(2 * stride, epsilon: 1),
-    );
+    expect(list.controller!.offset, moreOrLessEquals(2 * stride, epsilon: 1));
     await tester.sendEventToBinding(pointer.scroll(const Offset(0, -50)));
     await tester.pumpAndSettle();
     expect(list.controller!.offset, moreOrLessEquals(stride, epsilon: 1));
     // A single large accelerated delta still steps exactly one column.
     await tester.sendEventToBinding(pointer.scroll(const Offset(0, 300)));
     await tester.pumpAndSettle();
-    expect(
-      list.controller!.offset,
-      moreOrLessEquals(2 * stride, epsilon: 1),
-    );
+    expect(list.controller!.offset, moreOrLessEquals(2 * stride, epsilon: 1));
   });
 
-  testWidgets('footnotes stack below their text view in the same column',
-      (tester) async {
+  testWidgets('footnotes stack below their text view in the same column', (
+    tester,
+  ) async {
     _freshUserStore();
     tester.view.physicalSize = const Size(1000, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -367,17 +370,27 @@ void main() {
     await tester.pumpAndSettle();
     final text = tester.getRect(find.byType(ReaderPane));
     final notes = tester.getRect(find.byType(FootnotesPane));
-    expect(notes.top, greaterThan(text.bottom - 1),
-        reason: 'footnotes tile below the text view');
+    expect(
+      notes.top,
+      greaterThan(text.bottom - 1),
+      reason: 'footnotes tile below the text view',
+    );
     expect(find.byKey(const Key('badge-1')), findsOneWidget);
-    expect(find.byKey(const Key('badge-2')), findsNothing,
-        reason: 'receive-only panes carry no badge');
-    expect((notes.left - text.left).abs(), lessThan(1),
-        reason: 'both tiles share the column');
+    expect(
+      find.byKey(const Key('badge-2')),
+      findsNothing,
+      reason: 'receive-only panes carry no badge',
+    );
+    expect(
+      (notes.left - text.left).abs(),
+      lessThan(1),
+      reason: 'both tiles share the column',
+    );
   });
 
-  testWidgets('row divider resizes the stack and the size persists',
-      (tester) async {
+  testWidgets('row divider resizes the stack and the size persists', (
+    tester,
+  ) async {
     _freshUserStore();
     tester.view.physicalSize = const Size(1000, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -401,8 +414,11 @@ void main() {
     await tester.pump();
     await tester.pump();
     final restored = tester.getSize(find.byType(FootnotesPane)).height;
-    expect((restored - after).abs(), lessThan(2),
-        reason: 'weights persist in the layout object');
+    expect(
+      (restored - after).abs(),
+      lessThan(2),
+      reason: 'weights persist in the layout object',
+    );
   });
 
   testWidgets('window resize keeps text columns on the grid', (tester) async {
@@ -418,16 +434,21 @@ void main() {
     await tester.tap(find.text('Text view'));
     await _settleLayouts(tester);
     await tester.pumpAndSettle();
-    expect(tester.getSize(find.byType(ReaderPane).first).width,
-        moreOrLessEquals(848, epsilon: 2),
-        reason: 'the fresh split snapped on creation');
+    expect(
+      tester.getSize(find.byType(ReaderPane).first).width,
+      moreOrLessEquals(848, epsilon: 2),
+      reason: 'the fresh split snapped on creation',
+    );
 
     tester.view.physicalSize = const Size(1200, 700);
     await tester.pumpAndSettle();
-    expect(tester.getSize(find.byType(ReaderPane).first).width,
-        moreOrLessEquals(848, epsilon: 2),
-        reason: 'a window resize re-snaps to whole column widths '
-            '(proportional weights alone would give ~721)');
+    expect(
+      tester.getSize(find.byType(ReaderPane).first).width,
+      moreOrLessEquals(848, epsilon: 2),
+      reason:
+          'a window resize re-snaps to whole column widths '
+          '(proportional weights alone would give ~721)',
+    );
   });
 
   testWidgets('column divider snaps to whole column widths', (tester) async {
@@ -448,12 +469,16 @@ void main() {
     await tester.drag(grip, const Offset(100, 0));
     await tester.pumpAndSettle();
     final width = tester.getSize(find.byType(ReaderPane).first).width;
-    expect(width, moreOrLessEquals(848, epsilon: 2),
-        reason: 'left column snaps to two typeset columns');
+    expect(
+      width,
+      moreOrLessEquals(848, epsilon: 2),
+      reason: 'left column snaps to two typeset columns',
+    );
   });
 
-  testWidgets('tapping content toggles reading mode and persists',
-      (tester) async {
+  testWidgets('tapping content toggles reading mode and persists', (
+    tester,
+  ) async {
     _freshUserStore();
     _phoneViewport(tester);
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
@@ -468,8 +493,11 @@ void main() {
 
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await tester.pump();
-    expect(find.byType(AppBar), findsNothing,
-        reason: 'reading mode persists across restarts');
+    expect(
+      find.byType(AppBar),
+      findsNothing,
+      reason: 'reading mode persists across restarts',
+    );
 
     await tester.tap(find.byKey(const Key('vertical-reader')));
     await tester.pumpAndSettle();
@@ -489,8 +517,11 @@ void main() {
     await tester.tap(find.text('Text view'));
     await _settleLayouts(tester);
     final first = tester.getRect(find.byType(ReaderPane).first);
-    expect(tester.getRect(find.byType(ReaderPane).last).left,
-        greaterThan(first.right), reason: 'starts side by side');
+    expect(
+      tester.getRect(find.byType(ReaderPane).last).left,
+      greaterThan(first.right),
+      reason: 'starts side by side',
+    );
 
     final handle = tester.getCenter(find.byIcon(Icons.drag_indicator).last);
     final gesture = await tester.startGesture(handle);
@@ -509,8 +540,9 @@ void main() {
     expect((b.left - a.left).abs(), lessThan(1));
   });
 
-  testWidgets('a stacked pane can be dragged out into its own column',
-      (tester) async {
+  testWidgets('a stacked pane can be dragged out into its own column', (
+    tester,
+  ) async {
     _freshUserStore();
     tester.view.physicalSize = const Size(1400, 700);
     tester.view.devicePixelRatio = 1.0;
@@ -538,24 +570,34 @@ void main() {
 
     final textAfter = tester.getRect(find.byType(ReaderPane));
     final notesAfter = tester.getRect(find.byType(FootnotesPane));
-    expect(notesAfter.left, greaterThan(textAfter.right - 1),
-        reason: 'footnotes moved into their own column');
+    expect(
+      notesAfter.left,
+      greaterThan(textAfter.right - 1),
+      reason: 'footnotes moved into their own column',
+    );
 
     // The fresh 50 % tiling snapped to the column grid immediately —
     // without any divider drag (two typeset columns at 1400 wide).
     await tester.pumpAndSettle();
-    expect(textAfter.width, moreOrLessEquals(848, epsilon: 2),
-        reason: 'a new tiling lands on whole column widths at once');
+    expect(
+      textAfter.width,
+      moreOrLessEquals(848, epsilon: 2),
+      reason: 'a new tiling lands on whole column widths at once',
+    );
   });
 
-  testWidgets('panes show identity badges and the selector navigates',
-      (tester) async {
+  testWidgets('panes show identity badges and the selector navigates', (
+    tester,
+  ) async {
     _freshUserStore();
     _phoneViewport(tester);
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await _settleLayouts(tester);
-    expect(find.byKey(const Key('badge-1')), findsOneWidget,
-        reason: 'first pane carries badge 1');
+    expect(
+      find.byKey(const Key('badge-1')),
+      findsOneWidget,
+      reason: 'first pane carries badge 1',
+    );
 
     await tester.tap(find.byKey(const Key('open-selector')));
     await tester.pumpAndSettle();
@@ -568,14 +610,22 @@ void main() {
     final exod = tester.getRect(find.byKey(const Key('sel-book-Exod')));
     final josh = tester.getRect(find.byKey(const Key('sel-book-Josh')));
     expect(exod.top, gen.top, reason: 'same category shares the row');
-    expect(josh.top, greaterThan(gen.top),
-        reason: 'next category starts a new row');
-    expect(josh.left, greaterThan(gen.left + 20),
-        reason: 'alternate categories carry the half-tile offset');
-    final genColor =
-        tester.widget<Material>(find.byKey(const Key('sel-book-Gen'))).color;
-    final joshColor =
-        tester.widget<Material>(find.byKey(const Key('sel-book-Josh'))).color;
+    expect(
+      josh.top,
+      greaterThan(gen.top),
+      reason: 'next category starts a new row',
+    );
+    expect(
+      josh.left,
+      greaterThan(gen.left + 20),
+      reason: 'alternate categories carry the half-tile offset',
+    );
+    final genColor = tester
+        .widget<Material>(find.byKey(const Key('sel-book-Gen')))
+        .color;
+    final joshColor = tester
+        .widget<Material>(find.byKey(const Key('sel-book-Josh')))
+        .color;
     expect(joshColor, isNot(genColor));
 
     await tester.tap(find.byKey(const Key('sel-book-Exod')));
@@ -590,8 +640,9 @@ void main() {
     expect(position.data, '2. Mose 2');
   });
 
-  testWidgets('footnote references preview and open the passage',
-      (tester) async {
+  testWidgets('footnote references preview and open the passage', (
+    tester,
+  ) async {
     _freshUserStore();
     tester.view.physicalSize = const Size(1000, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -619,12 +670,18 @@ void main() {
       });
       if (recognizer != null) break;
     }
-    expect(recognizer, isNotNull,
-        reason: 'the scanned reference must be tappable');
+    expect(
+      recognizer,
+      isNotNull,
+      reason: 'the scanned reference must be tappable',
+    );
     recognizer!.onTap!();
     await tester.pumpAndSettle();
-    expect(find.textContaining('Am Anfang schuf Gott'), findsWidgets,
-        reason: 'preview shows the referenced passage');
+    expect(
+      find.textContaining('Am Anfang schuf Gott'),
+      findsWidgets,
+      reason: 'preview shows the referenced passage',
+    );
 
     await tester.tap(find.byKey(const Key('preview-open')));
     await tester.pumpAndSettle();
@@ -633,12 +690,16 @@ void main() {
     final position = tester.widget<Text>(
       find.byKey(const Key('current-position')).first,
     );
-    expect(position.data, '1. Mose 1',
-        reason: 'Open navigates the linked text view');
+    expect(
+      position.data,
+      '1. Mose 1',
+      reason: 'Open navigates the linked text view',
+    );
   });
 
-  testWidgets('commentary view: entries, references, and module separation',
-      (tester) async {
+  testWidgets('commentary view: entries, references, and module separation', (
+    tester,
+  ) async {
     _freshUserStore();
     tester.view.physicalSize = const Size(1000, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -648,8 +709,9 @@ void main() {
     await _settleLayouts(tester);
 
     // Commentaries never appear among the reading texts (ADR 0017).
-    final readerModules =
-        tester.widget<ReaderPane>(find.byType(ReaderPane)).modules;
+    final readerModules = tester
+        .widget<ReaderPane>(find.byType(ReaderPane))
+        .modules;
     expect(readerModules.any((m) => m.kind == 'commentary'), isFalse);
 
     await tester.tap(find.byKey(const Key('add-view')));
@@ -663,26 +725,37 @@ void main() {
     final semantics = tester.ensureSemantics();
     await _selectRef(tester, book: 'Gen', chapter: 1);
     await _settle(
-        tester, () => _found(find.byKey(const Key('comment-Gen.1.1'))));
+      tester,
+      () => _found(find.byKey(const Key('comment-Gen.1.1'))),
+    );
     expect(find.byKey(const Key('commentary-list')), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('Der Anfang')), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp('Zweiter Absatz der Auslegung')),
-        findsOneWidget);
+    expect(
+      find.bySemanticsLabel(RegExp('Zweiter Absatz der Auslegung')),
+      findsOneWidget,
+    );
     expect(find.bySemanticsLabel(RegExp('Licht wird')), findsOneWidget);
 
     // Tap the typeset reference run at its computed position: the layout
     // is deterministic, so recomputing it with the widget's parameters
     // names the exact pixel (ADR 0018).
-    final paneWidth =
-        tester.getSize(find.byKey(const Key('commentary-list'))).width;
+    final paneWidth = tester
+        .getSize(find.byKey(const Key('commentary-list')))
+        .width;
     // The reader's own em size (min(pane width, column width) / measure):
     // commentary matches the Bible text exactly at scale 1.0.
     final fontSize = (paneWidth < 400.0 ? paneWidth : 400.0) / 26.0;
     final prose = tester.widget<TypesetProse>(find.byType(TypesetProse).first);
-    expect(prose.fontSize, moreOrLessEquals(fontSize, epsilon: 0.01),
-        reason: 'commentary glyphs are set at the Bible text size');
-    expect(prose.lineHeightEm, 1.5,
-        reason: 'commentary uses the reader line spacing setting');
+    expect(
+      prose.fontSize,
+      moreOrLessEquals(fontSize, epsilon: 0.01),
+      reason: 'commentary glyphs are set at the Bible text size',
+    );
+    expect(
+      prose.lineHeightEm,
+      1.5,
+      reason: 'commentary uses the reader line spacing setting',
+    );
     late List<CommentLayoutView> layouts;
     await tester.runAsync(() async {
       layouts = await layoutComments(
@@ -704,56 +777,73 @@ void main() {
         }
       }
     }
-    expect(linkRun, isNotNull,
-        reason: 'the reference must be a tappable run');
+    expect(linkRun, isNotNull, reason: 'the reference must be a tappable run');
     final runScale = fontSize / entry.unitsPerEm;
     final lineHeight = fontSize * 1.5;
-    final origin = tester.getTopLeft(find.descendant(
-      of: find.byKey(const Key('comment-Gen.1.1')),
-      matching: find.byType(CustomPaint),
-    ));
-    await tester.tapAt(origin +
-        Offset((linkRun!.x + linkRun.width / 2) * runScale,
-            lineIndex * lineHeight + lineHeight * 0.4));
+    final origin = tester.getTopLeft(
+      find.descendant(
+        of: find.byKey(const Key('comment-Gen.1.1')),
+        matching: find.byType(CustomPaint),
+      ),
+    );
+    await tester.tapAt(
+      origin +
+          Offset(
+            (linkRun!.x + linkRun.width / 2) * runScale,
+            lineIndex * lineHeight + lineHeight * 0.4,
+          ),
+    );
     await tester.pumpAndSettle();
-    expect(find.textContaining('Und die Schlange war listiger'), findsWidgets,
-        reason: 'preview shows the referenced passage');
+    expect(
+      find.textContaining('Und die Schlange war listiger'),
+      findsWidgets,
+      reason: 'preview shows the referenced passage',
+    );
 
     await tester.tap(find.byKey(const Key('preview-open')));
     await tester.pumpAndSettle();
     await _settleLayouts(tester);
-    await _settle(
-        tester, () => _found(find.byKey(const Key('no-commentary'))));
+    await _settle(tester, () => _found(find.byKey(const Key('no-commentary'))));
     final position = tester.widget<Text>(
       find.byKey(const Key('current-position')).first,
     );
-    expect(position.data, '1. Mose 3',
-        reason: 'Open navigates the linked text view');
+    expect(
+      position.data,
+      '1. Mose 3',
+      reason: 'Open navigates the linked text view',
+    );
     semantics.dispose();
   });
 
   /// Center of the first run whose text contains [word] in the painted
   /// vertical chapter — recomputed from the deterministic layout.
-  Future<Offset> wordPoint(WidgetTester tester, int chapter, String word,
-      {String module = 'FixDe'}) async {
-    final layout = await tester.runAsync(() => layoutChapter(
+  Future<Offset> wordPoint(
+    WidgetTester tester,
+    int chapter,
+    String word, {
+    String module = 'FixDe',
+  }) async {
+    final layout = await tester.runAsync(
+      () => layoutChapter(
         moduleCode: module,
         bookOsis: 'Gen',
         chapter: chapter,
-        measureEms: 26));
+        measureEms: 26,
+      ),
+    );
     for (var i = 0; i < layout!.lines.length; i++) {
       for (final run in layout.lines[i].runs) {
         if (!run.noteMarker && !run.verseNumber && run.text.contains(word)) {
           for (final element in find.byType(TypesetChapter).evaluate()) {
             final widget = element.widget as TypesetChapter;
             if (widget.layout.lines.length != layout.lines.length) continue;
-            final rect =
-                tester.getRect(find.byWidget(widget, skipOffstage: false));
+            final rect = tester.getRect(
+              find.byWidget(widget, skipOffstage: false),
+            );
             final scale = rect.width / layout.measureUnits;
             final lineHeight = scale * layout.unitsPerEm * 1.5;
             return rect.topLeft +
-                Offset((run.x + run.width / 2) * scale,
-                    (i + 0.3) * lineHeight);
+                Offset((run.x + run.width / 2) * scale, (i + 0.3) * lineHeight);
           }
         }
       }
@@ -783,15 +873,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('dict-results')), findsOneWidget);
     await tester.tap(find.byKey(const Key('dict-hit-2')));
-    await _settle(
-        tester, () => _found(find.byKey(const Key('dict-entry-2'))));
+    await _settle(tester, () => _found(find.byKey(const Key('dict-entry-2'))));
     expect(find.bySemanticsLabel(RegExp('ἀγάπη')), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('höchste Form')), findsOneWidget);
 
     // Tapping the Strong label (halo mechanics, ADR 0020) opens the
     // concordance of that number in the tagged Bible fixture.
-    final entryWidth =
-        tester.getSize(find.byKey(const Key('dict-entry-2'))).width;
+    final entryWidth = tester
+        .getSize(find.byKey(const Key('dict-entry-2')))
+        .width;
     final entryFontSize = (entryWidth < 400.0 ? entryWidth : 400.0) / 26.0;
     late DictLayoutView? entry2;
     await tester.runAsync(() async {
@@ -801,48 +891,55 @@ void main() {
         measureEms: entryWidth / entryFontSize,
       );
     });
-    final label = entry2!.lines.first.runs
-        .firstWhere((run) => run.verseNumber);
+    final label = entry2!.lines.first.runs.firstWhere((run) => run.verseNumber);
     final labelScale = entryFontSize / entry2!.unitsPerEm;
-    final entryOrigin = tester.getTopLeft(find.descendant(
-      of: find.byKey(const Key('dict-entry-2')),
-      matching: find.byType(CustomPaint),
-    ));
-    await tester.tapAt(entryOrigin +
-        Offset((label.x + label.width / 2) * labelScale,
-            entryFontSize * entry2!.numberScale * 0.5));
+    final entryOrigin = tester.getTopLeft(
+      find.descendant(
+        of: find.byKey(const Key('dict-entry-2')),
+        matching: find.byType(CustomPaint),
+      ),
+    );
+    await tester.tapAt(
+      entryOrigin +
+          Offset(
+            (label.x + label.width / 2) * labelScale,
+            entryFontSize * entry2!.numberScale * 0.5,
+          ),
+    );
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('concordance-list')), findsOneWidget);
     expect(
-      tester
-          .widget<Text>(find.byKey(const Key('concordance-count')))
-          .data,
+      tester.widget<Text>(find.byKey(const Key('concordance-count'))).data,
       'G2 · 1 · KjvTest',
     );
-    expect(find.textContaining('Love'), findsWidgets,
-        reason: 'the occurrence shows its verse with the word bold');
+    expect(
+      find.textContaining('Love'),
+      findsWidgets,
+      reason: 'the occurrence shows its verse with the word bold',
+    );
 
     // The header arrows walk the pane's lookup history.
     await tester.tap(find.byKey(const Key('dict-prev')));
-    await _settle(
-        tester, () => _found(find.byKey(const Key('dict-entry-2'))));
+    await _settle(tester, () => _found(find.byKey(const Key('dict-entry-2'))));
     await tester.tap(find.byKey(const Key('dict-prev')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('dict-results')), findsOneWidget,
-        reason: 'history returns to the search results');
+    expect(
+      find.byKey(const Key('dict-results')),
+      findsOneWidget,
+      reason: 'history returns to the search results',
+    );
     await tester.tap(find.byKey(const Key('dict-next')));
-    await _settle(
-        tester, () => _found(find.byKey(const Key('dict-entry-2'))));
+    await _settle(tester, () => _found(find.byKey(const Key('dict-entry-2'))));
 
     // A Strong's number in the search field goes straight to its entry.
     await tester.enterText(find.byKey(const Key('dict-search')), 'G1');
     await tester.testTextInput.receiveAction(TextInputAction.done);
-    await _settle(
-        tester, () => _found(find.byKey(const Key('dict-entry-1'))));
+    await _settle(tester, () => _found(find.byKey(const Key('dict-entry-1'))));
 
     // The scanned reference in the entry previews and opens the passage.
-    final paneWidth =
-        tester.getSize(find.byKey(const Key('dict-entry-1'))).width;
+    final paneWidth = tester
+        .getSize(find.byKey(const Key('dict-entry-1')))
+        .width;
     final fontSize = (paneWidth < 400.0 ? paneWidth : 400.0) / 26.0;
     late DictLayoutView? entry;
     await tester.runAsync(() async {
@@ -866,21 +963,31 @@ void main() {
     expect(linkRun, isNotNull);
     final runScale = fontSize / entry!.unitsPerEm;
     final lineHeight = fontSize * 1.5;
-    final origin = tester.getTopLeft(find.descendant(
-      of: find.byKey(const Key('dict-entry-1')),
-      matching: find.byType(CustomPaint),
-    ));
-    await tester.tapAt(origin +
-        Offset((linkRun!.x + linkRun.width / 2) * runScale,
-            lineIndex * lineHeight + lineHeight * 0.4));
+    final origin = tester.getTopLeft(
+      find.descendant(
+        of: find.byKey(const Key('dict-entry-1')),
+        matching: find.byType(CustomPaint),
+      ),
+    );
+    await tester.tapAt(
+      origin +
+          Offset(
+            (linkRun!.x + linkRun.width / 2) * runScale,
+            lineIndex * lineHeight + lineHeight * 0.4,
+          ),
+    );
     await tester.pumpAndSettle();
-    expect(find.textContaining('Und die Erde war wüst'), findsWidgets,
-        reason: 'preview shows the referenced passage');
+    expect(
+      find.textContaining('Und die Erde war wüst'),
+      findsWidgets,
+      reason: 'preview shows the referenced passage',
+    );
     semantics.dispose();
   });
 
-  testWidgets('long-pressing a word opens the dictionary and searches it',
-      (tester) async {
+  testWidgets('long-pressing a word opens the dictionary and searches it', (
+    tester,
+  ) async {
     _freshUserStore();
     // Wide enough for the full pane chrome, narrow enough to stay in the
     // vertical reader.
@@ -894,22 +1001,33 @@ void main() {
 
     await tester.longPressAt(await wordPoint(tester, 1, 'Himmel'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('selection-bar')), findsOneWidget,
-        reason: 'a steady long press enters selection mode');
+    expect(
+      find.byKey(const Key('selection-bar')),
+      findsOneWidget,
+      reason: 'a steady long press enters selection mode',
+    );
     await tester.tap(find.byKey(const Key('selection-dictionary')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('dict-search')), findsOneWidget,
-        reason: 'a dictionary view was created for the lookup');
+    expect(
+      find.byKey(const Key('dict-search')),
+      findsOneWidget,
+      reason: 'a dictionary view was created for the lookup',
+    );
     expect(find.byKey(const Key('dict-results')), findsOneWidget);
-    expect(find.byKey(const Key('dict-hit-3')), findsOneWidget,
-        reason: 'the Himmel gloss entry matches');
-    final field =
-        tester.widget<TextField>(find.byKey(const Key('dict-search')));
+    expect(
+      find.byKey(const Key('dict-hit-3')),
+      findsOneWidget,
+      reason: 'the Himmel gloss entry matches',
+    );
+    final field = tester.widget<TextField>(
+      find.byKey(const Key('dict-search')),
+    );
     expect(field.controller!.text, 'Himmel');
   });
 
-  testWidgets('in a tagged text a long-pressed word resolves its Strong',
-      (tester) async {
+  testWidgets('in a tagged text a long-pressed word resolves its Strong', (
+    tester,
+  ) async {
     _freshUserStore();
     tester.view.physicalSize = const Size(700, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -919,40 +1037,57 @@ void main() {
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await _settleLayouts(tester);
 
-    expect(find.byKey(const Key('strongs-badge')), findsNothing,
-        reason: 'the untagged text carries no badge');
+    expect(
+      find.byKey(const Key('strongs-badge')),
+      findsNothing,
+      reason: 'the untagged text carries no badge',
+    );
     await tester.tap(find.byKey(const Key('module-select')).first);
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.tag), findsWidgets,
-        reason: 'the chooser marks Strong-tagged texts');
+    expect(
+      find.byIcon(Icons.tag),
+      findsWidgets,
+      reason: 'the chooser marks Strong-tagged texts',
+    );
     await tester.tap(find.text('Testbibel mit Strongs').last);
     await _settleLayouts(tester);
-    expect(find.byIcon(Icons.tag), findsWidgets,
-        reason: 'the wide chrome shows the tag via the selected chooser row');
-    expect(find.byKey(const Key('strongs-badge')), findsNothing,
-        reason: 'no redundant standalone badge next to the chooser');
+    expect(
+      find.byIcon(Icons.tag),
+      findsWidgets,
+      reason: 'the wide chrome shows the tag via the selected chooser row',
+    );
+    expect(
+      find.byKey(const Key('strongs-badge')),
+      findsNothing,
+      reason: 'no redundant standalone badge next to the chooser',
+    );
 
     // Compact chrome hides the chooser; the badge is the only hint.
     tester.view.physicalSize = const Size(440, 800);
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('strongs-badge')), findsOneWidget,
-        reason: 'compact chrome carries the tagged badge');
+    expect(
+      find.byKey(const Key('strongs-badge')),
+      findsOneWidget,
+      reason: 'compact chrome carries the tagged badge',
+    );
     tester.view.physicalSize = const Size(700, 800);
     await tester.pumpAndSettle();
 
-    await tester
-        .longPressAt(await wordPoint(tester, 1, 'heaven', module: 'KjvTest'));
+    await tester.longPressAt(
+      await wordPoint(tester, 1, 'heaven', module: 'KjvTest'),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('selection-dictionary')));
-    await _settle(
-        tester, () => _found(find.byKey(const Key('dict-entry-3'))));
-    expect(find.bySemanticsLabel(RegExp('οὐρανός')), findsOneWidget,
-        reason: 'the tagged word opened its lexicon entry directly');
+    await _settle(tester, () => _found(find.byKey(const Key('dict-entry-3'))));
+    expect(
+      find.bySemanticsLabel(RegExp('οὐρανός')),
+      findsOneWidget,
+      reason: 'the tagged word opened its lexicon entry directly',
+    );
     semantics.dispose();
   });
 
-  testWidgets('book view: sections, contents, and references',
-      (tester) async {
+  testWidgets('book view: sections, contents, and references', (tester) async {
     _freshUserStore();
     tester.view.physicalSize = const Size(1000, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -967,33 +1102,46 @@ void main() {
     await tester.tap(find.byKey(const Key('add-book')));
     await tester.pumpAndSettle();
     await _settle(
-        tester, () => _found(find.byKey(const Key('book-section-1'))));
+      tester,
+      () => _found(find.byKey(const Key('book-section-1'))),
+    );
     await tester.pumpAndSettle();
 
-    expect(find.bySemanticsLabel(RegExp('Einleitung des Teils')),
-        findsOneWidget);
+    expect(
+      find.bySemanticsLabel(RegExp('Einleitung des Teils')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const Key('book-next')));
     await _settle(
-        tester, () => _found(find.byKey(const Key('book-section-2'))));
-    expect(find.bySemanticsLabel(RegExp('Erster Absatz der Predigt')),
-        findsOneWidget);
+      tester,
+      () => _found(find.byKey(const Key('book-section-2'))),
+    );
+    expect(
+      find.bySemanticsLabel(RegExp('Erster Absatz der Predigt')),
+      findsOneWidget,
+    );
 
     // The table of contents jumps anywhere, indented by level.
     await tester.tap(find.byKey(const Key('book-toc-button')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('toc-3')));
     await _settle(
-        tester, () => _found(find.byKey(const Key('book-section-3'))));
+      tester,
+      () => _found(find.byKey(const Key('book-section-3'))),
+    );
     await tester.pumpAndSettle();
     expect(find.bySemanticsLabel(RegExp('zweiten Predigt')), findsOneWidget);
 
     // A reference in section 2 previews its passage.
     await tester.tap(find.byKey(const Key('book-prev')));
     await _settle(
-        tester, () => _found(find.byKey(const Key('book-section-2'))));
-    final paneWidth =
-        tester.getSize(find.byKey(const Key('book-section-2'))).width;
+      tester,
+      () => _found(find.byKey(const Key('book-section-2'))),
+    );
+    final paneWidth = tester
+        .getSize(find.byKey(const Key('book-section-2')))
+        .width;
     final fontSize = (paneWidth < 400.0 ? paneWidth : 400.0) / 26.0;
     late BookLayoutView? section;
     await tester.runAsync(() async {
@@ -1017,13 +1165,19 @@ void main() {
     expect(linkRun, isNotNull);
     final runScale = fontSize / section!.unitsPerEm;
     final lineHeight = fontSize * 1.5;
-    final origin = tester.getTopLeft(find.descendant(
-      of: find.byKey(const Key('book-section-2')),
-      matching: find.byType(CustomPaint),
-    ));
-    await tester.tapAt(origin +
-        Offset((linkRun!.x + linkRun.width / 2) * runScale,
-            lineIndex * lineHeight + lineHeight * 0.4));
+    final origin = tester.getTopLeft(
+      find.descendant(
+        of: find.byKey(const Key('book-section-2')),
+        matching: find.byType(CustomPaint),
+      ),
+    );
+    await tester.tapAt(
+      origin +
+          Offset(
+            (linkRun!.x + linkRun.width / 2) * runScale,
+            lineIndex * lineHeight + lineHeight * 0.4,
+          ),
+    );
     await tester.pumpAndSettle();
     expect(find.textContaining('Und die Erde war wüst'), findsWidgets);
     semantics.dispose();
@@ -1047,20 +1201,28 @@ void main() {
     String dayKey(DateTime d) =>
         '${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}';
     final today = DateTime.now();
-    await _settle(tester,
-        () => _found(find.bySemanticsLabel(RegExp('Andacht ${dayKey(today)}'))));
+    await _settle(
+      tester,
+      () => _found(find.bySemanticsLabel(RegExp('Andacht ${dayKey(today)}'))),
+    );
 
     // Walk one day back, then return to today.
-    final yesterday = DateTime(2024, today.month, today.day)
-        .subtract(const Duration(days: 1));
+    final yesterday = DateTime(
+      2024,
+      today.month,
+      today.day,
+    ).subtract(const Duration(days: 1));
     await tester.tap(find.byKey(const Key('devo-prev')));
     await _settle(
-        tester,
-        () =>
-            _found(find.bySemanticsLabel(RegExp('Andacht ${dayKey(yesterday)}'))));
+      tester,
+      () =>
+          _found(find.bySemanticsLabel(RegExp('Andacht ${dayKey(yesterday)}'))),
+    );
     await tester.tap(find.byKey(const Key('devo-today')));
-    await _settle(tester,
-        () => _found(find.bySemanticsLabel(RegExp('Andacht ${dayKey(today)}'))));
+    await _settle(
+      tester,
+      () => _found(find.bySemanticsLabel(RegExp('Andacht ${dayKey(today)}'))),
+    );
     semantics.dispose();
   });
 
@@ -1076,8 +1238,7 @@ void main() {
     expect(find.text('No training labels collected yet'), findsOneWidget);
   });
 
-  testWidgets('search tool: hits, jump, and training labels',
-      (tester) async {
+  testWidgets('search tool: hits, jump, and training labels', (tester) async {
     _freshUserStore();
     tester.view.physicalSize = const Size(1000, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -1092,12 +1253,18 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(
-        find.byKey(const Key('search-query')), 'Schlange listiger');
+      find.byKey(const Key('search-query')),
+      'Schlange listiger',
+    );
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await _settle(
-        tester, () => _found(find.byKey(const Key('search-results'))));
-    expect(find.textContaining('Und die Schlange war listiger'),
-        findsOneWidget);
+      tester,
+      () => _found(find.byKey(const Key('search-results'))),
+    );
+    expect(
+      find.textContaining('Und die Schlange war listiger'),
+      findsOneWidget,
+    );
 
     // The thumb records a positive training label into the synced store.
     await tester.tap(find.byKey(const Key('search-good-0')));
@@ -1115,15 +1282,15 @@ void main() {
     labels = userKeys(prefix: 'label/');
     expect(labels.length, 2);
     expect(
-      labels.map((k) => userGet(key: k)!).where(
-          (v) => v.contains('"label":"no_good_hit"')),
+      labels
+          .map((k) => userGet(key: k)!)
+          .where((v) => v.contains('"label":"no_good_hit"')),
       hasLength(1),
     );
 
     // The export payload is bibelsuche-compatible JSONL, in order.
     final jsonl = labelExportJsonl();
-    final lines =
-        jsonl.trim().split('\n').map((l) => jsonDecode(l)).toList();
+    final lines = jsonl.trim().split('\n').map((l) => jsonDecode(l)).toList();
     expect(lines, hasLength(2));
     expect(lines[0]['label'], 'good_hit');
     expect(lines[0]['corpus'], 'FixDe');
@@ -1140,8 +1307,9 @@ void main() {
     expect(position.data, '1. Mose 3');
   });
 
-  testWidgets('annotations: mark, note, edit, and cross-module verses',
-      (tester) async {
+  testWidgets('annotations: mark, note, edit, and cross-module verses', (
+    tester,
+  ) async {
     _freshUserStore();
     tester.view.physicalSize = const Size(700, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -1163,12 +1331,14 @@ void main() {
     await tester.tap(find.byKey(const Key('selection-mark')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('mark-color-3')));
-    await tester.enterText(
-        find.byKey(const Key('mark-text')), 'Meine Notiz');
+    await tester.enterText(find.byKey(const Key('mark-text')), 'Meine Notiz');
     await tester.tap(find.byKey(const Key('mark-save')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('selection-bar')), findsNothing,
-        reason: 'saving exits selection mode');
+    expect(
+      find.byKey(const Key('selection-bar')),
+      findsNothing,
+      reason: 'saving exits selection mode',
+    );
     expect(userKeys(prefix: 'note/'), hasLength(1));
 
     // Tapping the marked word opens the note for editing.
@@ -1216,21 +1386,26 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Testbibel mit Strongs').last);
     await _settleLayouts(tester);
-    await tester
-        .tapAt(await wordPoint(tester, 1, 'beginning', module: 'KjvTest'));
+    await tester.tapAt(
+      await wordPoint(tester, 1, 'beginning', module: 'KjvTest'),
+    );
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('mark-text')), findsOneWidget,
-        reason: 'verse-level coverage in a foreign module');
+    expect(
+      find.byKey(const Key('mark-text')),
+      findsOneWidget,
+      reason: 'verse-level coverage in a foreign module',
+    );
     await tester.tap(find.byKey(const Key('mark-delete')));
     await tester.pumpAndSettle();
     final remaining = [
-      for (final k in userKeys(prefix: 'note/')) userGet(key: k)!
+      for (final k in userKeys(prefix: 'note/')) userGet(key: k)!,
     ].where((v) => v.isNotEmpty);
     expect(remaining, hasLength(1), reason: 'delete tombstones the mark');
   });
 
-  testWidgets('notes overview: canonical list, jump, edit, and delete',
-      (tester) async {
+  testWidgets('notes overview: canonical list, jump, edit, and delete', (
+    tester,
+  ) async {
     _freshUserStore();
     tester.view.physicalSize = const Size(1000, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -1243,24 +1418,27 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('add-notes')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('note-row-0')), findsNothing,
-        reason: 'a fresh store shows the empty state');
+    expect(
+      find.byKey(const Key('note-row-0')),
+      findsNothing,
+      reason: 'a fresh store shows the empty state',
+    );
 
     // Two marks, saved out of canonical order — the open pane hears the
     // change through the store's revision notifier.
     NoteMark mark(String id, int chapter, String text) => NoteMark(
-          id: id,
-          module: 'FixDe',
-          bookOsis: 'Gen',
-          chapter: chapter,
-          verseStart: 1,
-          verseEnd: 1,
-          startOffset: 0,
-          endOffset: 1 << 30,
-          colorIndex: 2,
-          text: text,
-          created: '2026-08-29T0$chapter:00:00Z',
-        );
+      id: id,
+      module: 'FixDe',
+      bookOsis: 'Gen',
+      chapter: chapter,
+      verseStart: 1,
+      verseEnd: 1,
+      startOffset: 0,
+      endOffset: 1 << 30,
+      colorIndex: 2,
+      text: text,
+      created: '2026-08-29T0$chapter:00:00Z',
+    );
     Annotations.save(mark('n-later', 2, 'Später'));
     Annotations.save(mark('n-first', 1, ''));
     await tester.pumpAndSettle();
@@ -1268,14 +1446,16 @@ void main() {
     // Canonical order: Gen 1 before Gen 2; a pure color mark is labeled.
     expect(
       find.descendant(
-          of: find.byKey(const Key('note-row-0')),
-          matching: find.text('1Mo 1,1')),
+        of: find.byKey(const Key('note-row-0')),
+        matching: find.text('1Mo 1,1'),
+      ),
       findsOneWidget,
     );
     expect(
       find.descendant(
-          of: find.byKey(const Key('note-row-1')),
-          matching: find.text('Später')),
+        of: find.byKey(const Key('note-row-1')),
+        matching: find.text('Später'),
+      ),
       findsOneWidget,
     );
 
@@ -1283,16 +1463,22 @@ void main() {
     await _settle(tester, () => _found(find.textContaining('1Mo 1')));
     await tester.tap(find.byKey(const Key('note-row-1')));
     await tester.pumpAndSettle();
-    final back =
-        tester.widget<IconButton>(find.byKey(const Key('nav-back')).first);
-    expect(back.onPressed, isNotNull,
-        reason: 'the note jump entered the desk history');
+    final back = tester.widget<IconButton>(
+      find.byKey(const Key('nav-back')).first,
+    );
+    expect(
+      back.onPressed,
+      isNotNull,
+      reason: 'the note jump entered the desk history',
+    );
 
     // Edit through the popup: the row shows the new text.
     await tester.tap(find.byKey(const Key('note-edit-0')));
     await tester.pumpAndSettle();
     await tester.enterText(
-        find.byKey(const Key('mark-text')), 'Jetzt mit Text');
+      find.byKey(const Key('mark-text')),
+      'Jetzt mit Text',
+    );
     await tester.tap(find.byKey(const Key('mark-save')));
     await tester.pumpAndSettle();
     expect(find.text('Jetzt mit Text'), findsOneWidget);
@@ -1306,61 +1492,71 @@ void main() {
     expect(find.text('Später'), findsNothing);
   });
 
-  testWidgets('notes overview in a narrow pane: reference stays, long-press edits',
-      (tester) async {
-    // A phone-width column beside a text pane leaves the notes pane
-    // around 200 logical px: the module chip and edit button give way.
-    _freshUserStore();
-    Annotations.save(NoteMark(
-      id: 'n-phone',
-      module: 'FixDe',
-      bookOsis: 'Gen',
-      chapter: 1,
-      verseStart: 1,
-      verseEnd: 1,
-      startOffset: 0,
-      endOffset: 1 << 30,
-      colorIndex: 1,
-      text: 'Handynotiz',
-      created: '2026-08-29T09:00:00Z',
-    ));
-    var opened = '';
-    await tester.pumpWidget(MaterialApp(
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: Scaffold(
-        body: Align(
-          alignment: Alignment.topLeft,
-          child: SizedBox(
-            width: 220,
-            height: 600,
-            child: NotesPane(
-              readingMode: false,
-              onToggleMode: () {},
-              badge: null,
-              onOpenReference: (osis) => opened = osis,
+  testWidgets(
+    'notes overview in a narrow pane: reference stays, long-press edits',
+    (tester) async {
+      // A phone-width column beside a text pane leaves the notes pane
+      // around 200 logical px: the module chip and edit button give way.
+      _freshUserStore();
+      Annotations.save(
+        NoteMark(
+          id: 'n-phone',
+          module: 'FixDe',
+          bookOsis: 'Gen',
+          chapter: 1,
+          verseStart: 1,
+          verseEnd: 1,
+          startOffset: 0,
+          endOffset: 1 << 30,
+          colorIndex: 1,
+          text: 'Handynotiz',
+          created: '2026-08-29T09:00:00Z',
+        ),
+      );
+      var opened = '';
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 220,
+                height: 600,
+                child: NotesPane(
+                  readingMode: false,
+                  onToggleMode: () {},
+                  badge: null,
+                  onOpenReference: (osis) => opened = osis,
+                ),
+              ),
             ),
           ),
         ),
-      ),
-    ));
-    await tester.pumpAndSettle();
-    expect(
-      find.descendant(
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
           of: find.byKey(const Key('note-row-0')),
-          matching: find.text('1Mo 1,1')),
-      findsOneWidget,
-      reason: 'the reference owns the compact row',
-    );
-    expect(find.byKey(const Key('note-edit-0')), findsNothing);
-    await tester.tap(find.byKey(const Key('note-row-0')));
-    await tester.pumpAndSettle();
-    expect(opened, 'Gen.1.1');
-    await tester.longPress(find.byKey(const Key('note-row-0')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('mark-text')), findsOneWidget,
-        reason: 'long-press opens the note popup');
-  });
+          matching: find.text('1Mo 1,1'),
+        ),
+        findsOneWidget,
+        reason: 'the reference owns the compact row',
+      );
+      expect(find.byKey(const Key('note-edit-0')), findsNothing);
+      await tester.tap(find.byKey(const Key('note-row-0')));
+      await tester.pumpAndSettle();
+      expect(opened, 'Gen.1.1');
+      await tester.longPress(find.byKey(const Key('note-row-0')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('mark-text')),
+        findsOneWidget,
+        reason: 'long-press opens the note popup',
+      );
+    },
+  );
 
   testWidgets('desk history: back, forward, and the dropdown', (tester) async {
     _freshUserStore();
@@ -1368,9 +1564,8 @@ void main() {
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await _settleLayouts(tester);
 
-    String label() => tester
-        .widget<Text>(find.byKey(const Key('current-position')))
-        .data!;
+    String label() =>
+        tester.widget<Text>(find.byKey(const Key('current-position'))).data!;
     Future<void> settleJump() async {
       for (var i = 0; i < 3; i++) {
         await tester.pumpAndSettle();
@@ -1423,14 +1618,19 @@ void main() {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;
     tester.view.padding = const FakeViewPadding(
-        left: 0, top: 59, right: 0, bottom: 34);
+      left: 0,
+      top: 59,
+      right: 0,
+      bottom: 34,
+    );
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPadding);
   }
 
-  testWidgets('phone-width panes collapse chrome into the overflow menu',
-      (tester) async {
+  testWidgets('phone-width panes collapse chrome into the overflow menu', (
+    tester,
+  ) async {
     _freshUserStore();
     notchedPhoneViewport(tester);
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
@@ -1443,13 +1643,17 @@ void main() {
     expect(find.byKey(const Key('current-position')), findsOneWidget);
     await tester.tap(find.byKey(const Key('pane-menu')));
     await tester.pumpAndSettle();
-    expect(find.text('Fixtur Deutsch'), findsOneWidget,
-        reason: 'module switching lives in the menu');
+    expect(
+      find.text('Fixtur Deutsch'),
+      findsOneWidget,
+      reason: 'module switching lives in the menu',
+    );
     expect(find.byKey(const Key('menu-unlinked')), findsOneWidget);
   });
 
-  testWidgets('reading mode stays clear of the status bar inset',
-      (tester) async {
+  testWidgets('reading mode stays clear of the status bar inset', (
+    tester,
+  ) async {
     _freshUserStore();
     notchedPhoneViewport(tester);
     await prefs.setBool('readingMode', true);
@@ -1457,8 +1661,11 @@ void main() {
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await _settleLayouts(tester);
     final top = tester.getTopLeft(find.byKey(const Key('vertical-reader'))).dy;
-    expect(top, greaterThanOrEqualTo(59),
-        reason: 'without chrome the text must not slide under the notch');
+    expect(
+      top,
+      greaterThanOrEqualTo(59),
+      reason: 'without chrome the text must not slide under the notch',
+    );
   });
 
   testWidgets('toggling chrome never re-chunks the columns', (tester) async {
@@ -1478,14 +1685,25 @@ void main() {
       () => _found(find.byKey(const ValueKey('columns-active'))),
     );
     expect(find.byType(AppBar), findsOneWidget);
-    final before = tester.widget<TypesetColumn>(find.byType(TypesetColumn).first);
+    final before = tester.widget<TypesetColumn>(
+      find.byType(TypesetColumn).first,
+    );
 
     settings.setReadingMode(true);
     await tester.pumpAndSettle();
-    expect(find.byType(AppBar), findsNothing, reason: 'reading mode hides chrome');
-    final after = tester.widget<TypesetColumn>(find.byType(TypesetColumn).first);
-    expect(after.rowCount, before.rowCount,
-        reason: 'lines per column are mode-independent');
+    expect(
+      find.byType(AppBar),
+      findsNothing,
+      reason: 'reading mode hides chrome',
+    );
+    final after = tester.widget<TypesetColumn>(
+      find.byType(TypesetColumn).first,
+    );
+    expect(
+      after.rowCount,
+      before.rowCount,
+      reason: 'lines per column are mode-independent',
+    );
     expect(after.rows.length, before.rows.length);
     expect(after.rows.first.row, before.rows.first.row);
 
@@ -1494,6 +1712,53 @@ void main() {
     final back = tester.widget<TypesetColumn>(find.byType(TypesetColumn).first);
     expect(back.rowCount, before.rowCount);
     expect(back.rows.length, before.rows.length);
+  });
+
+  testWidgets('the keyboard follows the last view acted in', (tester) async {
+    // ADR 0028: two text views; a pointer down in the second makes it the
+    // arrow keys' target, the first keeps its position.
+    _freshUserStore();
+    // Two panes of two columns each (column mode needs >= 880 px a pane).
+    tester.view.physicalSize = const Size(2000, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Text view'));
+    await _settleLayouts(tester);
+    expect(find.byKey(const ValueKey('columns-active')), findsNWidgets(2));
+    expect(
+      find.byType(Scrollbar),
+      findsNothing,
+      reason: 'the reader draws no scrollbars',
+    );
+    final lists = find.byType(ListView);
+    final first = tester.widget<ListView>(lists.at(0));
+    final second = tester.widget<ListView>(lists.at(1));
+    final firstStart = first.controller!.offset;
+    final secondStart = second.controller!.offset;
+
+    // Act in the second view (a pointer down, released) and page.
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(const ValueKey('columns-active')).at(1)),
+    );
+    await gesture.up();
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(
+      second.controller!.offset,
+      greaterThan(secondStart),
+      reason: 'the view acted in pages',
+    );
+    expect(
+      first.controller!.offset,
+      firstStart,
+      reason: 'the other view stays',
+    );
   });
 
   testWidgets('arrow keys page the columns one at a time', (tester) async {
@@ -1520,8 +1785,9 @@ void main() {
     expect(list.controller!.offset, moreOrLessEquals(stride, epsilon: 1));
   });
 
-  testWidgets('drop targets omit the dragged pane\'s own position',
-      (tester) async {
+  testWidgets('drop targets omit the dragged pane\'s own position', (
+    tester,
+  ) async {
     _freshUserStore();
     tester.view.physicalSize = const Size(1400, 700);
     tester.view.devicePixelRatio = 1.0;
@@ -1540,14 +1806,26 @@ void main() {
     final gesture = await tester.startGesture(handle);
     await gesture.moveBy(const Offset(0, 30));
     await tester.pump();
-    expect(find.byKey(const Key('drop-column-1')), findsNothing,
-        reason: 'the middle boundary is a no-op for the dragged pane');
-    expect(find.byKey(const Key('drop-column-2')), findsNothing,
-        reason: 'so is the boundary right of it');
-    expect(find.byKey(const Key('drop-column-0')), findsOneWidget,
-        reason: 'moving to the far left changes the order');
-    expect(find.byKey(const Key('drop-stack-1-0')), findsNothing,
-        reason: 'its own stack position is a no-op');
+    expect(
+      find.byKey(const Key('drop-column-1')),
+      findsNothing,
+      reason: 'the middle boundary is a no-op for the dragged pane',
+    );
+    expect(
+      find.byKey(const Key('drop-column-2')),
+      findsNothing,
+      reason: 'so is the boundary right of it',
+    );
+    expect(
+      find.byKey(const Key('drop-column-0')),
+      findsOneWidget,
+      reason: 'moving to the far left changes the order',
+    );
+    expect(
+      find.byKey(const Key('drop-stack-1-0')),
+      findsNothing,
+      reason: 'its own stack position is a no-op',
+    );
     expect(find.byKey(const Key('drop-stack-0-0')), findsOneWidget);
     await gesture.up();
     await tester.pumpAndSettle();
@@ -1558,9 +1836,8 @@ void main() {
     _phoneViewport(tester);
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await _settleLayouts(tester);
-    String label() => tester
-        .widget<Text>(find.byKey(const Key('current-position')))
-        .data!;
+    String label() =>
+        tester.widget<Text>(find.byKey(const Key('current-position'))).data!;
 
     // A second desk starts fresh; give it its own position.
     await tester.tap(find.byKey(const Key('desk-menu')));
@@ -1588,8 +1865,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('desk-rename')));
     await tester.pumpAndSettle();
-    await tester.enterText(
-        find.byKey(const Key('desk-name-field')), 'Study');
+    await tester.enterText(find.byKey(const Key('desk-name-field')), 'Study');
     await tester.tap(find.byKey(const Key('desk-rename-confirm')));
     await tester.pumpAndSettle();
 
@@ -1607,33 +1883,35 @@ void main() {
     expect(find.text('Study'), findsNothing);
   });
 
-  testWidgets('the legacy single layout migrates into Desk 1',
-      (tester) async {
+  testWidgets('the legacy single layout migrates into Desk 1', (tester) async {
     _freshUserStore();
     _phoneViewport(tester);
     final legacy = LayoutModel([
-      PaneColumn(panes: [
-        PaneSpec(kind: PaneKind.text, module: 'FixDe', anchor: 'Exod.2.1'),
-      ]),
-    ])
-      ..ensureBadges();
+      PaneColumn(
+        panes: [
+          PaneSpec(kind: PaneKind.text, module: 'FixDe', anchor: 'Exod.2.1'),
+        ],
+      ),
+    ])..ensureBadges();
     userSet(key: 'layout', value: legacy.encode());
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await _settleLayouts(tester);
     await _settle(
       tester,
       () =>
-          tester
-              .widget<Text>(find.byKey(const Key('current-position')))
-              .data ==
+          tester.widget<Text>(find.byKey(const Key('current-position'))).data ==
           '2. Mose 2',
     );
-    expect(DeskRegistry.decode(userGet(key: 'desks')!), isNotNull,
-        reason: 'the registry now exists with the migrated desk');
+    expect(
+      DeskRegistry.decode(userGet(key: 'desks')!),
+      isNotNull,
+      reason: 'the registry now exists with the migrated desk',
+    );
   });
 
-  testWidgets('a desk arranged on one device appears on the second',
-      (tester) async {
+  testWidgets('a desk arranged on one device appears on the second', (
+    tester,
+  ) async {
     _phoneViewport(tester);
     final folder = Directory.systemTemp.createTempSync('gramma-syncdir');
 
@@ -1648,9 +1926,7 @@ void main() {
     await _settle(
       tester,
       () =>
-          tester
-              .widget<Text>(find.byKey(const Key('current-position')))
-              .data ==
+          tester.widget<Text>(find.byKey(const Key('current-position'))).data ==
           '2. Mose 1',
     );
 
@@ -1664,15 +1940,14 @@ void main() {
     await _settle(
       tester,
       () =>
-          tester
-              .widget<Text>(find.byKey(const Key('current-position')))
-              .data ==
+          tester.widget<Text>(find.byKey(const Key('current-position'))).data ==
           '2. Mose 1',
     );
   });
 
-  testWidgets('reading plans import as JSON and land in the tools menu',
-      (tester) async {
+  testWidgets('reading plans import as JSON and land in the tools menu', (
+    tester,
+  ) async {
     _freshUserStore();
     _phoneViewport(tester);
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
@@ -1688,23 +1963,26 @@ void main() {
     // Import a plan (ADR 0025) and start the app fresh — plan
     // discovery is part of startup, synchronous from the library.
     final planFile = File('${Directory.systemTemp.path}/gramma-test-plan.json');
-    planFile.writeAsStringSync(jsonEncode({
-      'name': 'Testplan',
-      'source': 'zwei Tage',
-      'days': [
-        [
-          {'label': 'Erster Tag', 'osis': 'Gen.1'},
+    planFile.writeAsStringSync(
+      jsonEncode({
+        'name': 'Testplan',
+        'source': 'zwei Tage',
+        'days': [
+          [
+            {'label': 'Erster Tag', 'osis': 'Gen.1'},
+          ],
+          [
+            {'label': 'Zweiter Tag', 'osis': 'Gen.1'},
+          ],
         ],
-        [
-          {'label': 'Zweiter Tag', 'osis': 'Gen.1'},
-        ],
-      ],
-    }));
+      }),
+    );
     addTearDown(() => planFile.deleteSync());
     // The bridge call is real async — run it outside the test's
     // fake-async zone, like the setUpAll imports.
-    final imported = await tester
-        .runAsync(() => importPlanFile(path: planFile.path));
+    final imported = await tester.runAsync(
+      () => importPlanFile(path: planFile.path),
+    );
     expect((imported!.name, imported.days.toInt()), ('Testplan', 2));
 
     // Tear the tree down so the reader starts fresh — plan discovery
@@ -1722,27 +2000,33 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('plan-ref-0')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('plan-title')), findsNothing,
-        reason: 'opening a reading closes the popup');
-    final back =
-        tester.widget<IconButton>(find.byKey(const Key('nav-back')).first);
-    expect(back.onPressed, isNotNull,
-        reason: 'the plan jump entered the desk history');
+    expect(
+      find.byKey(const Key('plan-title')),
+      findsNothing,
+      reason: 'opening a reading closes the popup',
+    );
+    final back = tester.widget<IconButton>(
+      find.byKey(const Key('nav-back')).first,
+    );
+    expect(
+      back.onPressed,
+      isNotNull,
+      reason: 'the plan jump entered the desk history',
+    );
   });
 
-  testWidgets('switching the typeface re-typesets the reader',
-      (tester) async {
+  testWidgets('switching the typeface re-typesets the reader', (tester) async {
     _freshUserStore();
     _phoneViewport(tester);
     final settings = SettingsController(prefs);
     addTearDown(
-        () => settings.setFontFamily('GentiumBookPlus', confirmed: true));
+      () => settings.setFontFamily('GentiumBookPlus', confirmed: true),
+    );
     await tester.pumpWidget(GrammaApp(settings: settings));
     await _settleLayouts(tester);
     await tester.tap(find.byKey(const Key('open-settings')));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-        find.byKey(const Key('change-font')), 300);
+    await tester.scrollUntilVisible(find.byKey(const Key('change-font')), 300);
     await tester.tap(find.byKey(const Key('change-font')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('font-GentiumPlus')));
@@ -1763,13 +2047,19 @@ void main() {
 
   /// Global tap point of the [nth] note marker of [chapter] inside the
   /// matching visible TypesetChapter, from the deterministic layout.
-  Future<Offset> markerPoint(WidgetTester tester, int chapter,
-      {int nth = 0}) async {
-    final layout = await tester.runAsync(() => layoutChapter(
+  Future<Offset> markerPoint(
+    WidgetTester tester,
+    int chapter, {
+    int nth = 0,
+  }) async {
+    final layout = await tester.runAsync(
+      () => layoutChapter(
         moduleCode: 'FixDe',
         bookOsis: 'Gen',
         chapter: chapter,
-        measureEms: 26));
+        measureEms: 26,
+      ),
+    );
     final markers = <(int, RunView)>[];
     for (var i = 0; i < layout!.lines.length; i++) {
       for (final run in layout.lines[i].runs) {
@@ -1781,19 +2071,21 @@ void main() {
     for (final element in find.byType(TypesetChapter).evaluate()) {
       final widget = element.widget as TypesetChapter;
       if (widget.layout.lines.length != layout.lines.length) continue;
-      final rect = tester.getRect(
-          find.byWidget(widget, skipOffstage: false));
+      final rect = tester.getRect(find.byWidget(widget, skipOffstage: false));
       final scale = rect.width / layout.measureUnits;
       final lineHeight = scale * layout.unitsPerEm * 1.5;
       return rect.topLeft +
-          Offset((run.x + run.width / 2) * scale,
-              (lineIndex + 0.5) * lineHeight);
+          Offset(
+            (run.x + run.width / 2) * scale,
+            (lineIndex + 0.5) * lineHeight,
+          );
     }
     fail('chapter $chapter not painted');
   }
 
-  testWidgets('note markers are active: popup, in-popup navigation, jump',
-      (tester) async {
+  testWidgets('note markers are active: popup, in-popup navigation, jump', (
+    tester,
+  ) async {
     _freshUserStore();
     _phoneViewport(tester);
     final settings = SettingsController(prefs);
@@ -1804,14 +2096,17 @@ void main() {
     await tester.tapAt(await markerPoint(tester, 1));
     await tester.pumpAndSettle();
     expect(find.textContaining('Anmerkung Alpha'), findsOneWidget);
-    expect(tester.widget<Text>(find.byKey(const Key('note-title'))).data,
-        'Footnotes',
-        reason: 'the popup lists the visible footnotes (ADR 0028)');
+    expect(
+      tester.widget<Text>(find.byKey(const Key('note-title'))).data,
+      startsWith('Footnotes · '),
+      reason: "the popup lists the chapter's footnotes (ADR 0028)",
+    );
     expect(
       find.descendant(
-          of: find.byKey(const Key('note-body')),
-          matching: find.textContaining('Anmerkung Alpha'),
-          matchRoot: true),
+        of: find.byKey(const Key('note-body')),
+        matching: find.textContaining('Anmerkung Alpha'),
+        matchRoot: true,
+      ),
       findsOneWidget,
       reason: 'the tapped note is the selected entry',
     );
@@ -1841,12 +2136,18 @@ void main() {
     }
     recognizer!.onTap!();
     await tester.pumpAndSettle();
-    expect(find.textContaining('Am Anfang schuf Gott'), findsOneWidget,
-        reason: 'the passage page shows inside the same popup');
+    expect(
+      find.textContaining('Am Anfang schuf Gott'),
+      findsOneWidget,
+      reason: 'the passage page shows inside the same popup',
+    );
     await tester.tap(find.byKey(const Key('note-back')));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Anmerkung Beta'), findsOneWidget,
-        reason: 'back returns to the note page');
+    expect(
+      find.textContaining('Anmerkung Beta'),
+      findsOneWidget,
+      reason: 'back returns to the note page',
+    );
 
     // Open from the passage page jumps the reading view.
     recognizer!.onTap!();
@@ -1855,9 +2156,7 @@ void main() {
     await _settle(
       tester,
       () =>
-          tester
-              .widget<Text>(find.byKey(const Key('current-position')))
-              .data ==
+          tester.widget<Text>(find.byKey(const Key('current-position'))).data ==
           '1. Mose 1',
     );
 
@@ -1868,30 +2167,35 @@ void main() {
     settings.setReadingMode(false);
   });
 
-  testWidgets('wide screens get settings as a floating dialog',
-      (tester) async {
+  testWidgets('wide screens get settings as a floating dialog', (tester) async {
     _freshUserStore();
     _desktopViewport(tester);
     await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
     await _settleLayouts(tester);
     await tester.tap(find.byKey(const Key('open-settings')));
     await tester.pumpAndSettle();
-    expect(find.byType(Dialog), findsOneWidget,
-        reason: 'no full-screen route on a desktop viewport');
+    expect(
+      find.byType(Dialog),
+      findsOneWidget,
+      reason: 'no full-screen route on a desktop viewport',
+    );
     await tester.tap(find.byKey(const Key('settings-close')));
     await tester.pumpAndSettle();
     expect(find.byType(Dialog), findsNothing);
   });
 
-  testWidgets('corrupted pane weights restore to a usable desk',
-      (tester) async {
+  testWidgets('corrupted pane weights restore to a usable desk', (
+    tester,
+  ) async {
     _freshUserStore();
     final broken = LayoutModel([
       PaneColumn(
-          panes: [PaneSpec(kind: PaneKind.text, module: 'FixDe')],
-          weight: -0.4),
+        panes: [PaneSpec(kind: PaneKind.text, module: 'FixDe')],
+        weight: -0.4,
+      ),
       PaneColumn(
-          panes: [PaneSpec(kind: PaneKind.text, module: 'FixDe')]),
+        panes: [PaneSpec(kind: PaneKind.text, module: 'FixDe')],
+      ),
     ]);
     final desk = DeskInfo(id: 'dtest', name: 'Desk 1');
     userSet(key: 'desks', value: DeskRegistry([desk]).encode());
@@ -1901,8 +2205,11 @@ void main() {
     await _settleLayouts(tester);
     expect(find.byType(ReaderPane), findsNWidgets(2));
     for (final pane in find.byType(ReaderPane).evaluate()) {
-      expect(pane.size!.width, greaterThan(100),
-          reason: 'no pane may be squeezed off the desk on restore');
+      expect(
+        pane.size!.width,
+        greaterThan(100),
+        reason: 'no pane may be squeezed off the desk on restore',
+      );
     }
   });
 }
