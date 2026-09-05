@@ -138,3 +138,28 @@ All questionnaire answers "No" → 4+.
 sync encryption uses standard algorithms (exempt). Note: mass-market
 standard cryptography may still carry an annual self-classification
 report duty (BIS/EU dual-use) — confirm once before first release.
+
+## Uploading from the command line
+
+Archive, then export with destination `upload`. Authentication uses an
+App Store Connect API **Team key with the Admin role** (a Developer-role
+key authenticates but may not use the cloud-managed distribution
+certificate: "Cloud signing permission error"). The .p8 stays outside
+the repo; only its path is passed:
+
+```
+xcodebuild -workspace Runner.xcworkspace -scheme Runner \
+  -configuration Release -destination 'generic/platform=iOS' \
+  -archivePath /path/gramma-ios.xcarchive -allowProvisioningUpdates archive
+xcodebuild -exportArchive -archivePath /path/gramma-ios.xcarchive \
+  -exportOptionsPlist ExportOptions.plist -exportPath /path/export \
+  -allowProvisioningUpdates \
+  -authenticationKeyPath /path/AuthKey_<KEYID>.p8 \
+  -authenticationKeyID <KEYID> -authenticationKeyIssuerID <ISSUER>
+```
+
+ExportOptions.plist: method `app-store-connect`, destination `upload`,
+teamID, `manageAppVersionAndBuildNumber` false (the build number is
+the pubspec one). Log to a file — never pipe the upload through
+`head`/`grep`, SIGPIPE kills it. The archive's Info.plist shows
+CFBundleShortVersionString/CFBundleVersion for a pre-upload check.
