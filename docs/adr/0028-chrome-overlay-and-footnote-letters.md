@@ -32,9 +32,11 @@ lines under the floating chrome are covered while the chrome shows —
 a deliberate trade, since chrome is the transient state and reading
 the resting one.
 
-**The first text view owns the keyboard.** It requests focus after
-its first frame; a pane also takes focus on hover and on any pointer
-down. One arrow press pages.
+**The last view acted in owns the keyboard.** The first text view
+requests focus after its first frame; from then on a pane takes focus
+on a pointer down, a drag, or a wheel tick in it — not on hover, which
+handed the keys to whichever pane the mouse rested over (in a
+leader/follower desk, invariably the follower). One arrow press pages.
 
 **Footnote letters run through the chapter** — a … z, then aa, ab —
 never restarting at a verse or a heading, in the engine's inline
@@ -42,10 +44,23 @@ markers and the bridge's note rows alike. Lists show the letter alone
 while it is unambiguous in the visible range; only when two visible
 chapters' letters collide do chapter and verse join the letter.
 
-**The footnote popup shows the page.** Tapping a marker opens every
-footnote of the view's visible range, the tapped one highlighted and
-scrolled into view; references inside notes still navigate within
-the popup.
+**The footnote popup shows the chapter.** Tapping a marker opens every
+footnote of that chapter, the tapped one highlighted and scrolled into
+view; references inside notes still navigate within the popup. The
+chapter, not the visible range, is the scope: letters are unique within
+it, and the eye reads the popup as the chapter's apparatus.
+
+**A view announces its range whenever either end moves.** The visible
+range (start and end verse) feeds footnotes views and followers. The
+end can move while the start's verse stays — a column that begins in
+the same long verse — so every scroll is reported and the announced
+strings decide whether anything changed; a follower announces where it
+actually landed once a remote jump settles.
+
+**No scrollbars in the reader.** The desktop scrollbar's hit band along
+the column edge swallowed taps on end-of-line footnote markers and
+scrolled instead; the reader draws none. Paging by wheel, drag, and
+keys remains.
 
 ## Consequences
 
