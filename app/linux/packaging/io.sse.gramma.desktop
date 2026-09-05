@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=gramma
+Comment=Bible study: side-by-side texts, footnotes, dictionaries, notes
+Exec=gramma
+Icon=io.sse.gramma
+Terminal=false
+Categories=Education;Literature;
+Keywords=Bible;Scripture;Study;SWORD;OSIS;
+StartupWMClass=gramma
