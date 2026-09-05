@@ -1723,7 +1723,11 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    // The pointer down below is a tap on the text, which toggles reading
+    // mode — a persisted setting, reset for the tests that follow.
+    final settings = SettingsController(prefs);
+    addTearDown(() => settings.setReadingMode(false));
+    await tester.pumpWidget(GrammaApp(settings: settings));
     await _settleLayouts(tester);
     await tester.tap(find.byKey(const Key('add-view')));
     await tester.pumpAndSettle();
