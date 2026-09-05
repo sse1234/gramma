@@ -1,0 +1,1 @@
+Die Leseposition springt beim Ein- und Ausblenden der Menüs nicht mehr. Fußnoten sind kapitelweise a–z gezählt; ein Tipp zeigt alle Fußnoten des Kapitels. Tastatur-Blättern folgt der zuletzt benutzten Ansicht. Wörterbucheinträge im Flattersatz. Optional Bildschirm anlassen. Lesepläne als JSON importierbar.
