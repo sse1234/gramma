@@ -82,10 +82,21 @@ pub fn layout_verses(
 ) -> Vec<LineOut> {
     let mut lines: Vec<LineOut> = Vec::new();
     let mut segment: Vec<(u16, &str)> = Vec::new();
+    // Note markers letter through the whole chapter (ADR 0028): a, b, …
+    // z, aa, ab — never restarting at a verse or heading.
+    let mut marker_index = 0usize;
     for &(number, text) in verses {
         let verse_headings: Vec<_> = headings.iter().filter(|(v, _, _)| *v == number).collect();
         if !verse_headings.is_empty() {
-            flush_segment(&mut lines, &segment, notes, measure, hyphenator, line_width);
+            flush_segment(
+                &mut lines,
+                &segment,
+                notes,
+                measure,
+                hyphenator,
+                line_width,
+                &mut marker_index,
+            );
             segment.clear();
             if !lines.is_empty() {
                 lines.push(LineOut { runs: Vec::new() });
@@ -98,7 +109,15 @@ pub fn layout_verses(
         }
         segment.push((number, text));
     }
-    flush_segment(&mut lines, &segment, notes, measure, hyphenator, line_width);
+    flush_segment(
+        &mut lines,
+        &segment,
+        notes,
+        measure,
+        hyphenator,
+        line_width,
+        &mut marker_index,
+    );
     lines
 }
 
@@ -109,13 +128,33 @@ fn flush_segment(
     measure: &impl TextMeasure,
     hyphenator: Option<&Standard>,
     line_width: Scaled,
+    marker_index: &mut usize,
 ) {
     if segment.is_empty() {
         return;
     }
     lines.extend(layout_paragraph(
-        segment, notes, measure, hyphenator, line_width,
+        segment,
+        notes,
+        measure,
+        hyphenator,
+        line_width,
+        marker_index,
     ));
+}
+
+/// The inline marker label for the `index`-th note of a chapter:
+/// a … z, then aa, ab, … (bijective base 26).
+pub fn marker_label(index: usize) -> String {
+    let mut n = index + 1;
+    let mut out = Vec::new();
+    while n > 0 {
+        n -= 1;
+        out.push(b'a' + (n % 26) as u8);
+        n /= 26;
+    }
+    out.reverse();
+    String::from_utf8(out).expect("ascii letters")
 }
 
 /// A heading as its own small paragraph: justified breaking would look odd,
@@ -186,6 +225,7 @@ fn layout_paragraph(
     measure: &impl TextMeasure,
     hyphenator: Option<&Standard>,
     line_width: Scaled,
+    marker_index: &mut usize,
 ) -> Vec<LineOut> {
     let mut items: Vec<Item> = Vec::new();
     let mut meta: Vec<Option<BoxMeta>> = Vec::new();
@@ -214,7 +254,6 @@ fn layout_paragraph(
             .collect();
         verse_notes.sort_unstable();
         let mut note_idx = 0usize;
-        let mut marker_letter = b'a';
 
         if !items.is_empty() {
             push(&mut items, &mut meta, space, None);
@@ -295,13 +334,13 @@ fn layout_paragraph(
             let word_end = word_start + word.len();
             while note_idx < verse_notes.len() && verse_notes[note_idx] <= word_end {
                 note_idx += 1;
-                push_marker(&mut items, &mut meta, measure, &mut marker_letter, *number);
+                push_marker(&mut items, &mut meta, measure, marker_index, *number);
             }
         }
         // Notes anchored past the last word still get their marker.
         while note_idx < verse_notes.len() {
             note_idx += 1;
-            push_marker(&mut items, &mut meta, measure, &mut marker_letter, *number);
+            push_marker(&mut items, &mut meta, measure, marker_index, *number);
         }
     }
     finish_paragraph(&mut items);
@@ -337,11 +376,11 @@ fn push_marker(
     items: &mut Vec<Item>,
     meta: &mut Vec<Option<BoxMeta>>,
     measure: &impl TextMeasure,
-    marker_letter: &mut u8,
+    marker_index: &mut usize,
     verse: u16,
 ) {
-    let label = (*marker_letter as char).to_string();
-    *marker_letter = marker_letter.saturating_add(1);
+    let label = marker_label(*marker_index);
+    *marker_index += 1;
     items.push(Item::Penalty {
         width: 0,
         penalty: INFINITE_PENALTY,

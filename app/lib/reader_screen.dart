@@ -11,6 +11,7 @@ import 'l10n.dart';
 import 'footnotes_pane.dart';
 import 'notes_pane.dart';
 import 'reading_plan.dart';
+
 import 'package:path_provider/path_provider.dart';
 
 import 'search_tool.dart';
@@ -39,6 +40,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   static const _gripThickness = 12.0;
   static const _minPaneExtent = 140.0;
   static const _gutter = 48.0;
+  static const _deskTopPadding = 16.0;
 
   List<ModuleView> _modules = const [];
   late LayoutModel _layout;
@@ -97,8 +99,9 @@ class _ReaderScreenState extends State<ReaderScreen>
       // First run, or migration from the single-layout era: the legacy
       // 'layout' value becomes Desk 1.
       final id = newDeskId();
-      registry = DeskRegistry(
-          [DeskInfo(id: id, name: '${context.l10n.deskDefaultPrefix} 1')]);
+      registry = DeskRegistry([
+        DeskInfo(id: id, name: '${context.l10n.deskDefaultPrefix} 1'),
+      ]);
       final legacy = userGet(key: 'layout');
       if (legacy != null) {
         userSet(key: 'desk/$id', value: legacy);
@@ -138,29 +141,43 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   LayoutModel _freshLayout() {
     return LayoutModel([
-      PaneColumn(panes: [
-        PaneSpec(kind: PaneKind.text, module: _bibleModules.firstOrNull?.code),
-      ]),
-    ])
-      ..ensureBadges();
+      PaneColumn(
+        panes: [
+          PaneSpec(
+            kind: PaneKind.text,
+            module: _bibleModules.firstOrNull?.code,
+          ),
+        ],
+      ),
+    ])..ensureBadges();
   }
 
   /// Bible texts carry the reading views; commentaries and dictionaries
   /// live in their own view kinds (ADR 0017, 0019).
-  List<ModuleView> get _bibleModules =>
-      [for (final m in _modules) if (m.kind == 'bible') m];
+  List<ModuleView> get _bibleModules => [
+    for (final m in _modules)
+      if (m.kind == 'bible') m,
+  ];
 
-  List<ModuleView> get _commentaryModules =>
-      [for (final m in _modules) if (m.kind == 'commentary') m];
+  List<ModuleView> get _commentaryModules => [
+    for (final m in _modules)
+      if (m.kind == 'commentary') m,
+  ];
 
-  List<ModuleView> get _dictionaryModules =>
-      [for (final m in _modules) if (m.kind == 'dictionary') m];
+  List<ModuleView> get _dictionaryModules => [
+    for (final m in _modules)
+      if (m.kind == 'dictionary') m,
+  ];
 
-  List<ModuleView> get _bookModules =>
-      [for (final m in _modules) if (m.kind == 'book') m];
+  List<ModuleView> get _bookModules => [
+    for (final m in _modules)
+      if (m.kind == 'book') m,
+  ];
 
-  List<ModuleView> get _devotionalModules =>
-      [for (final m in _modules) if (m.kind == 'devotional') m];
+  List<ModuleView> get _devotionalModules => [
+    for (final m in _modules)
+      if (m.kind == 'devotional') m,
+  ];
 
   void _save() {
     userSet(key: 'desk/$_deskId', value: _layout.encode());
@@ -203,8 +220,12 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   void _newDesk() {
     final id = newDeskId();
-    _registry.desks.add(DeskInfo(
-        id: id, name: _registry.nextName(context.l10n.deskDefaultPrefix)));
+    _registry.desks.add(
+      DeskInfo(
+        id: id,
+        name: _registry.nextName(context.l10n.deskDefaultPrefix),
+      ),
+    );
     userSet(key: 'desks', value: _registry.encode());
     userSet(key: 'desk/$id', value: _freshLayout().encode());
     _switchDesk(id);
@@ -288,22 +309,21 @@ class _ReaderScreenState extends State<ReaderScreen>
   /// recorded in the desk history like any deliberate jump.
   void _openReference(PaneSpec source, String osis) {
     _navigatePane(
-        source.follow ??
-            _layout.allPanes
-                .where((p) => p.kind == PaneKind.text)
-                .firstOrNull
-                ?.id,
-        osis);
+      source.follow ??
+          _layout.allPanes
+              .where((p) => p.kind == PaneKind.text)
+              .firstOrNull
+              ?.id,
+      osis,
+    );
   }
 
   /// Navigate the first text view (reading plans, later search results).
   void _openOsis(String osis) {
     _navigatePane(
-        _layout.allPanes
-            .where((p) => p.kind == PaneKind.text)
-            .firstOrNull
-            ?.id,
-        osis);
+      _layout.allPanes.where((p) => p.kind == PaneKind.text).firstOrNull?.id,
+      osis,
+    );
   }
 
   void _navigatePane(String? targetId, String osis) {
@@ -434,8 +454,7 @@ class _ReaderScreenState extends State<ReaderScreen>
             weight: 0.5,
           );
           created = pane;
-          final column =
-              source == null ? null : _layout.columnOf(source.id);
+          final column = source == null ? null : _layout.columnOf(source.id);
           if (column != null) {
             column.panes.add(pane);
           } else {
@@ -462,7 +481,10 @@ class _ReaderScreenState extends State<ReaderScreen>
   }) {
     if (_dictionaryModules.isEmpty) return;
     var anchor = 'q:$word';
-    if (module != null && bookOsis != null && chapter != null && verse != null) {
+    if (module != null &&
+        bookOsis != null &&
+        chapter != null &&
+        verse != null) {
       try {
         final strongs = strongsFor(
           moduleCode: module,
@@ -473,14 +495,14 @@ class _ReaderScreenState extends State<ReaderScreen>
         );
         // Greek numbers resolve to the lexicon directly; others (Hebrew,
         // until a Hebrew lexicon arrives) fall back to the search.
-        final greek =
-            strongs.where((s) => s.startsWith('G')).firstOrNull;
+        final greek = strongs.where((s) => s.startsWith('G')).firstOrNull;
         final sort = greek == null ? null : int.tryParse(greek.substring(1));
         if (sort != null) anchor = 'G$sort';
       } catch (_) {}
     }
-    var targets =
-        _layout.allPanes.where((p) => p.kind == PaneKind.dictionary).toList();
+    var targets = _layout.allPanes
+        .where((p) => p.kind == PaneKind.dictionary)
+        .toList();
     if (targets.isEmpty) {
       final created = _addPane(PaneKind.dictionary);
       if (created == null) return;
@@ -519,31 +541,42 @@ class _ReaderScreenState extends State<ReaderScreen>
       if (file.path.toLowerCase().endsWith('.json')) {
         final plan = await importPlanFile(path: file.path);
         setState(() => _plans = ReadingPlan.fromLibrary());
-        messenger.showSnackBar(SnackBar(
-            content:
-                Text(l10n.importedPlan(plan.name, plan.days.toInt()))));
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(l10n.importedPlan(plan.name, plan.days.toInt())),
+          ),
+        );
         return;
       }
       final imported = file.path.toLowerCase().endsWith('.zip')
           ? await importSwordFile(path: file.path)
           : await importOsisFile(path: file.path);
       setState(() => _modules = modules());
-      messenger.showSnackBar(SnackBar(
-        content: Text(switch (imported.kind) {
-          'commentary' =>
-            l10n.importedCommentary(imported.title, imported.verses.toInt()),
-          'dictionary' =>
-            l10n.importedDictionary(imported.title, imported.verses.toInt()),
-          'book' =>
-            l10n.importedBook(imported.title, imported.verses.toInt()),
-          'devotional' =>
-            l10n.importedDevotional(imported.title, imported.verses.toInt()),
-          _ => l10n.importedModule(imported.title, imported.verses.toInt()),
-        }),
-      ));
-    } catch (e) {
       messenger.showSnackBar(
-          SnackBar(content: Text(l10n.importFailed('$e'))));
+        SnackBar(
+          content: Text(switch (imported.kind) {
+            'commentary' => l10n.importedCommentary(
+              imported.title,
+              imported.verses.toInt(),
+            ),
+            'dictionary' => l10n.importedDictionary(
+              imported.title,
+              imported.verses.toInt(),
+            ),
+            'book' => l10n.importedBook(
+              imported.title,
+              imported.verses.toInt(),
+            ),
+            'devotional' => l10n.importedDevotional(
+              imported.title,
+              imported.verses.toInt(),
+            ),
+            _ => l10n.importedModule(imported.title, imported.verses.toInt()),
+          }),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(l10n.importFailed('$e'))));
     }
   }
 
@@ -643,18 +676,15 @@ class _ReaderScreenState extends State<ReaderScreen>
           borderRadius: BorderRadius.circular(6),
           child: Padding(
             padding: const EdgeInsets.all(8),
-            child: Icon(
-              switch (spec.kind) {
-                PaneKind.footnotes => Icons.notes_outlined,
-                PaneKind.commentary => Icons.comment_outlined,
-                PaneKind.dictionary => Icons.translate_outlined,
-                PaneKind.book => Icons.auto_stories_outlined,
-                PaneKind.devotional => Icons.today_outlined,
-                PaneKind.notes => Icons.edit_note_outlined,
-                PaneKind.text => Icons.menu_book_outlined,
-              },
-              size: 20,
-            ),
+            child: Icon(switch (spec.kind) {
+              PaneKind.footnotes => Icons.notes_outlined,
+              PaneKind.commentary => Icons.comment_outlined,
+              PaneKind.dictionary => Icons.translate_outlined,
+              PaneKind.book => Icons.auto_stories_outlined,
+              PaneKind.devotional => Icons.today_outlined,
+              PaneKind.notes => Icons.edit_note_outlined,
+              PaneKind.text => Icons.menu_book_outlined,
+            }, size: 20),
           ),
         ),
         child: Padding(
@@ -689,8 +719,9 @@ class _ReaderScreenState extends State<ReaderScreen>
   List<Widget> _dropTargets(BoxConstraints constraints) {
     final columns = _layout.columns;
     final dragColumn = _layout.columnOf(_draggingPane ?? '');
-    final dragColumnIndex =
-        dragColumn == null ? -1 : columns.indexOf(dragColumn);
+    final dragColumnIndex = dragColumn == null
+        ? -1
+        : columns.indexOf(dragColumn);
     final dragAlone = dragColumn != null && dragColumn.panes.length == 1;
     final dragPaneIndex =
         dragColumn?.panes.indexWhere((p) => p.id == _draggingPane) ?? -1;
@@ -701,29 +732,29 @@ class _ReaderScreenState extends State<ReaderScreen>
     final contentWidth =
         constraints.maxWidth - (columns.length - 1) * _gripThickness;
     final sumW = columns.fold(0.0, (a, c) => a + c.weight);
-    final widths = [
-      for (final c in columns) c.weight / sumW * contentWidth,
-    ];
+    final widths = [for (final c in columns) c.weight / sumW * contentWidth];
     final targets = <Widget>[];
     var x = 0.0;
     for (var k = 0; k <= columns.length; k++) {
       final centerX = k == 0
           ? 0.0
           : k == columns.length
-              ? constraints.maxWidth
-              : x - _gripThickness / 2;
+          ? constraints.maxWidth
+          : x - _gripThickness / 2;
       if (!columnNoop(k)) {
-        targets.add(Positioned(
-          left: (centerX - 28).clamp(0.0, constraints.maxWidth - 56),
-          width: 56,
-          top: 0,
-          height: constraints.maxHeight,
-          child: _DropZone(
-            key: Key('drop-column-$k'),
-            onAccept: (id) =>
-                _dropAsNewColumn(k == 0 ? null : columns[k - 1], id),
+        targets.add(
+          Positioned(
+            left: (centerX - 28).clamp(0.0, constraints.maxWidth - 56),
+            width: 56,
+            top: 0,
+            height: constraints.maxHeight,
+            child: _DropZone(
+              key: Key('drop-column-$k'),
+              onAccept: (id) =>
+                  _dropAsNewColumn(k == 0 ? null : columns[k - 1], id),
+            ),
           ),
-        ));
+        );
       }
       if (k < columns.length) {
         final columnLeft = x;
@@ -737,19 +768,21 @@ class _ReaderScreenState extends State<ReaderScreen>
           final centerY = j == 0
               ? 0.0
               : j == panes.length
-                  ? constraints.maxHeight
-                  : y - _gripThickness / 2;
+              ? constraints.maxHeight
+              : y - _gripThickness / 2;
           if (!stackNoop(k, j)) {
-            targets.add(Positioned(
-              left: columnLeft + 64,
-              width: (width - 128).clamp(48.0, double.infinity),
-              top: (centerY - 30).clamp(0.0, constraints.maxHeight - 60),
-              height: 60,
-              child: _DropZone(
-                key: Key('drop-stack-$k-$j'),
-                onAccept: (id) => _dropIntoStack(columns[k], j, id),
+            targets.add(
+              Positioned(
+                left: columnLeft + 64,
+                width: (width - 128).clamp(48.0, double.infinity),
+                top: (centerY - 30).clamp(0.0, constraints.maxHeight - 60),
+                height: 60,
+                child: _DropZone(
+                  key: Key('drop-stack-$k-$j'),
+                  onAccept: (id) => _dropIntoStack(columns[k], j, id),
+                ),
               ),
-            ));
+            );
           }
           if (j < panes.length) {
             y += panes[j].weight / sumH * contentHeight + _gripThickness;
@@ -766,187 +799,197 @@ class _ReaderScreenState extends State<ReaderScreen>
     if (!_initialized) return const SizedBox.shrink();
     final settings = SettingsScope.of(context);
     final reading = settings.readingMode;
-    return Scaffold(
-      appBar: reading ? null : AppBar(
-        title: const Text('gramma'),
-        actions: [
-          PopupMenuButton<VoidCallback>(
-            key: const Key('tools-menu'),
-            tooltip: context.l10n.toolsTooltip,
-            icon: const Icon(Icons.auto_stories_outlined),
-            onSelected: (action) => action(),
-            itemBuilder: (context) => [
+    final appBar = AppBar(
+      title: const Text('gramma'),
+      actions: [
+        PopupMenuButton<VoidCallback>(
+          key: const Key('tools-menu'),
+          tooltip: context.l10n.toolsTooltip,
+          icon: const Icon(Icons.auto_stories_outlined),
+          onSelected: (action) => action(),
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              key: const Key('tool-search'),
+              value: _openSearch,
+              child: Text(context.l10n.searchTool),
+            ),
+            for (final (i, plan) in _plans.indexed)
               PopupMenuItem(
-                key: const Key('tool-search'),
-                value: _openSearch,
-                child: Text(context.l10n.searchTool),
+                key: Key('tool-plan-$i'),
+                value: () => _openReadingPlan(plan),
+                child: Text('${context.l10n.readingPlan} · ${plan.name}'),
               ),
-              for (final (i, plan) in _plans.indexed)
-                PopupMenuItem(
-                  key: Key('tool-plan-$i'),
-                  value: () => _openReadingPlan(plan),
-                  child:
-                      Text('${context.l10n.readingPlan} · ${plan.name}'),
-                ),
-              PopupMenuItem(
-                key: const Key('tool-export-labels'),
-                value: _exportLabels,
-                child: Text(context.l10n.exportLabels),
-              ),
-            ],
+            PopupMenuItem(
+              key: const Key('tool-export-labels'),
+              value: _exportLabels,
+              child: Text(context.l10n.exportLabels),
+            ),
+          ],
+        ),
+        PopupMenuButton<VoidCallback>(
+          key: const Key('desk-menu'),
+          tooltip: context.l10n.desksTooltip(
+            _registry.byId(_deskId)?.name ?? '',
           ),
-          PopupMenuButton<VoidCallback>(
-            key: const Key('desk-menu'),
-            tooltip: context.l10n
-                .desksTooltip(_registry.byId(_deskId)?.name ?? ''),
-            icon: const Icon(Icons.desk_outlined),
-            onSelected: (action) => action(),
-            itemBuilder: (context) => [
-              for (final desk in _registry.desks)
-                CheckedPopupMenuItem(
-                  key: Key('desk-item-${desk.name}'),
-                  checked: desk.id == _deskId,
-                  value: () => _switchDesk(desk.id),
-                  child: Text(desk.name),
-                ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                key: const Key('desk-new'),
-                value: _newDesk,
-                child: Text(context.l10n.newDesk),
+          icon: const Icon(Icons.desk_outlined),
+          onSelected: (action) => action(),
+          itemBuilder: (context) => [
+            for (final desk in _registry.desks)
+              CheckedPopupMenuItem(
+                key: Key('desk-item-${desk.name}'),
+                checked: desk.id == _deskId,
+                value: () => _switchDesk(desk.id),
+                child: Text(desk.name),
               ),
+            const PopupMenuDivider(),
+            PopupMenuItem(
+              key: const Key('desk-new'),
+              value: _newDesk,
+              child: Text(context.l10n.newDesk),
+            ),
+            PopupMenuItem(
+              key: const Key('desk-rename'),
+              value: _renameDesk,
+              child: Text(context.l10n.renameDeskMenu),
+            ),
+            if (_registry.desks.length > 1)
               PopupMenuItem(
-                key: const Key('desk-rename'),
-                value: _renameDesk,
-                child: Text(context.l10n.renameDeskMenu),
+                key: const Key('desk-delete'),
+                value: _deleteDesk,
+                child: Text(context.l10n.deleteDeskMenu),
               ),
-              if (_registry.desks.length > 1)
-                PopupMenuItem(
-                  key: const Key('desk-delete'),
-                  value: _deleteDesk,
-                  child: Text(context.l10n.deleteDeskMenu),
-                ),
-            ],
-          ),
-          PopupMenuButton<PaneKind>(
-            key: const Key('add-view'),
-            tooltip: context.l10n.addViewTooltip,
-            icon: const Icon(Icons.vertical_split_outlined),
-            onSelected: _addPane,
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: PaneKind.text,
-                child: Text(context.l10n.textView),
-              ),
-              PopupMenuItem(
-                value: PaneKind.footnotes,
-                child: Text(context.l10n.footnotesView),
-              ),
-              PopupMenuItem(
-                key: const Key('add-commentary'),
-                value: PaneKind.commentary,
-                child: Text(context.l10n.commentaryView),
-              ),
-              PopupMenuItem(
-                key: const Key('add-dictionary'),
-                value: PaneKind.dictionary,
-                child: Text(context.l10n.dictionaryView),
-              ),
-              PopupMenuItem(
-                key: const Key('add-book'),
-                value: PaneKind.book,
-                child: Text(context.l10n.bookView),
-              ),
-              PopupMenuItem(
-                key: const Key('add-devotional'),
-                value: PaneKind.devotional,
-                child: Text(context.l10n.devotionalView),
-              ),
-              PopupMenuItem(
-                key: const Key('add-notes'),
-                value: PaneKind.notes,
-                child: Text(context.l10n.notesTitle),
-              ),
-            ],
-          ),
-          IconButton(
-            key: const Key('open-settings'),
-            tooltip: context.l10n.settingsTooltip,
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () async {
-              await showSettings(context);
-              // Sync may have been (re)configured there.
-              _syncPull();
-            },
-          ),
-          IconButton(
-            key: const Key('import-osis'),
-            tooltip: context.l10n.importOsisTooltip,
-            icon: const Icon(Icons.library_add_outlined),
-            onPressed: _importOsis,
-          ),
-        ],
-      ),
-      // SafeArea keeps the desk clear of the status bar, notch, and home
-      // indicator — with hidden chrome in reading mode the body would
-      // otherwise extend under all of them.
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, outer) {
-            final narrow = outer.maxWidth < 500;
-            return Padding(
-              padding: EdgeInsets.fromLTRB(
-                  narrow ? 10 : 24, reading ? 16 : 12, narrow ? 10 : 24, 0),
-              child: _desk(),
-            );
+          ],
+        ),
+        PopupMenuButton<PaneKind>(
+          key: const Key('add-view'),
+          tooltip: context.l10n.addViewTooltip,
+          icon: const Icon(Icons.vertical_split_outlined),
+          onSelected: _addPane,
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              value: PaneKind.text,
+              child: Text(context.l10n.textView),
+            ),
+            PopupMenuItem(
+              value: PaneKind.footnotes,
+              child: Text(context.l10n.footnotesView),
+            ),
+            PopupMenuItem(
+              key: const Key('add-commentary'),
+              value: PaneKind.commentary,
+              child: Text(context.l10n.commentaryView),
+            ),
+            PopupMenuItem(
+              key: const Key('add-dictionary'),
+              value: PaneKind.dictionary,
+              child: Text(context.l10n.dictionaryView),
+            ),
+            PopupMenuItem(
+              key: const Key('add-book'),
+              value: PaneKind.book,
+              child: Text(context.l10n.bookView),
+            ),
+            PopupMenuItem(
+              key: const Key('add-devotional'),
+              value: PaneKind.devotional,
+              child: Text(context.l10n.devotionalView),
+            ),
+            PopupMenuItem(
+              key: const Key('add-notes'),
+              value: PaneKind.notes,
+              child: Text(context.l10n.notesTitle),
+            ),
+          ],
+        ),
+        IconButton(
+          key: const Key('open-settings'),
+          tooltip: context.l10n.settingsTooltip,
+          icon: const Icon(Icons.settings_outlined),
+          onPressed: () async {
+            await showSettings(context);
+            // Sync may have been (re)configured there.
+            _syncPull();
           },
         ),
+        IconButton(
+          key: const Key('import-osis'),
+          tooltip: context.l10n.importOsisTooltip,
+          icon: const Icon(Icons.library_add_outlined),
+          onPressed: _importOsis,
+        ),
+      ],
+    );
+    // SafeArea keeps the desk clear of the status bar, notch, and home
+    // indicator. The app bar floats over the desk (ADR 0028) so the
+    // desk's geometry is identical with and without chrome — toggling
+    // never re-chunks the columns.
+    return Scaffold(
+      body: Stack(
+        children: [
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, outer) {
+                final narrow = outer.maxWidth < 500;
+                return Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    narrow ? 10 : 24,
+                    16,
+                    narrow ? 10 : 24,
+                    0,
+                  ),
+                  child: _desk(),
+                );
+              },
+            ),
+          ),
+          if (!reading) Positioned(top: 0, left: 0, right: 0, child: appBar),
+        ],
       ),
     );
   }
 
   Widget _desk() {
     return LayoutBuilder(
-          builder: (context, constraints) {
-            final columns = _layout.columns;
-            final contentWidth = constraints.maxWidth -
-                (columns.length - 1) * _gripThickness;
-            final resized = _deskWidth != null &&
-                (_deskWidth! - contentWidth).abs() > 0.5;
-            _deskWidth = contentWidth;
-            if (_snapPending || resized) {
-              _snapPending = false;
-              if (columns.length > 1) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) _snapAllColumns(contentWidth);
-                });
-              }
-            }
-            final sum = columns.fold(0.0, (a, c) => a + c.weight);
-            return Stack(
+      builder: (context, constraints) {
+        final columns = _layout.columns;
+        final contentWidth =
+            constraints.maxWidth - (columns.length - 1) * _gripThickness;
+        final resized =
+            _deskWidth != null && (_deskWidth! - contentWidth).abs() > 0.5;
+        _deskWidth = contentWidth;
+        if (_snapPending || resized) {
+          _snapPending = false;
+          if (columns.length > 1) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _snapAllColumns(contentWidth);
+            });
+          }
+        }
+        final sum = columns.fold(0.0, (a, c) => a + c.weight);
+        return Stack(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (var i = 0; i < columns.length; i++) ...[
-                      if (i > 0)
-                        _Grip(
-                          key: Key('column-grip-${i - 1}'),
-                          axis: Axis.horizontal,
-                          onDrag: (delta) =>
-                              _dragColumns(i - 1, delta, contentWidth),
-                          onEnd: () => _snapColumns(i - 1, contentWidth),
-                        ),
-                      SizedBox(
-                        width: columns[i].weight / sum * contentWidth,
-                        child: _columnWidget(columns[i]),
-                      ),
-                    ],
-                  ],
-                ),
-                if (_draggingPane != null) ..._dropTargets(constraints),
+                for (var i = 0; i < columns.length; i++) ...[
+                  if (i > 0)
+                    _Grip(
+                      key: Key('column-grip-${i - 1}'),
+                      axis: Axis.horizontal,
+                      onDrag: (delta) =>
+                          _dragColumns(i - 1, delta, contentWidth),
+                      onEnd: () => _snapColumns(i - 1, contentWidth),
+                    ),
+                  SizedBox(
+                    width: columns[i].weight / sum * contentWidth,
+                    child: _columnWidget(columns[i]),
+                  ),
+                ],
               ],
-            );
+            ),
+            if (_draggingPane != null) ..._dropTargets(constraints),
+          ],
+        );
       },
     );
   }
@@ -972,7 +1015,7 @@ class _ReaderScreenState extends State<ReaderScreen>
                 ),
               SizedBox(
                 height: panes[j].weight / sum * contentHeight,
-                child: _pane(panes[j]),
+                child: _pane(panes[j], topRow: j == 0),
               ),
             ],
           ],
@@ -981,8 +1024,22 @@ class _ReaderScreenState extends State<ReaderScreen>
     );
   }
 
-  Widget _pane(PaneSpec spec) {
+  /// A list pane in the top row simply starts below the floating app bar.
+  Widget _inset(double inset, Widget pane) => inset > 0
+      ? Padding(
+          padding: EdgeInsets.only(top: inset),
+          child: pane,
+        )
+      : pane;
+
+  Widget _pane(PaneSpec spec, {bool topRow = false}) {
     final settings = SettingsScope.of(context);
+    // Top-row panes sit under the floating app bar (ADR 0028): their
+    // chrome offsets below it while chrome shows — text panes float
+    // their header there, list panes pad.
+    final chromeInset = topRow && !settings.readingMode
+        ? kToolbarHeight - _deskTopPadding
+        : 0.0;
     final followedAnchor = _layout.byId(spec.follow)?.anchor;
     final closable = _layout.allPanes.length > 1;
     void toggleMode() => settings.setReadingMode(!settings.readingMode);
@@ -997,6 +1054,7 @@ class _ReaderScreenState extends State<ReaderScreen>
       case PaneKind.text:
         return ReaderPane(
           key: ValueKey('pane-${spec.id}'),
+          chromeInset: chromeInset,
           spec: spec,
           modules: _bibleModules,
           onWordLookup: _lookupWord,
@@ -1022,103 +1080,121 @@ class _ReaderScreenState extends State<ReaderScreen>
           onClose: closable ? () => _closePane(spec.id) : null,
         );
       case PaneKind.footnotes:
-        return FootnotesPane(
-          key: ValueKey('pane-${spec.id}'),
-          followedAnchor: followedAnchor,
-          followedAnchorEnd: _layout.byId(spec.follow)?.anchorEnd,
-          onOpenReference: (osis) => _openReference(spec, osis),
-          sourceModule: _layout.byId(spec.follow)?.module,
-          followValue: spec.follow,
-          followOptions: _followOptionsFor(spec),
-          readingMode: settings.readingMode,
-          onToggleMode: toggleMode,
-          badge: badge,
-          dragHandle: _dragHandle(spec),
-          onFollow: (follow) => _setFollow(spec.id, follow),
-          onClose: closable ? () => _closePane(spec.id) : null,
+        return _inset(
+          chromeInset,
+          FootnotesPane(
+            key: ValueKey('pane-${spec.id}'),
+            followedAnchor: followedAnchor,
+            followedAnchorEnd: _layout.byId(spec.follow)?.anchorEnd,
+            onOpenReference: (osis) => _openReference(spec, osis),
+            sourceModule: _layout.byId(spec.follow)?.module,
+            followValue: spec.follow,
+            followOptions: _followOptionsFor(spec),
+            readingMode: settings.readingMode,
+            onToggleMode: toggleMode,
+            badge: badge,
+            dragHandle: _dragHandle(spec),
+            onFollow: (follow) => _setFollow(spec.id, follow),
+            onClose: closable ? () => _closePane(spec.id) : null,
+          ),
         );
       case PaneKind.dictionary:
-        return DictionaryPane(
-          key: ValueKey('pane-${spec.id}'),
-          module: spec.module,
-          modules: _dictionaryModules,
-          onModule: (code) => _setModule(spec.id, code),
-          anchor: spec.anchor,
-          onAnchor: (anchor) => _setAnchor(spec.id, anchor),
-          previewModule:
-              settings.defaultModule ?? _bibleModules.firstOrNull?.code,
-          readingMode: settings.readingMode,
-          onToggleMode: toggleMode,
-          badge: badge,
-          onOpenReference: (osis) => _openReference(spec, osis),
-          dragHandle: _dragHandle(spec),
-          onClose: closable ? () => _closePane(spec.id) : null,
+        return _inset(
+          chromeInset,
+          DictionaryPane(
+            key: ValueKey('pane-${spec.id}'),
+            module: spec.module,
+            modules: _dictionaryModules,
+            onModule: (code) => _setModule(spec.id, code),
+            anchor: spec.anchor,
+            onAnchor: (anchor) => _setAnchor(spec.id, anchor),
+            previewModule:
+                settings.defaultModule ?? _bibleModules.firstOrNull?.code,
+            readingMode: settings.readingMode,
+            onToggleMode: toggleMode,
+            badge: badge,
+            onOpenReference: (osis) => _openReference(spec, osis),
+            dragHandle: _dragHandle(spec),
+            onClose: closable ? () => _closePane(spec.id) : null,
+          ),
         );
       case PaneKind.book:
-        return BookPane(
-          key: ValueKey('pane-${spec.id}'),
-          module: spec.module,
-          modules: _bookModules,
-          onModule: (code) => _setModule(spec.id, code),
-          anchor: spec.anchor,
-          onAnchor: (anchor) => _setAnchor(spec.id, anchor),
-          previewModule:
-              settings.defaultModule ?? _bibleModules.firstOrNull?.code,
-          readingMode: settings.readingMode,
-          onToggleMode: toggleMode,
-          badge: badge,
-          onOpenReference: (osis) => _openReference(spec, osis),
-          onWordLookup: _lookupWord,
-          dragHandle: _dragHandle(spec),
-          onClose: closable ? () => _closePane(spec.id) : null,
+        return _inset(
+          chromeInset,
+          BookPane(
+            key: ValueKey('pane-${spec.id}'),
+            module: spec.module,
+            modules: _bookModules,
+            onModule: (code) => _setModule(spec.id, code),
+            anchor: spec.anchor,
+            onAnchor: (anchor) => _setAnchor(spec.id, anchor),
+            previewModule:
+                settings.defaultModule ?? _bibleModules.firstOrNull?.code,
+            readingMode: settings.readingMode,
+            onToggleMode: toggleMode,
+            badge: badge,
+            onOpenReference: (osis) => _openReference(spec, osis),
+            onWordLookup: _lookupWord,
+            dragHandle: _dragHandle(spec),
+            onClose: closable ? () => _closePane(spec.id) : null,
+          ),
         );
       case PaneKind.devotional:
-        return DevotionalPane(
-          key: ValueKey('pane-${spec.id}'),
-          module: spec.module,
-          modules: _devotionalModules,
-          onModule: (code) => _setModule(spec.id, code),
-          anchor: spec.anchor,
-          onAnchor: (anchor) => _setAnchor(spec.id, anchor),
-          previewModule:
-              settings.defaultModule ?? _bibleModules.firstOrNull?.code,
-          readingMode: settings.readingMode,
-          onToggleMode: toggleMode,
-          badge: badge,
-          onOpenReference: (osis) => _openReference(spec, osis),
-          onWordLookup: _lookupWord,
-          dragHandle: _dragHandle(spec),
-          onClose: closable ? () => _closePane(spec.id) : null,
+        return _inset(
+          chromeInset,
+          DevotionalPane(
+            key: ValueKey('pane-${spec.id}'),
+            module: spec.module,
+            modules: _devotionalModules,
+            onModule: (code) => _setModule(spec.id, code),
+            anchor: spec.anchor,
+            onAnchor: (anchor) => _setAnchor(spec.id, anchor),
+            previewModule:
+                settings.defaultModule ?? _bibleModules.firstOrNull?.code,
+            readingMode: settings.readingMode,
+            onToggleMode: toggleMode,
+            badge: badge,
+            onOpenReference: (osis) => _openReference(spec, osis),
+            onWordLookup: _lookupWord,
+            dragHandle: _dragHandle(spec),
+            onClose: closable ? () => _closePane(spec.id) : null,
+          ),
         );
       case PaneKind.notes:
-        return NotesPane(
-          key: ValueKey('pane-${spec.id}'),
-          readingMode: settings.readingMode,
-          onToggleMode: toggleMode,
-          badge: badge,
-          onOpenReference: (osis) => _openReference(spec, osis),
-          dragHandle: _dragHandle(spec),
-          onClose: closable ? () => _closePane(spec.id) : null,
+        return _inset(
+          chromeInset,
+          NotesPane(
+            key: ValueKey('pane-${spec.id}'),
+            readingMode: settings.readingMode,
+            onToggleMode: toggleMode,
+            badge: badge,
+            onOpenReference: (osis) => _openReference(spec, osis),
+            dragHandle: _dragHandle(spec),
+            onClose: closable ? () => _closePane(spec.id) : null,
+          ),
         );
       case PaneKind.commentary:
-        return CommentaryPane(
-          key: ValueKey('pane-${spec.id}'),
-          module: spec.module,
-          modules: _commentaryModules,
-          onModule: (code) => _setModule(spec.id, code),
-          followedAnchor: followedAnchor,
-          followedAnchorEnd: _layout.byId(spec.follow)?.anchorEnd,
-          sourceModule: _layout.byId(spec.follow)?.module,
-          onOpenReference: (osis) => _openReference(spec, osis),
-          onWordLookup: _lookupWord,
-          followValue: spec.follow,
-          followOptions: _followOptionsFor(spec),
-          readingMode: settings.readingMode,
-          onToggleMode: toggleMode,
-          badge: badge,
-          dragHandle: _dragHandle(spec),
-          onFollow: (follow) => _setFollow(spec.id, follow),
-          onClose: closable ? () => _closePane(spec.id) : null,
+        return _inset(
+          chromeInset,
+          CommentaryPane(
+            key: ValueKey('pane-${spec.id}'),
+            module: spec.module,
+            modules: _commentaryModules,
+            onModule: (code) => _setModule(spec.id, code),
+            followedAnchor: followedAnchor,
+            followedAnchorEnd: _layout.byId(spec.follow)?.anchorEnd,
+            sourceModule: _layout.byId(spec.follow)?.module,
+            onOpenReference: (osis) => _openReference(spec, osis),
+            onWordLookup: _lookupWord,
+            followValue: spec.follow,
+            followOptions: _followOptionsFor(spec),
+            readingMode: settings.readingMode,
+            onToggleMode: toggleMode,
+            badge: badge,
+            dragHandle: _dragHandle(spec),
+            onFollow: (follow) => _setFollow(spec.id, follow),
+            onClose: closable ? () => _closePane(spec.id) : null,
+          ),
         );
     }
   }
@@ -1148,8 +1224,7 @@ class _Grip extends StatelessWidget {
           : SystemMouseCursors.resizeRow,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onHorizontalDragUpdate:
-            horizontal ? (d) => onDrag(d.delta.dx) : null,
+        onHorizontalDragUpdate: horizontal ? (d) => onDrag(d.delta.dx) : null,
         onHorizontalDragEnd: horizontal ? (_) => onEnd() : null,
         onVerticalDragUpdate: horizontal ? null : (d) => onDrag(d.delta.dy),
         onVerticalDragEnd: horizontal ? null : (_) => onEnd(),

@@ -20,8 +20,9 @@ List<int> visibleChapterIndexes(
     final parts = osis.split('.');
     if (parts.length < 2) return -1;
     final chapter = int.tryParse(parts[1]);
-    return spine
-        .indexWhere((c) => c.bookOsis == parts[0] && c.chapter == chapter);
+    return spine.indexWhere(
+      (c) => c.bookOsis == parts[0] && c.chapter == chapter,
+    );
   }
 
   final start = indexOf(anchor);
@@ -29,6 +30,62 @@ List<int> visibleChapterIndexes(
   var end = anchorEnd == null ? start : indexOf(anchorEnd);
   if (end < start) end = start;
   return [for (var i = start; i <= end; i++) i];
+}
+
+typedef FootnoteEntry = ({ChapterRefView chapter, NoteView note});
+
+/// The footnotes of [module] within the visible range [anchor, anchorEnd]
+/// of a text view (both "Book.Ch(.V)"), in reading order.
+List<FootnoteEntry> visibleFootnotes(
+  List<ChapterRefView> spine,
+  String module,
+  String anchor,
+  String? anchorEnd,
+) {
+  final indexes = visibleChapterIndexes(spine, anchor, anchorEnd);
+  final startVerse = verseOfOsis(anchor);
+  final endVerse = verseOfOsis(anchorEnd ?? '');
+  final entries = <FootnoteEntry>[];
+  for (final index in indexes) {
+    final chapter = spine[index];
+    final notes = chapterNotes(
+      moduleCode: module,
+      bookOsis: chapter.bookOsis,
+      chapter: chapter.chapter,
+    );
+    for (final note in notes) {
+      if (index == indexes.first &&
+          startVerse != null &&
+          note.verse < startVerse) {
+        continue;
+      }
+      if (index == indexes.last &&
+          endVerse != null &&
+          anchorEnd != null &&
+          note.verse > endVerse) {
+        continue;
+      }
+      entries.add((chapter: chapter, note: note));
+    }
+  }
+  return entries;
+}
+
+/// Display labels for [entries] (ADR 0028): the running marker letter
+/// alone while the letters are unambiguous in the visible range; when
+/// two chapters' letters collide, chapter and verse join the letter.
+List<String> footnoteLabels(List<FootnoteEntry> entries) {
+  final letters = [for (final e in entries) e.note.label];
+  if (letters.toSet().length == letters.length) return letters;
+  return [
+    for (final e in entries)
+      '${e.chapter.chapter},${e.note.verse}${e.note.label}',
+  ];
+}
+
+int? verseOfOsis(String osis) {
+  final parts = osis.split('.');
+  return parts.length >= 3 ? int.tryParse(parts[2]) : null;
 }
 
 /// Receiver-only view (ADR 0008): shows the footnotes visible in the
@@ -155,35 +212,12 @@ class _FootnotesPaneState extends State<FootnotesPane> {
       );
     }
     final spine = _spineFor(module);
-    final indexes =
-        visibleChapterIndexes(spine, anchor, widget.followedAnchorEnd);
-    if (indexes.isEmpty) return const SizedBox.shrink();
-    final startVerse = _verseOf(anchor);
-    final endVerse = _verseOf(widget.followedAnchorEnd ?? '');
-    final multiChapter = indexes.length > 1;
-    final entries = <({ChapterRefView chapter, NoteView note})>[];
-    for (final index in indexes) {
-      final chapter = spine[index];
-      final notes = chapterNotes(
-        moduleCode: module,
-        bookOsis: chapter.bookOsis,
-        chapter: chapter.chapter,
-      );
-      for (final note in notes) {
-        if (index == indexes.first &&
-            startVerse != null &&
-            note.verse < startVerse) {
-          continue;
-        }
-        if (index == indexes.last &&
-            endVerse != null &&
-            widget.followedAnchorEnd != null &&
-            note.verse > endVerse) {
-          continue;
-        }
-        entries.add((chapter: chapter, note: note));
-      }
-    }
+    final entries = visibleFootnotes(
+      spine,
+      module,
+      anchor,
+      widget.followedAnchorEnd,
+    );
     if (entries.isEmpty) {
       return Center(
         child: Text(
@@ -208,31 +242,32 @@ class _FootnotesPaneState extends State<FootnotesPane> {
       fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) * scale,
     );
     final refStyle = refStyleFor(theme, textStyle);
+    final labels = footnoteLabels(entries);
     return ListView.builder(
       key: const Key('footnotes-list'),
       itemCount: entries.length,
       itemBuilder: (context, index) {
         final entry = entries[index];
-        final prefix = multiChapter
-            ? '${entry.chapter.chapter},${entry.note.verse}${entry.note.label}'
-            : '${entry.note.verse}${entry.note.label}';
+        final prefix = labels[index];
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Text.rich(
-            TextSpan(children: [
-              TextSpan(text: '$prefix  ', style: numberStyle),
-              ...noteSpans(entry.note.text, entry.note.refs, textStyle,
-                  refStyle, _openPreview, _recognizers),
-            ]),
+            TextSpan(
+              children: [
+                TextSpan(text: '$prefix  ', style: numberStyle),
+                ...noteSpans(
+                  entry.note.text,
+                  entry.note.refs,
+                  textStyle,
+                  refStyle,
+                  _openPreview,
+                  _recognizers,
+                ),
+              ],
+            ),
           ),
         );
       },
     );
   }
-
-  int? _verseOf(String osis) {
-    final parts = osis.split('.');
-    return parts.length >= 3 ? int.tryParse(parts[2]) : null;
-  }
-
 }

@@ -12,6 +12,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gramma/desks.dart';
 import 'package:gramma/typeset_chapter.dart';
+import 'package:gramma/typeset_column.dart';
 import 'package:gramma/typeset_prose.dart';
 import 'package:gramma/l10n.dart';
 import 'package:gramma/notes_pane.dart';
@@ -235,9 +236,11 @@ void main() {
     await tester.tap(find.text('Footnotes view'));
     await _settle(tester, () => _found(find.textContaining('Anmerkung Alpha')));
     expect(
-      find.textContaining('1a'),
-      findsWidgets,
-      reason: 'notes carry marker letters matching the inline markers',
+      // The letter alone — or chapter,verse joined when a second visible
+      // chapter's letter collides (ADR 0028).
+      find.textContaining(RegExp(r'^(a|1,1a)\s+Anmerkung Alpha')),
+      findsOneWidget,
+      reason: 'the running letter labels a note in the list',
     );
     await _selectRef(tester, book: 'Gen', chapter: 3);
     await _settle(tester, () => _found(find.textContaining('Anmerkung Beta')));
@@ -1458,6 +1461,41 @@ void main() {
         reason: 'without chrome the text must not slide under the notch');
   });
 
+  testWidgets('toggling chrome never re-chunks the columns', (tester) async {
+    // ADR 0028: the app bar and pane header float over the text, so the
+    // column geometry — lines per column, rows placed — is identical
+    // with and without chrome; the reading position cannot jump.
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1200, 700);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final settings = SettingsController(prefs);
+    addTearDown(() => settings.setReadingMode(false));
+    await tester.pumpWidget(GrammaApp(settings: settings));
+    await _settle(
+      tester,
+      () => _found(find.byKey(const ValueKey('columns-active'))),
+    );
+    expect(find.byType(AppBar), findsOneWidget);
+    final before = tester.widget<TypesetColumn>(find.byType(TypesetColumn).first);
+
+    settings.setReadingMode(true);
+    await tester.pumpAndSettle();
+    expect(find.byType(AppBar), findsNothing, reason: 'reading mode hides chrome');
+    final after = tester.widget<TypesetColumn>(find.byType(TypesetColumn).first);
+    expect(after.rowCount, before.rowCount,
+        reason: 'lines per column are mode-independent');
+    expect(after.rows.length, before.rows.length);
+    expect(after.rows.first.row, before.rows.first.row);
+
+    settings.setReadingMode(false);
+    await tester.pumpAndSettle();
+    final back = tester.widget<TypesetColumn>(find.byType(TypesetColumn).first);
+    expect(back.rowCount, before.rowCount);
+    expect(back.rows.length, before.rows.length);
+  });
+
   testWidgets('arrow keys page the columns one at a time', (tester) async {
     _freshUserStore();
     tester.view.physicalSize = const Size(1200, 420);
@@ -1766,6 +1804,17 @@ void main() {
     await tester.tapAt(await markerPoint(tester, 1));
     await tester.pumpAndSettle();
     expect(find.textContaining('Anmerkung Alpha'), findsOneWidget);
+    expect(tester.widget<Text>(find.byKey(const Key('note-title'))).data,
+        'Footnotes',
+        reason: 'the popup lists the visible footnotes (ADR 0028)');
+    expect(
+      find.descendant(
+          of: find.byKey(const Key('note-body')),
+          matching: find.textContaining('Anmerkung Alpha'),
+          matchRoot: true),
+      findsOneWidget,
+      reason: 'the tapped note is the selected entry',
+    );
     expect(settings.readingMode, isFalse);
     await tester.tap(find.byKey(const Key('note-close')));
     await tester.pumpAndSettle();

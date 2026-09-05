@@ -411,7 +411,8 @@ pub fn chapter_notes(
     with_library(|library| library.notes(&module_code, book, chapter)).map(|notes| {
         notes
             .into_iter()
-            .map(|n| {
+            .enumerate()
+            .map(|(i, n)| {
                 let refs = scan_references(&n.text, Some(book))
                     .into_iter()
                     .map(|r| NoteRefView {
@@ -422,7 +423,8 @@ pub fn chapter_notes(
                     .collect();
                 NoteView {
                     verse: n.verse,
-                    label: ((b'a' + ((n.seq - 1) as u8).min(25)) as char).to_string(),
+                    // Chapter-running letters, matching the engine's inline markers (ADR 0028).
+                    label: gramma_core::typeset::layout::marker_label(i),
                     text: n.text,
                     refs,
                 }

@@ -1,19 +1,22 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import 'footnotes_pane.dart' show FootnoteEntry, footnoteLabels;
 import 'l10n.dart';
 import 'note_text.dart';
 import 'passage_preview.dart';
 import 'settings.dart';
-import 'src/rust/api/library.dart';
 
-/// The inline note popup (ADR 0016): tapping a note marker in the text
-/// opens the footnote right there. References inside the note navigate
-/// within the same popup — a passage page replaces the note, with a
-/// back arrow returning to it. `onOpenReference` jumps the reading view.
+/// The footnote popup (ADR 0016, 0028): tapping a note marker opens the
+/// footnotes of the view's visible range, the tapped one highlighted and
+/// scrolled into view — the reader sees every letter on the page
+/// resolved at once. References inside a note navigate within the popup:
+/// a passage page replaces the list, a back arrow returns to it.
+/// `onOpenReference` jumps the reading view.
 Future<void> showNotePopup(
   BuildContext context, {
-  required NoteView note,
+  required List<FootnoteEntry> entries,
+  required int selected,
   required String title,
   required String previewModule,
   required ValueChanged<String> onOpenReference,
@@ -21,7 +24,8 @@ Future<void> showNotePopup(
   return showDialog<void>(
     context: context,
     builder: (context) => _NotePopup(
-      note: note,
+      entries: entries,
+      selected: selected,
       title: title,
       previewModule: previewModule,
       onOpenReference: onOpenReference,
@@ -31,13 +35,15 @@ Future<void> showNotePopup(
 
 class _NotePopup extends StatefulWidget {
   const _NotePopup({
-    required this.note,
+    required this.entries,
+    required this.selected,
     required this.title,
     required this.previewModule,
     required this.onOpenReference,
   });
 
-  final NoteView note;
+  final List<FootnoteEntry> entries;
+  final int selected;
   final String title;
   final String previewModule;
   final ValueChanged<String> onOpenReference;
@@ -47,9 +53,21 @@ class _NotePopup extends StatefulWidget {
 }
 
 class _NotePopupState extends State<_NotePopup> {
-  /// The reference shown on the passage page, or null for the note page.
+  /// The reference shown on the passage page, or null for the list.
   String? _osis;
   final List<TapGestureRecognizer> _recognizers = [];
+  final GlobalKey _selectedKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = _selectedKey.currentContext;
+      if (target != null) {
+        Scrollable.ensureVisible(target, alignment: 0.2);
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -71,6 +89,14 @@ class _NotePopupState extends State<_NotePopup> {
       fontSize:
           (theme.textTheme.bodyMedium?.fontSize ?? 14) * settings.previewScale,
     );
+    final labelStyle = theme.textTheme.labelMedium?.copyWith(
+      color: theme.colorScheme.primary,
+      fontFamily: settings.fontFamily,
+      fontSize:
+          (theme.textTheme.labelMedium?.fontSize ?? 12) * settings.previewScale,
+    );
+    final refStyle = refStyleFor(theme, textStyle);
+    final labels = footnoteLabels(widget.entries);
     return Dialog(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420, maxHeight: 460),
@@ -120,18 +146,49 @@ class _NotePopupState extends State<_NotePopup> {
               Flexible(
                 child: osis == null
                     ? SingleChildScrollView(
-                        child: Text.rich(
-                          TextSpan(
-                            children: noteSpans(
-                              widget.note.text,
-                              widget.note.refs,
-                              textStyle,
-                              refStyleFor(theme, textStyle),
-                              (ref) => setState(() => _osis = ref),
-                              _recognizers,
-                            ),
-                          ),
-                          key: const Key('note-body'),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (final (i, entry) in widget.entries.indexed)
+                              Container(
+                                key: i == widget.selected
+                                    ? _selectedKey
+                                    : Key('note-entry-$i'),
+                                margin: const EdgeInsets.only(bottom: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 6,
+                                ),
+                                decoration: i == widget.selected
+                                    ? BoxDecoration(
+                                        color: theme.colorScheme.primary
+                                            .withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(6),
+                                      )
+                                    : null,
+                                child: Text.rich(
+                                  TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: '${labels[i]}  ',
+                                        style: labelStyle,
+                                      ),
+                                      ...noteSpans(
+                                        entry.note.text,
+                                        entry.note.refs,
+                                        textStyle,
+                                        refStyle,
+                                        (ref) => setState(() => _osis = ref),
+                                        _recognizers,
+                                      ),
+                                    ],
+                                  ),
+                                  key: i == widget.selected
+                                      ? const Key('note-body')
+                                      : null,
+                                ),
+                              ),
+                          ],
                         ),
                       )
                     : PassageList(osis: osis, moduleCode: widget.previewModule),
