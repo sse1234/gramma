@@ -28,4 +28,30 @@ void main() {
     expect(visibleChapterIndexes(spine, 'Gen.3.1', 'Nope.1.1'), [2]);
     expect(visibleChapterIndexes(spine, 'Nope.1.1', null), isEmpty);
   });
+
+  test('footnote labels: letters alone while unambiguous, else with verse',
+      () {
+    ChapterRefView chapter(int n) => ChapterRefView(
+          bookOsis: 'Gen',
+          chapter: n,
+          heading: 'Gen $n',
+          textLength: 0,
+          maxVerse: 30,
+          bookAbbrev: '1Mo',
+          bookCategory: 0,
+        );
+    NoteView note(int verse, String label) =>
+        NoteView(verse: verse, label: label, text: '', refs: const []);
+    final one = [
+      (chapter: chapter(1), note: note(1, 'a')),
+      (chapter: chapter(1), note: note(4, 'b')),
+    ];
+    expect(footnoteLabels(one), ['a', 'b']);
+    // Two visible chapters whose letters collide: chapter and verse join.
+    final two = [
+      (chapter: chapter(1), note: note(28, 'a')),
+      (chapter: chapter(2), note: note(3, 'a')),
+    ];
+    expect(footnoteLabels(two), ['1,28a', '2,3a']);
+  });
 }

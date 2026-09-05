@@ -5,6 +5,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'annotations.dart';
 import 'column_plan.dart';
+import 'footnotes_pane.dart' show visibleFootnotes;
 import 'mark_popup.dart';
 import 'palette.dart';
 import 'l10n.dart';
@@ -20,7 +21,12 @@ import 'src/rust/api/typeset.dart';
 import 'typeset_chapter.dart';
 import 'typeset_column.dart';
 
-typedef FollowOption = ({String id, String label, String badge, int badgeIndex});
+typedef FollowOption = ({
+  String id,
+  String label,
+  String badge,
+  int badgeIndex,
+});
 
 /// Verse shown at [line], walking forward past spacer lines (the empty
 /// rows before section headings carry no runs) to the next carrying line.
@@ -83,7 +89,11 @@ class ReaderPane extends StatefulWidget {
     this.dragHandle,
     this.onClose,
     this.onWordLookup,
+    this.chromeInset = 0,
   });
+
+  /// Where the floating header starts (ADR 0028): below the app bar for
+  /// panes in the desk's top row, at the pane's top otherwise.
 
   final PaneSpec spec;
   final List<ModuleView> modules;
@@ -123,6 +133,11 @@ class ReaderPane extends StatefulWidget {
   final NavCommand? command;
   final Widget? dragHandle;
   final VoidCallback? onClose;
+  final double chromeInset;
+
+  /// Height of the floating pane header band (ADR 0028); the content
+  /// shifts by exactly this much (plus [chromeInset]) while chrome shows.
+  static const chromeHeight = 56.0;
 
   @override
   State<ReaderPane> createState() => _ReaderPaneState();
@@ -141,6 +156,11 @@ class _ReaderPaneState extends State<ReaderPane> {
 
   /// Keyboard focus for arrow-key column paging.
   final FocusNode _focus = FocusNode(debugLabel: 'reader-pane');
+
+  /// How far the content paints below its own top while chrome shows
+  /// (ADR 0028): the floating header band plus the app bar's share.
+  double get _chromeShift =>
+      widget.readingMode ? 0.0 : widget.chromeInset + ReaderPane.chromeHeight;
 
   ModuleView? _active;
   List<ChapterRefView> _spine = const [];
@@ -190,6 +210,13 @@ class _ReaderPaneState extends State<ReaderPane> {
   void initState() {
     super.initState();
     _vPositions.itemPositions.addListener(_onVerticalPositions);
+    // The first text view owns the keyboard from the start: the very
+    // first arrow press pages, no focusing press needed.
+    if (widget.spec.badge == '1') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_focus.hasFocus) _focus.requestFocus();
+      });
+    }
   }
 
   @override
@@ -246,8 +273,10 @@ class _ReaderPaneState extends State<ReaderPane> {
         if (parts.length < 2) return;
         final index = _indexOfOsis('${parts[0]}.${parts[1]}');
         if (index >= 0) {
-          _jumpToChapter(index,
-              verse: parts.length >= 3 ? int.tryParse(parts[2]) : null);
+          _jumpToChapter(
+            index,
+            verse: parts.length >= 3 ? int.tryParse(parts[2]) : null,
+          );
         }
       });
     }
@@ -275,16 +304,18 @@ class _ReaderPaneState extends State<ReaderPane> {
   String? _anchorEndString() {
     final plan = _hPlan;
     if (plan != null && plan.totalLines > 0) {
-      final lastColumn = (plan.columnOfLine(_anchorLine) + _hColumns - 1)
-          .clamp(0, plan.columnCount - 1);
-      final lastLine = (plan.firstLineOfColumn(lastColumn) +
-              plan.linesInColumn(lastColumn) -
-              1)
-          .clamp(0, plan.totalLines - 1);
+      final lastColumn = (plan.columnOfLine(_anchorLine) + _hColumns - 1).clamp(
+        0,
+        plan.columnCount - 1,
+      );
+      final lastLine =
+          (plan.firstLineOfColumn(lastColumn) +
+                  plan.linesInColumn(lastColumn) -
+                  1)
+              .clamp(0, plan.totalLines - 1);
       final chapter = plan.chapterOfLine(lastLine);
       final local = lastLine - plan.blockStart(chapter) - _headingLines;
-      final verse =
-          local >= 0 ? _verseAtLineEnd(chapter, local) : null;
+      final verse = local >= 0 ? _verseAtLineEnd(chapter, local) : null;
       final entry = _spine[chapter];
       final base = '${entry.bookOsis}.${entry.chapter}';
       return verse == null ? base : '$base.$verse';
@@ -293,8 +324,7 @@ class _ReaderPaneState extends State<ReaderPane> {
     if (positions.isEmpty) return null;
     ItemPosition? bottom;
     for (final p in positions) {
-      if (p.itemLeadingEdge < 1 &&
-          (bottom == null || p.index > bottom.index)) {
+      if (p.itemLeadingEdge < 1 && (bottom == null || p.index > bottom.index)) {
         bottom = p;
       }
     }
@@ -304,10 +334,9 @@ class _ReaderPaneState extends State<ReaderPane> {
     if (counts != null && bottom.index < counts.length) {
       final span = bottom.itemTrailingEdge - bottom.itemLeadingEdge;
       if (span > 0) {
-        final fraction =
-            ((1 - bottom.itemLeadingEdge) / span).clamp(0.0, 1.0);
-        final line = (fraction * (counts[bottom.index] + _headingLines))
-                .floor() -
+        final fraction = ((1 - bottom.itemLeadingEdge) / span).clamp(0.0, 1.0);
+        final line =
+            (fraction * (counts[bottom.index] + _headingLines)).floor() -
             _headingLines;
         verse = line > 0
             ? _verseAtLineEnd(bottom.index, line)
@@ -331,7 +360,8 @@ class _ReaderPaneState extends State<ReaderPane> {
     if (parts.length < 2) return -1;
     final chapter = int.tryParse(parts[1]);
     return _spine.indexWhere(
-        (c) => c.bookOsis == parts[0] && c.chapter == chapter);
+      (c) => c.bookOsis == parts[0] && c.chapter == chapter,
+    );
   }
 
   int? _verseOfOsis(String osis) {
@@ -398,8 +428,9 @@ class _ReaderPaneState extends State<ReaderPane> {
     if (active.code != widget.spec.module) {
       widget.onModule(active.code);
     }
-    moduleLineKinds(moduleCode: active.code, measureEms: _measure!)
-        .then((kinds) {
+    moduleLineKinds(moduleCode: active.code, measureEms: _measure!).then((
+      kinds,
+    ) {
       if (!mounted || _active?.code != active.code) return;
       setState(() {
         _rowKinds = kinds;
@@ -446,8 +477,9 @@ class _ReaderPaneState extends State<ReaderPane> {
     });
     final active = _active;
     if (active == null) return;
-    moduleLineKinds(moduleCode: active.code, measureEms: _measure!)
-        .then((kinds) {
+    moduleLineKinds(moduleCode: active.code, measureEms: _measure!).then((
+      kinds,
+    ) {
       if (!mounted || _active?.code != active.code) return;
       setState(() {
         _rowKinds = kinds;
@@ -466,19 +498,21 @@ class _ReaderPaneState extends State<ReaderPane> {
     _loading.add(index);
     final entry = _spine[index];
     layoutChapter(
-      moduleCode: _active!.code,
-      bookOsis: entry.bookOsis,
-      chapter: entry.chapter,
-      measureEms: _measure!,
-    ).then((layout) {
-      if (!mounted) return;
-      setState(() {
-        _layouts[index] = layout;
-        while (_layouts.length > _cacheLimit) {
-          _layouts.remove(_layouts.keys.first);
-        }
-      });
-    }).whenComplete(() => _loading.remove(index));
+          moduleCode: _active!.code,
+          bookOsis: entry.bookOsis,
+          chapter: entry.chapter,
+          measureEms: _measure!,
+        )
+        .then((layout) {
+          if (!mounted) return;
+          setState(() {
+            _layouts[index] = layout;
+            while (_layouts.length > _cacheLimit) {
+              _layouts.remove(_layouts.keys.first);
+            }
+          });
+        })
+        .whenComplete(() => _loading.remove(index));
   }
 
   void _onVerticalPositions() {
@@ -528,8 +562,10 @@ class _ReaderPaneState extends State<ReaderPane> {
     final controller = _hController;
     final plan = _hPlan;
     if (controller == null || plan == null || !controller.hasClients) return;
-    final column =
-        (controller.offset / _hStride).floor().clamp(0, plan.columnCount - 1);
+    final column = (controller.offset / _hStride).floor().clamp(
+      0,
+      plan.columnCount - 1,
+    );
     final line = plan.firstLineOfColumn(column);
     if (line == _anchorLine) return;
     _anchorLine = line;
@@ -569,8 +605,10 @@ class _ReaderPaneState extends State<ReaderPane> {
       }
       _anchorLine = line;
       _hController!.jumpTo(
-        (plan.columnOfLine(line) * _hStride)
-            .clamp(0.0, _hController!.position.maxScrollExtent),
+        (plan.columnOfLine(line) * _hStride).clamp(
+          0.0,
+          _hController!.position.maxScrollExtent,
+        ),
       );
     } else if (_vScroll.isAttached) {
       if (targetLine != null && _vViewportH > 0) {
@@ -633,9 +671,10 @@ class _ReaderPaneState extends State<ReaderPane> {
     }
     if (chapterIndex >= _spine.length) return;
     final chapter = _spine[chapterIndex];
-    final covering = Annotations.forChapter(chapter.bookOsis, chapter.chapter)
-        .where((m) => markCoversRun(m, run, widget.spec.module))
-        .lastOrNull;
+    final covering = Annotations.forChapter(
+      chapter.bookOsis,
+      chapter.chapter,
+    ).where((m) => markCoversRun(m, run, widget.spec.module)).lastOrNull;
     if (covering != null) {
       _editMark(covering);
     } else {
@@ -654,7 +693,8 @@ class _ReaderPaneState extends State<ReaderPane> {
   String _selectionLabel(int chapterIndex, VerseSelection sel) {
     final chapter = _spine[chapterIndex];
     final start = formatReference(
-        osis: '${chapter.bookOsis}.${chapter.chapter}.${sel.verseStart}');
+      osis: '${chapter.bookOsis}.${chapter.chapter}.${sel.verseStart}',
+    );
     return sel.verseStart == sel.verseEnd ? start : '$start–${sel.verseEnd}';
   }
 
@@ -709,7 +749,8 @@ class _ReaderPaneState extends State<ReaderPane> {
   void _editMark(NoteMark mark) {
     showMarkPopup(
       context,
-      title: formatReference(osis: mark.osis.split('-').first) +
+      title:
+          formatReference(osis: mark.osis.split('-').first) +
           (mark.verseStart == mark.verseEnd ? '' : '–${mark.verseEnd}'),
       draft: mark,
       isNew: false,
@@ -782,20 +823,39 @@ class _ReaderPaneState extends State<ReaderPane> {
     final active = _active;
     if (active == null || chapterIndex >= _spine.length) return;
     final entry = _spine[chapterIndex];
-    final notes = chapterNotes(
-      moduleCode: active.code,
-      bookOsis: entry.bookOsis,
-      chapter: entry.chapter,
+    // Every footnote on the visible page, the tapped one selected
+    // (ADR 0028); a marker just outside the estimated range still opens
+    // on its own.
+    var entries = visibleFootnotes(
+      _spine,
+      active.code,
+      _anchorString(),
+      _anchorEndString(),
     );
-    final note = notes
-        .where((n) => n.verse == verse && n.label == label)
-        .firstOrNull;
-    if (note == null || !mounted) return;
+    var selected = entries.indexWhere(
+      (e) =>
+          e.chapter.bookOsis == entry.bookOsis &&
+          e.chapter.chapter == entry.chapter &&
+          e.note.verse == verse &&
+          e.note.label == label,
+    );
+    if (selected < 0) {
+      final note = chapterNotes(
+        moduleCode: active.code,
+        bookOsis: entry.bookOsis,
+        chapter: entry.chapter,
+      ).where((n) => n.verse == verse && n.label == label).firstOrNull;
+      if (note == null) return;
+      entries = [(chapter: entry, note: note)];
+      selected = 0;
+    }
+    if (!mounted) return;
     final settings = SettingsScope.of(context);
     showNotePopup(
       context,
-      note: note,
-      title: '${entry.heading},$verse$label',
+      entries: entries,
+      selected: selected,
+      title: context.l10n.footnotesTitle,
       previewModule: settings.defaultModule ?? active.code,
       onOpenReference: (osis) {
         final index = _indexOfOsis(osis.split('-').first);
@@ -814,8 +874,7 @@ class _ReaderPaneState extends State<ReaderPane> {
     final index = _indexOfOsis('${result.book}.${result.chapter}');
     if (index >= 0) {
       final base = '${result.book}.${result.chapter}';
-      widget.onJump(
-          result.verse == null ? base : '$base.${result.verse}');
+      widget.onJump(result.verse == null ? base : '$base.${result.verse}');
       _jumpToChapter(index, verse: result.verse);
     }
   }
@@ -823,122 +882,146 @@ class _ReaderPaneState extends State<ReaderPane> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final position =
-        _topChapter < _spine.length ? _spine[_topChapter].heading : null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (!widget.readingMode) ...[
-        PaneHeader(
-          title: null,
-          badge: widget.badge,
-          dragHandle: widget.dragHandle,
-          position: position == null
-              ? null
-              : Tooltip(
-                  message: context.l10n.selectorTooltip,
-                  child: InkWell(
-                    key: const Key('open-selector'),
+    final position = _topChapter < _spine.length
+        ? _spine[_topChapter].heading
+        : null;
+    final header = PaneHeader(
+      title: null,
+      badge: widget.badge,
+      dragHandle: widget.dragHandle,
+      position: position == null
+          ? null
+          : Tooltip(
+              message: context.l10n.selectorTooltip,
+              child: InkWell(
+                key: const Key('open-selector'),
+                borderRadius: BorderRadius.circular(14),
+                onTap: _openSelector,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
                     borderRadius: BorderRadius.circular(14),
-                    onTap: _openSelector,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 3),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                            color: theme.colorScheme.outlineVariant),
-                        borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.grid_view_rounded,
+                        size: 13,
+                        color: theme.colorScheme.primary,
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.grid_view_rounded,
-                            size: 13,
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          position,
+                          key: const Key('current-position'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelLarge?.copyWith(
                             color: theme.colorScheme.primary,
                           ),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              position,
-                              key: const Key('current-position'),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.labelLarge?.copyWith(
-                                  color: theme.colorScheme.primary),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-          moduleCode: _active?.code,
-          modules: [
-            for (final m in widget.modules)
-              (code: m.code, title: m.title, strongs: m.strongs),
-          ],
-          onModule: widget.onModule,
-          canGoBack: widget.canGoBack,
-          canGoForward: widget.canGoForward,
-          onBack: widget.onBack,
-          onForward: widget.onForward,
-          historyItems: widget.historyItems,
-          onHistorySelect: widget.onHistorySelect,
-          followValue: widget.spec.follow,
-          followOptions: widget.followOptions,
-          onFollow: widget.onFollow,
-          onClose: widget.onClose,
-        ),
-        const SizedBox(height: 8),
-        ],
-        Expanded(
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: widget.onToggleMode,
-            child: _spine.isEmpty
-              ? Center(
-                  child: Text(
-                    context.l10n.importToBegin,
-                    style: theme.textTheme.bodyLarge,
-                  ),
-                )
-              : LayoutBuilder(
-                  builder: (context, constraints) {
-                    _vViewportH = constraints.maxHeight;
-                    final effWidth = constraints.maxWidth < _columnWidth
-                        ? constraints.maxWidth
-                        : _columnWidth;
-                    _vLineHeightPx =
-                        effWidth / (_measure ?? 26) * _lineSpacing;
-                    final columns = _columnsFor(constraints.maxWidth);
-                    final Widget reader;
-                    if (columns >= 2 && _linePlan() != null) {
-                      reader = _horizontalReader(constraints, columns);
-                    } else {
-                      _hPlan = null;
-                      _hParams = null;
-                      reader = _verticalReader();
-                    }
-                    // The selection bar floats over the content: adding
-                    // it to the layout would change the column height
-                    // mid-gesture and shift the text under the finger.
-                    return Stack(
-                      children: [
-                        reader,
-                        if (_selection != null)
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            child: _selectionBar(theme),
-                          ),
-                      ],
-                    );
-                  },
-                ),
+              ),
+            ),
+      moduleCode: _active?.code,
+      modules: [
+        for (final m in widget.modules)
+          (code: m.code, title: m.title, strongs: m.strongs),
+      ],
+      onModule: widget.onModule,
+      canGoBack: widget.canGoBack,
+      canGoForward: widget.canGoForward,
+      onBack: widget.onBack,
+      onForward: widget.onForward,
+      historyItems: widget.historyItems,
+      onHistorySelect: widget.onHistorySelect,
+      followValue: widget.spec.follow,
+      followOptions: widget.followOptions,
+      onFollow: widget.onFollow,
+      onClose: widget.onClose,
+    );
+    // The chrome overlays the text instead of pushing it (ADR 0028): the
+    // content keeps its exact geometry in both modes, so columns never
+    // re-chunk and the reading position never jumps on a toggle.
+    // Chrome shown: the content keeps its full-height geometry but paints
+    // shifted below the floating header (its bottom rows clip away), so
+    // the anchor line stays visible and tappable; chrome hidden: no shift.
+    final shift = _chromeShift;
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: ClipRect(
+            child: Transform.translate(
+              offset: Offset(0, shift),
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: widget.onToggleMode,
+                child: _spine.isEmpty
+                    ? Center(
+                        child: Text(
+                          context.l10n.importToBegin,
+                          style: theme.textTheme.bodyLarge,
+                        ),
+                      )
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          _vViewportH = constraints.maxHeight;
+                          final effWidth = constraints.maxWidth < _columnWidth
+                              ? constraints.maxWidth
+                              : _columnWidth;
+                          _vLineHeightPx =
+                              effWidth / (_measure ?? 26) * _lineSpacing;
+                          final columns = _columnsFor(constraints.maxWidth);
+                          final Widget reader;
+                          if (columns >= 2 && _linePlan() != null) {
+                            reader = _horizontalReader(constraints, columns);
+                          } else {
+                            _hPlan = null;
+                            _hParams = null;
+                            reader = _verticalReader();
+                          }
+                          // The selection bar floats over the content: adding
+                          // it to the layout would change the column height
+                          // mid-gesture and shift the text under the finger.
+                          return Stack(
+                            children: [
+                              reader,
+                              if (_selection != null)
+                                Positioned(
+                                  left: 0,
+                                  right: 0,
+                                  bottom: _chromeShift,
+                                  child: _selectionBar(theme),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+              ),
+            ),
           ),
         ),
+        if (!widget.readingMode)
+          Positioned(
+            top: widget.chromeInset,
+            left: 0,
+            right: 0,
+            child: Material(
+              color: theme.colorScheme.surface,
+              child: SizedBox(
+                height: ReaderPane.chromeHeight,
+                child: Align(alignment: Alignment.topCenter, child: header),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -959,6 +1042,7 @@ class _ReaderPaneState extends State<ReaderPane> {
         constraints: BoxConstraints(maxWidth: _columnWidth),
         child: ScrollablePositionedList.builder(
           key: const Key('vertical-reader'),
+          padding: EdgeInsets.only(bottom: _chromeShift),
           itemScrollController: _vScroll,
           itemPositionsListener: _vPositions,
           initialScrollIndex: initial,
@@ -972,8 +1056,10 @@ class _ReaderPaneState extends State<ReaderPane> {
   Widget _horizontalReader(BoxConstraints constraints, int columns) {
     final columnWidth = _columnWidth;
     final contentWidth = columns * columnWidth + (columns - 1) * _gutter;
-    final sidePadding =
-        ((constraints.maxWidth - contentWidth) / 2).clamp(0.0, double.infinity);
+    final sidePadding = ((constraints.maxWidth - contentWidth) / 2).clamp(
+      0.0,
+      double.infinity,
+    );
     final fontSize = columnWidth / _measure!;
     final lineHeight = fontSize * _lineSpacing;
     var linesPerColumn = (constraints.maxHeight / lineHeight).floor();
@@ -998,7 +1084,7 @@ class _ReaderPaneState extends State<ReaderPane> {
     final scale = columnWidth / (_measure! * _unitsPerEm());
     return Focus(
       focusNode: _focus,
-      autofocus: true,
+      autofocus: widget.spec.badge == '1',
       onKeyEvent: (node, event) {
         if (event is KeyUpEvent) return KeyEventResult.ignored;
         if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
@@ -1011,30 +1097,36 @@ class _ReaderPaneState extends State<ReaderPane> {
         }
         return KeyEventResult.ignored;
       },
-      child: Listener(
-        key: const ValueKey('columns-active'),
-        onPointerSignal: (event) {
-          // Discrete mouse wheels page by whole columns (trackpads scroll
-          // through the pan-zoom gesture path and the snap physics instead).
-          if (event is PointerScrollEvent &&
-              event.scrollDelta.dy != 0 &&
-              _hController!.hasClients) {
-            _onWheel(event.scrollDelta.dy);
-          }
-        },
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: sidePadding),
-          child: ListView.builder(
-            key: Key('horizontal-reader-$params'),
-            controller: _hController,
-            scrollDirection: Axis.horizontal,
-            physics:
-                ColumnSnapPhysics(stride: stride, advance: _columnAdvance),
-            itemExtent: stride,
-            itemCount: plan.columnCount,
-            itemBuilder: (context, column) => Padding(
-              padding: const EdgeInsets.only(right: _gutter),
-              child: _columnItem(plan, column, scale, fontSize, lineHeight),
+      child: MouseRegion(
+        onEnter: (_) => _focus.requestFocus(),
+        child: Listener(
+          key: const ValueKey('columns-active'),
+          onPointerDown: (_) => _focus.requestFocus(),
+          onPointerSignal: (event) {
+            // Discrete mouse wheels page by whole columns (trackpads scroll
+            // through the pan-zoom gesture path and the snap physics instead).
+            if (event is PointerScrollEvent &&
+                event.scrollDelta.dy != 0 &&
+                _hController!.hasClients) {
+              _onWheel(event.scrollDelta.dy);
+            }
+          },
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: sidePadding),
+            child: ListView.builder(
+              key: Key('horizontal-reader-$params'),
+              controller: _hController,
+              scrollDirection: Axis.horizontal,
+              physics: ColumnSnapPhysics(
+                stride: stride,
+                advance: _columnAdvance,
+              ),
+              itemExtent: stride,
+              itemCount: plan.columnCount,
+              itemBuilder: (context, column) => Padding(
+                padding: const EdgeInsets.only(right: _gutter),
+                child: _columnItem(plan, column, scale, fontSize, lineHeight),
+              ),
             ),
           ),
         ),
@@ -1068,7 +1160,8 @@ class _ReaderPaneState extends State<ReaderPane> {
       _wheelTarget = null;
     }
     final position = controller.position;
-    final base = _wheelTarget ??
+    final base =
+        _wheelTarget ??
         ColumnSnapPhysics.snapTarget(
           position.pixels,
           _hStride,
@@ -1122,8 +1215,9 @@ class _ReaderPaneState extends State<ReaderPane> {
         }
         final lineIndex = local - _headingLines;
         if (lineIndex < layout.lines.length) {
-          rows.add(TextRow(
-              row, layout.lines[lineIndex], layout.numberScale, chapter));
+          rows.add(
+            TextRow(row, layout.lines[lineIndex], layout.numberScale, chapter),
+          );
         }
       }
     }
@@ -1150,10 +1244,7 @@ class _ReaderPaneState extends State<ReaderPane> {
           row.chapter: _paintMarks(row.chapter),
       },
       paneModule: widget.spec.module,
-      selection: _selection == null
-          ? null
-          : (_selectionChapter!, _selection!),
-
+      selection: _selection == null ? null : (_selectionChapter!, _selection!),
     );
   }
 
@@ -1181,9 +1272,9 @@ class _ReaderPaneState extends State<ReaderPane> {
             padding: const EdgeInsets.only(top: 8, bottom: 12),
             child: Text(
               entry.heading,
-              style: theme.textTheme.headlineSmall
-                  ?.copyWith(
-                      fontFamily: SettingsScope.of(context).fontFamily),
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontFamily: SettingsScope.of(context).fontFamily,
+              ),
             ),
           ),
           if (layout != null)
@@ -1204,8 +1295,7 @@ class _ReaderPaneState extends State<ReaderPane> {
               onSelectEnd: () {},
               marks: _paintMarks(index),
               paneModule: widget.spec.module,
-              selection:
-                  _selectionChapter == index ? _selection : null,
+              selection: _selectionChapter == index ? _selection : null,
             )
           else
             LayoutBuilder(
@@ -1311,10 +1401,9 @@ class PaneHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return LayoutBuilder(
-      builder: (context, constraints) =>
-          constraints.maxWidth < compactBelow
-              ? _compact(context, theme)
-              : _wide(context, theme),
+      builder: (context, constraints) => constraints.maxWidth < compactBelow
+          ? _compact(context, theme)
+          : _wide(context, theme),
     );
   }
 
@@ -1337,8 +1426,10 @@ class PaneHeader extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Flexible(
-                              child: Text(m.title,
-                                  overflow: TextOverflow.ellipsis),
+                              child: Text(
+                                m.title,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                             if (m.strongs) ...[
                               const SizedBox(width: 4),
@@ -1374,10 +1465,7 @@ class PaneHeader extends StatelessWidget {
             items: [
               DropdownMenuItem<String>(child: Text(context.l10n.unlinked)),
               for (final option in followOptions)
-                DropdownMenuItem(
-                  value: option.id,
-                  child: _linkRow(option),
-                ),
+                DropdownMenuItem(value: option.id, child: _linkRow(option)),
             ],
             onChanged: onFollow,
           ),
@@ -1399,7 +1487,8 @@ class PaneHeader extends StatelessWidget {
       children: [
         if (badge != null) ...[badge!, const SizedBox(width: 6)],
         Expanded(
-          child: position ??
+          child:
+              position ??
               Text(
                 title ?? '',
                 style: theme.textTheme.titleMedium,
@@ -1466,7 +1555,11 @@ class PaneHeader extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          PaneBadge(badge: item.badge, badgeIndex: item.badgeIndex, small: true),
+          PaneBadge(
+            badge: item.badge,
+            badgeIndex: item.badgeIndex,
+            small: true,
+          ),
           const SizedBox(width: 6),
           Text(
             item.label,
@@ -1500,59 +1593,67 @@ class PaneHeader extends StatelessWidget {
     final entries = <PopupMenuEntry<VoidCallback>>[];
     if (onModule != null) {
       for (final m in modules) {
-        entries.add(CheckedPopupMenuItem(
-          key: Key('menu-module-${m.code}'),
-          checked: m.code == moduleCode,
-          value: () => onModule!(m.code),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: Text(m.title, overflow: TextOverflow.ellipsis),
-              ),
-              if (m.strongs) ...[
-                const SizedBox(width: 4),
-                const StrongsBadge(),
+        entries.add(
+          CheckedPopupMenuItem(
+            key: Key('menu-module-${m.code}'),
+            checked: m.code == moduleCode,
+            value: () => onModule!(m.code),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(child: Text(m.title, overflow: TextOverflow.ellipsis)),
+                if (m.strongs) ...[
+                  const SizedBox(width: 4),
+                  const StrongsBadge(),
+                ],
               ],
-            ],
+            ),
           ),
-        ));
+        );
       }
     }
     if (onHistorySelect != null && historyItems.isNotEmpty) {
       if (entries.isNotEmpty) entries.add(const PopupMenuDivider());
       for (final item in historyItems.take(6)) {
-        entries.add(PopupMenuItem(
-          value: () => onHistorySelect!(item.index),
-          child: _historyRow(item).child!,
-        ));
+        entries.add(
+          PopupMenuItem(
+            value: () => onHistorySelect!(item.index),
+            child: _historyRow(item).child!,
+          ),
+        );
       }
     }
     final follow = onFollow;
     if (follow != null) {
       if (entries.isNotEmpty) entries.add(const PopupMenuDivider());
-      entries.add(CheckedPopupMenuItem(
-        key: const Key('menu-unlinked'),
-        checked: followValue == null,
-        value: () => follow(null),
-        child: Text(context.l10n.unlinked),
-      ));
+      entries.add(
+        CheckedPopupMenuItem(
+          key: const Key('menu-unlinked'),
+          checked: followValue == null,
+          value: () => follow(null),
+          child: Text(context.l10n.unlinked),
+        ),
+      );
       for (final option in followOptions) {
-        entries.add(CheckedPopupMenuItem(
-          key: Key('menu-link-${option.badge}'),
-          checked: followValue == option.id,
-          value: () => follow(option.id),
-          child: _linkRow(option),
-        ));
+        entries.add(
+          CheckedPopupMenuItem(
+            key: Key('menu-link-${option.badge}'),
+            checked: followValue == option.id,
+            value: () => follow(option.id),
+            child: _linkRow(option),
+          ),
+        );
       }
     }
     if (onClose != null) {
       entries.add(const PopupMenuDivider());
-      entries.add(PopupMenuItem(
-        key: const Key('menu-close'),
-        value: onClose,
-        child: Text(context.l10n.closeView),
-      ));
+      entries.add(
+        PopupMenuItem(
+          key: const Key('menu-close'),
+          value: onClose,
+          child: Text(context.l10n.closeView),
+        ),
+      );
     }
     return PopupMenuButton<VoidCallback>(
       key: const Key('pane-menu'),

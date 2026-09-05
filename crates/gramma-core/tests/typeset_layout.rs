@@ -364,3 +364,44 @@ fn word_runs_carry_verse_offsets() {
     // Offsets are strictly increasing within the verse.
     assert!(seen.windows(2).all(|w| w[0].0 < w[1].0), "{seen:?}");
 }
+
+#[test]
+fn marker_labels_run_through_the_chapter() {
+    // Two verses with notes each: letters continue across the verse
+    // boundary (ADR 0028) — a, b in verse 1, then c in verse 2.
+    let m = measure();
+    let width = 30 * m.units_per_em() as i64;
+    let verses = [
+        (1u16, "Im Anfang schuf Gott Himmel und Erde"),
+        (2, "Und die Erde war wüst"),
+    ];
+    let notes = [(1u16, 2u32), (1, 9), (2, 4)];
+    let lines = layout_verses(&verses, &notes, &[], &m, None, width);
+    let markers: Vec<String> = lines
+        .iter()
+        .flat_map(|l| l.runs.iter())
+        .filter(|r| r.note_marker)
+        .map(|r| r.text.clone())
+        .collect();
+    assert_eq!(markers, ["a", "b", "c"]);
+    // A heading between verses does not restart the letters either.
+    let headed = layout_verses(&verses, &notes, &[(2, 1, "Zweiter Tag")], &m, None, width);
+    let markers: Vec<String> = headed
+        .iter()
+        .flat_map(|l| l.runs.iter())
+        .filter(|r| r.note_marker)
+        .map(|r| r.text.clone())
+        .collect();
+    assert_eq!(markers, ["a", "b", "c"]);
+}
+
+#[test]
+fn marker_labels_continue_past_z() {
+    use gramma_core::typeset::layout::marker_label;
+    assert_eq!(marker_label(0), "a");
+    assert_eq!(marker_label(25), "z");
+    assert_eq!(marker_label(26), "aa");
+    assert_eq!(marker_label(27), "ab");
+    assert_eq!(marker_label(51), "az");
+    assert_eq!(marker_label(52), "ba");
+}
