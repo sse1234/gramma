@@ -56,7 +56,7 @@ reality, not a footnote), Windows and Linux (x64 and ARM64 each).
 
 ## Download
 
-- **iOS / iPadOS / macOS**: App Store ("gramma Bible").
+- **iOS / iPadOS / macOS**: [App Store](https://apps.apple.com/app/gramma-bible/id6806564461) ("gramma Bible").
 - **Android**: Google Play (closed test while the listing goes through
   Google's new-account process).
 - **Windows and Linux**: the [GitHub releases](https://github.com/sse1234/gramma/releases)
