@@ -121,6 +121,7 @@ jobs:
           path: dist
           merge-multiple: true
       - run: tool/changelog-section.sh "${{ needs.version.outputs.version }}" > body.md
+      - run: tool/render-pkgbuild.sh "${{ needs.version.outputs.version }}" dist dist
       - run: ls -l dist && cat body.md
       - uses: softprops/action-gh-release@v2
         with:
