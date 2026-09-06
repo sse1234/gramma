@@ -14,3 +14,5 @@ key.properties
 **/*.jks
 play.properties
 /.kotlin/
+# Store graphics live in the private folder
+/app/src/main/play/listings/*/graphics/

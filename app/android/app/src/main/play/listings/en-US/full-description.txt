@@ -1,0 +1,23 @@
+gramma sets Scripture the way fine books are set. Its typesetting engine builds on the line-breaking tradition of TeX: justified, hyphenated paragraphs with the same words on the same lines on every device — so your visual memory of the page carries from phone to tablet to desktop.
+
+READING
+• Endless scrolling through whole books, in columns on larger screens
+• Side-by-side views that follow each other: text beside text, commentary, or footnotes
+• Desks — saved workspace layouts for study, comparison, devotion
+• Careful typography: Gentium and Literata faces, adjustable measure, spacing, and weight
+
+STUDY
+• Imports standard SWORD modules (e.g. from CrossWire) and OSIS files: Bibles, commentaries, dictionaries, devotionals, and books
+• Strong's numbers: tap a word for its lexicon entry, follow a number into a concordance built from tagged texts
+• Fast search with language-aware matching
+• Reading plans imported from simple JSON files
+
+YOUR NOTES, YOURS
+• Word-precise color marks and notes, anchored to verses
+• A notes overview across everything you have marked
+• Sync between your own devices as end-to-end-encrypted files in a folder you choose (your iCloud Drive, Dropbox, or any synced folder) — no gramma server, no account
+
+FREE AND OPEN
+• Completely free, no purchases, no ads, no analytics
+• Open source (MIT): github.com/sse1234/gramma
+• The app ships without Bible texts; you import the modules you have the right to use
