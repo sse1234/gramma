@@ -1,0 +1,23 @@
+gramma setzt die Schrift, wie gute Bücher gesetzt werden. Die Satz-Engine steht in der Zeilenumbruch-Tradition von TeX: Blocksatz mit Silbentrennung und denselben Worten auf denselben Zeilen auf jedem Gerät — das visuelle Gedächtnis der Seite bleibt vom Telefon über das Tablet bis zum Schreibtisch erhalten.
+
+LESEN
+• Endloses Lesen durch ganze Bücher, auf großen Bildschirmen in Spalten
+• Verbundene Ansichten nebeneinander: Text neben Text, Kommentar oder Fußnoten
+• Schreibtische — gespeicherte Arbeitsflächen für Studium, Vergleich, Andacht
+• Sorgfältige Typografie: Gentium und Literata, einstellbare Zeilenbreite, Durchschuss und Strichstärke
+
+STUDIEREN
+• Importiert SWORD-Module (z. B. von CrossWire) und OSIS-Dateien: Bibeln, Kommentare, Wörterbücher, Andachten und Bücher
+• Strong-Nummern: ein Tipp aufs Wort öffnet den Lexikoneintrag, die Nummer führt in eine Konkordanz aus getaggten Texten
+• Schnelle Suche mit sprachbewusster Wortformerkennung
+• Lesepläne aus einfachen JSON-Dateien
+
+IHRE NOTIZEN GEHÖREN IHNEN
+• Wortgenaue Farbmarkierungen und Notizen, an Versen verankert
+• Eine Notizen-Übersicht über alles Markierte
+• Synchronisierung zwischen Ihren eigenen Geräten als Ende-zu-Ende-verschlüsselte Dateien in einem Ordner Ihrer Wahl (Ihr iCloud Drive, Dropbox oder jeder synchronisierte Ordner) — kein gramma-Server, kein Konto
+
+FREI UND OFFEN
+• Vollständig kostenlos, ohne Käufe, Werbung oder Analyse
+• Quelloffen (MIT): github.com/sse1234/gramma
+• Die App enthält keine Bibeltexte; Sie importieren die Module, die Sie nutzen dürfen

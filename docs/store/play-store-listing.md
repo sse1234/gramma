@@ -59,6 +59,12 @@ cd app/android && ./gradlew :app:publishReleaseBundle \
   --artifact-dir ../build/app/outputs/bundle/release
 ```
 
+The store listing (title, descriptions, contact details; graphics
+from the private folder, gitignored) lives in
+`app/android/app/src/main/play/` and goes up with
+`./gradlew :app:publishReleaseListing` — a brand-new locale needs two
+passes (texts create the listing, graphics follow).
+
 Releases land as **drafts** on the configured track with the notes
 from `app/src/main/play/release-notes/<locale>/default.txt`; rolling
 out is done in the Console (or with `--release-status completed`).
