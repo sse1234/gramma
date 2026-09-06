@@ -10,6 +10,10 @@ the tradition of Gutenberg and Knuth, synchronized side-by-side views,
 Strong's tools, notes and marks, and sync between your own devices
 without any account.
 
+- **[App Store](https://apps.apple.com/app/gramma-bible/id6806564461)**
+  — iPhone, iPad, and Mac
+- **[Downloads for Windows and Linux](https://github.com/sse1234/gramma/releases)**
+  — x64 and ARM64, plus sample content
 - **[Support](support)** — getting started, importing modules, FAQ,
   and how to reach us
 - **[Privacy policy](https://github.com/sse1234/gramma/blob/main/PRIVACY.md)**
