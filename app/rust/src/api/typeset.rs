@@ -64,6 +64,11 @@ pub struct RunView {
     /// Reference index in the owning layout's refs (prose, ADR 0018);
     /// tapping the run opens that reference. None for plain text.
     pub link: Option<u32>,
+    /// Character style bits (ADR 0029): 1 italic, 2 bold, 4 small caps,
+    /// 8 superscript, 16 monospace.
+    pub style: u8,
+    /// Size relative to the text size; widths are already scaled.
+    pub scale: f64,
     /// Byte offset of the run within its verse's text (ADR 0023);
     /// zero for non-word runs and prose layouts.
     pub offset: u32,
@@ -71,6 +76,10 @@ pub struct RunView {
 
 pub struct LineView {
     pub runs: Vec<RunView>,
+    /// A figure starting on this line and spanning `image_lines` lines:
+    /// the module's image index (ADR 0029).
+    pub image: Option<u32>,
+    pub image_lines: u16,
 }
 
 pub struct ChapterLayoutView {
@@ -149,6 +158,8 @@ pub fn layout_chapter(
         lines: lines
             .into_iter()
             .map(|l| LineView {
+                image: l.image,
+                image_lines: l.image_lines,
                 runs: l
                     .runs
                     .into_iter()
@@ -162,6 +173,8 @@ pub fn layout_chapter(
                         verse: r.verse,
                         link: r.link,
                         offset: r.offset,
+                        style: r.style,
+                        scale: r.scale,
                     })
                     .collect(),
             })
@@ -217,28 +230,76 @@ pub fn layout_comments(
         })
     });
     let measure_units = (measure_ems * measure.units_per_em() as f64) as i64;
+    // Entries imported as documents (ADR 0029) carry block trees; the
+    // rest set as plain prose.
+    let (contents, image_sizes) = with_library(|library| {
+        let mut contents = Vec::new();
+        for c in &comments {
+            contents.push(library.comment_content(&module_code, book, chapter, c.verse_start)?);
+        }
+        Ok((contents, library.image_sizes(&module_code)?))
+    })?;
     Ok(comments
         .into_iter()
-        .map(|c| {
+        .zip(contents)
+        .map(|(c, content)| {
             let label = if c.verse_start == c.verse_end {
                 c.verse_start.to_string()
             } else {
                 format!("{}-{}", c.verse_start, c.verse_end)
             };
-            let spans: Vec<(u32, u32)> = c.refs.iter().map(|r| (r.start, r.end)).collect();
-            let paragraphs = prose_paragraphs(&c.text, &spans);
-            let lines = layout_prose(
-                Some(&label),
-                c.heading.as_deref(),
-                &paragraphs,
-                c.verse_start,
-                measure,
-                hyphenator,
-                ProseSetting {
-                    justify: true,
-                    line_width: measure_units,
-                },
-            );
+            let setting = ProseSetting {
+                justify: true,
+                line_width: measure_units,
+            };
+            let (lines, refs) = match content {
+                Some(content) => {
+                    let refs = gramma_core::typeset::blocks::reference_targets(
+                        &content.blocks,
+                        &content.notes,
+                    );
+                    let mut blocks = content.blocks.clone();
+                    let has_heading = blocks
+                        .iter()
+                        .any(|b| matches!(b, gramma_core::document::Block::Heading { .. }));
+                    if let Some(h) = &c.heading {
+                        if !has_heading {
+                            blocks.insert(
+                                0,
+                                gramma_core::document::Block::Heading {
+                                    level: 1,
+                                    inlines: vec![gramma_core::document::Inline::text(h.clone())],
+                                },
+                            );
+                        }
+                    }
+                    let lines = gramma_core::typeset::blocks::layout_blocks(
+                        Some(&label),
+                        &blocks,
+                        &content.notes,
+                        &image_sizes,
+                        c.verse_start,
+                        measure,
+                        hyphenator,
+                        setting,
+                    );
+                    (lines, refs)
+                }
+                None => {
+                    let spans: Vec<(u32, u32)> = c.refs.iter().map(|r| (r.start, r.end)).collect();
+                    let paragraphs = prose_paragraphs(&c.text, &spans);
+                    let lines = layout_prose(
+                        Some(&label),
+                        c.heading.as_deref(),
+                        &paragraphs,
+                        c.verse_start,
+                        measure,
+                        hyphenator,
+                        setting,
+                    );
+                    (lines, c.refs.iter().map(|r| r.osis.clone()).collect())
+                }
+            };
             let plain_text = match &c.heading {
                 Some(h) => format!("{label} {h}. {}", c.text.replace("\n\n", " ")),
                 None => format!("{label} {}", c.text.replace("\n\n", " ")),
@@ -249,6 +310,8 @@ pub fn layout_comments(
                 lines: lines
                     .into_iter()
                     .map(|l| LineView {
+                        image: l.image,
+                        image_lines: l.image_lines,
                         runs: l
                             .runs
                             .into_iter()
@@ -262,11 +325,13 @@ pub fn layout_comments(
                                 verse: r.verse,
                                 link: r.link,
                                 offset: r.offset,
+                                style: r.style,
+                                scale: r.scale,
                             })
                             .collect(),
                     })
                     .collect(),
-                refs: c.refs.into_iter().map(|r| r.osis).collect(),
+                refs,
                 units_per_em: measure.units_per_em(),
                 measure_units,
                 number_scale: VERSE_NUMBER_SCALE_PERCENT as f64 / 100.0,
@@ -274,6 +339,24 @@ pub fn layout_comments(
             }
         })
         .collect())
+}
+
+pub struct ImageView {
+    pub media_type: String,
+    pub data: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// An imported document's image by index (ADR 0029), for figure lines.
+pub fn module_image(module_code: String, index: u32) -> anyhow::Result<Option<ImageView>> {
+    let image = with_library(|library| library.image(&module_code, index))?;
+    Ok(image.map(|i| ImageView {
+        media_type: i.media_type,
+        data: i.data,
+        width: i.width,
+        height: i.height,
+    }))
 }
 
 /// Split prose into paragraphs at "\n\n", re-basing reference byte
@@ -325,6 +408,8 @@ fn view_lines(lines: Vec<gramma_core::typeset::layout::LineOut>) -> Vec<LineView
     lines
         .into_iter()
         .map(|l| LineView {
+            image: l.image,
+            image_lines: l.image_lines,
             runs: l
                 .runs
                 .into_iter()
@@ -338,6 +423,8 @@ fn view_lines(lines: Vec<gramma_core::typeset::layout::LineOut>) -> Vec<LineView
                     verse: r.verse,
                     link: r.link,
                     offset: r.offset,
+                    style: r.style,
+                    scale: r.scale,
                 })
                 .collect(),
         })
@@ -467,27 +554,76 @@ pub fn layout_book_section(
     let Some((section, prev_ordinal, next_ordinal)) = found else {
         return Ok(None);
     };
-    let scanned = scan_references(&section.text, None);
-    let spans: Vec<(u32, u32)> = scanned.iter().map(|r| (r.start, r.end)).collect();
-    let refs: Vec<String> = scanned.iter().map(|r| r.reference.to_string()).collect();
-    let paragraphs = prose_paragraphs(&section.text, &spans);
     let heading = section
         .heading
         .clone()
         .unwrap_or_else(|| section.name.clone());
     let measure_units = (measure_ems * measure.units_per_em() as f64) as i64;
-    let lines = layout_prose(
-        None,
-        (!heading.is_empty()).then_some(heading.as_str()),
-        &paragraphs,
-        0,
-        measure,
-        None,
-        ProseSetting {
-            justify: true,
-            line_width: measure_units,
-        },
-    );
+    let setting = ProseSetting {
+        justify: true,
+        line_width: measure_units,
+    };
+    let (content, image_sizes) = with_library(|library| {
+        Ok((
+            library.book_section_content(&module_code, ordinal)?,
+            library.image_sizes(&module_code)?,
+        ))
+    })?;
+    let (lines, refs) = match content {
+        // Imported documents (ADR 0029) set from their block trees.
+        Some(content) => {
+            let refs =
+                gramma_core::typeset::blocks::reference_targets(&content.blocks, &content.notes);
+            let mut blocks = content.blocks.clone();
+            if !heading.is_empty() {
+                blocks.insert(
+                    0,
+                    gramma_core::document::Block::Heading {
+                        level: 1,
+                        inlines: vec![gramma_core::document::Inline::text(heading.clone())],
+                    },
+                );
+            }
+            let german = with_library(|library| {
+                Ok(library
+                    .modules()?
+                    .iter()
+                    .any(|m| m.code == module_code && m.language.starts_with("de")))
+            })?;
+            let hyphenator = german.then(|| {
+                GERMAN.get_or_init(|| {
+                    Standard::from_embedded(Language::German1996).expect("embedded patterns")
+                })
+            });
+            let lines = gramma_core::typeset::blocks::layout_blocks(
+                None,
+                &blocks,
+                &content.notes,
+                &image_sizes,
+                0,
+                measure,
+                hyphenator,
+                setting,
+            );
+            (lines, refs)
+        }
+        None => {
+            let scanned = scan_references(&section.text, None);
+            let spans: Vec<(u32, u32)> = scanned.iter().map(|r| (r.start, r.end)).collect();
+            let refs: Vec<String> = scanned.iter().map(|r| r.reference.to_string()).collect();
+            let paragraphs = prose_paragraphs(&section.text, &spans);
+            let lines = layout_prose(
+                None,
+                (!heading.is_empty()).then_some(heading.as_str()),
+                &paragraphs,
+                0,
+                measure,
+                None,
+                setting,
+            );
+            (lines, refs)
+        }
+    };
     let plain_text = format!("{heading}. {}", section.text.replace("\n\n", " "));
     Ok(Some(BookLayoutView {
         ordinal: section.ordinal,

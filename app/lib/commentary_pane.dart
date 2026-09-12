@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'footnotes_pane.dart' show visibleChapterIndexes;
 import 'l10n.dart';
+import 'module_images.dart';
 import 'passage_preview.dart';
 import 'run_hit.dart';
 import 'reader_pane.dart';
@@ -80,6 +81,12 @@ class _CommentaryPaneState extends State<CommentaryPane> {
   /// typeface, text size, and pane measure all shape the layout.
   final Map<String, List<CommentLayoutView>> _layouts = {};
   final Set<String> _pending = {};
+  late final ModuleImages _images = ModuleImages()..addListener(_repaint);
+
+  void _repaint() {
+    if (mounted) setState(() {});
+  }
+
   String _signature = '';
 
   List<ChapterRefView> _spineFor(String module) {
@@ -107,23 +114,31 @@ class _CommentaryPaneState extends State<CommentaryPane> {
     if (_layouts.containsKey(key) || _pending.contains(key)) return;
     _pending.add(key);
     layoutComments(
-      moduleCode: module,
-      bookOsis: book,
-      chapter: chapter,
-      measureEms: ems,
-    ).then((layouts) {
-      if (!mounted) return;
-      setState(() {
-        _pending.remove(key);
-        _layouts[key] = layouts;
-      });
-    }).catchError((_) {
-      if (!mounted) return;
-      setState(() {
-        _pending.remove(key);
-        _layouts[key] = const [];
-      });
-    });
+          moduleCode: module,
+          bookOsis: book,
+          chapter: chapter,
+          measureEms: ems,
+        )
+        .then((layouts) {
+          if (!mounted) return;
+          setState(() {
+            _pending.remove(key);
+            _layouts[key] = layouts;
+          });
+          _images.ensure(
+            module,
+            layouts
+                .expand((l) => l.lines.map((line) => line.image))
+                .whereType<int>(),
+          );
+        })
+        .catchError((_) {
+          if (!mounted) return;
+          setState(() {
+            _pending.remove(key);
+            _layouts[key] = const [];
+          });
+        });
   }
 
   @override
@@ -172,8 +187,11 @@ class _CommentaryPaneState extends State<CommentaryPane> {
       return _hint(theme, context.l10n.linkCommentaryHint);
     }
     final spine = _spineFor(sourceModule);
-    final indexes =
-        visibleChapterIndexes(spine, anchor, widget.followedAnchorEnd);
+    final indexes = visibleChapterIndexes(
+      spine,
+      anchor,
+      widget.followedAnchorEnd,
+    );
     if (indexes.isEmpty) return const SizedBox.shrink();
     final settings = SettingsScope.of(context);
     return LayoutBuilder(
@@ -184,8 +202,9 @@ class _CommentaryPaneState extends State<CommentaryPane> {
         // commentary set the same face at the same size and leading;
         // the commentary scale multiplies from that parity point. Only
         // the measure stays free: it reflows with the pane (ADR 0018).
-        final effWidth =
-            width < settings.columnWidth ? width : settings.columnWidth;
+        final effWidth = width < settings.columnWidth
+            ? width
+            : settings.columnWidth;
         final fontSize =
             effWidth / settings.measureEms * settings.commentaryScale;
         if (width <= 0 || fontSize <= 0) return const SizedBox.shrink();
@@ -228,27 +247,34 @@ class _CommentaryPaneState extends State<CommentaryPane> {
             return true;
           }).toList();
           if (multiChapter && visible.isNotEmpty) {
-            items.add(Padding(
-              padding: const EdgeInsets.only(top: 10, bottom: 4),
-              child: Text(chapter.heading, style: theme.textTheme.titleSmall),
-            ));
+            items.add(
+              Padding(
+                padding: const EdgeInsets.only(top: 10, bottom: 4),
+                child: Text(chapter.heading, style: theme.textTheme.titleSmall),
+              ),
+            );
           }
           for (final entry in visible) {
-            items.add(Padding(
-              key: Key('comment-$key.${entry.verseStart}'),
-              padding: const EdgeInsets.only(top: 6, bottom: 10),
-              child: TypesetProse(
-                layout: ProseLayout.ofComment(entry),
-                fontSize: fontSize,
-                lineHeightEm: settings.lineSpacing,
-                onLinkTap: _openPreview,
-                onPlainTap: widget.onToggleMode,
-                onWordLongPress: (run) {
-                  final word = lookupWord(run);
-                  if (word != null) widget.onWordLookup?.call(word);
-                },
+            items.add(
+              Padding(
+                key: Key('comment-$key.${entry.verseStart}'),
+                padding: const EdgeInsets.only(top: 6, bottom: 10),
+                child: TypesetProse(
+                  layout: ProseLayout.ofComment(
+                    entry,
+                    images: _images.of(module),
+                  ),
+                  fontSize: fontSize,
+                  lineHeightEm: settings.lineSpacing,
+                  onLinkTap: _openPreview,
+                  onPlainTap: widget.onToggleMode,
+                  onWordLongPress: (run) {
+                    final word = lookupWord(run);
+                    if (word != null) widget.onWordLookup?.call(word);
+                  },
+                ),
               ),
-            ));
+            );
           }
         }
         if (items.isEmpty) {
@@ -259,10 +285,7 @@ class _CommentaryPaneState extends State<CommentaryPane> {
             key: const Key('no-commentary'),
           );
         }
-        return ListView(
-          key: const Key('commentary-list'),
-          children: items,
-        );
+        return ListView(key: const Key('commentary-list'), children: items);
       },
     );
   }

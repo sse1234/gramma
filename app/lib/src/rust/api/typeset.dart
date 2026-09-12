@@ -48,6 +48,15 @@ Future<List<CommentLayoutView>> layoutComments({
   measureEms: measureEms,
 );
 
+/// An imported document's image by index (ADR 0029), for figure lines.
+Future<ImageView?> moduleImage({
+  required String moduleCode,
+  required int index,
+}) => RustLib.instance.api.crateApiTypesetModuleImage(
+  moduleCode: moduleCode,
+  index: index,
+);
+
 /// Typeset one dictionary entry at `measure_ems` ems of its text size.
 /// Async: shaping and breaking run on a worker thread.
 Future<DictLayoutView?> layoutDictEntry({
@@ -329,20 +338,55 @@ class DictLayoutView {
           plainText == other.plainText;
 }
 
+class ImageView {
+  final String mediaType;
+  final Uint8List data;
+  final int width;
+  final int height;
+
+  const ImageView({
+    required this.mediaType,
+    required this.data,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  int get hashCode =>
+      mediaType.hashCode ^ data.hashCode ^ width.hashCode ^ height.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ImageView &&
+          runtimeType == other.runtimeType &&
+          mediaType == other.mediaType &&
+          data == other.data &&
+          width == other.width &&
+          height == other.height;
+}
+
 class LineView {
   final List<RunView> runs;
 
-  const LineView({required this.runs});
+  /// A figure starting on this line and spanning `image_lines` lines:
+  /// the module's image index (ADR 0029).
+  final int? image;
+  final int imageLines;
+
+  const LineView({required this.runs, this.image, required this.imageLines});
 
   @override
-  int get hashCode => runs.hashCode;
+  int get hashCode => runs.hashCode ^ image.hashCode ^ imageLines.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is LineView &&
           runtimeType == other.runtimeType &&
-          runs == other.runs;
+          runs == other.runs &&
+          image == other.image &&
+          imageLines == other.imageLines;
 }
 
 class RunView {
@@ -368,6 +412,13 @@ class RunView {
   /// tapping the run opens that reference. None for plain text.
   final int? link;
 
+  /// Character style bits (ADR 0029): 1 italic, 2 bold, 4 small caps,
+  /// 8 superscript, 16 monospace.
+  final int style;
+
+  /// Size relative to the text size; widths are already scaled.
+  final double scale;
+
   /// Byte offset of the run within its verse's text (ADR 0023);
   /// zero for non-word runs and prose layouts.
   final int offset;
@@ -381,6 +432,8 @@ class RunView {
     required this.headingLevel,
     required this.verse,
     this.link,
+    required this.style,
+    required this.scale,
     required this.offset,
   });
 
@@ -394,6 +447,8 @@ class RunView {
       headingLevel.hashCode ^
       verse.hashCode ^
       link.hashCode ^
+      style.hashCode ^
+      scale.hashCode ^
       offset.hashCode;
 
   @override
@@ -409,5 +464,7 @@ class RunView {
           headingLevel == other.headingLevel &&
           verse == other.verse &&
           link == other.link &&
+          style == other.style &&
+          scale == other.scale &&
           offset == other.offset;
 }

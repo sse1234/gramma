@@ -15,6 +15,7 @@
 //! saturating), then permissive last resorts allowing overfull lines, so
 //! well-formed paragraphs always break.
 
+pub mod blocks;
 pub mod layout;
 pub mod paragraph;
 pub mod shape;

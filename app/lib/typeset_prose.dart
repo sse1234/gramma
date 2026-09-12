@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
 import 'run_hit.dart';
@@ -15,27 +17,31 @@ class ProseLayout {
     required this.measureUnits,
     required this.numberScale,
     required this.plainText,
+    this.images = const {},
   });
 
-  ProseLayout.ofComment(CommentLayoutView c)
-      : this(
-          lines: c.lines,
-          refs: c.refs,
-          unitsPerEm: c.unitsPerEm,
-          measureUnits: c.measureUnits,
-          numberScale: c.numberScale,
-          plainText: c.plainText,
-        );
+  ProseLayout.ofComment(
+    CommentLayoutView c, {
+    Map<int, ui.Image> images = const {},
+  }) : this(
+         lines: c.lines,
+         refs: c.refs,
+         unitsPerEm: c.unitsPerEm,
+         measureUnits: c.measureUnits,
+         numberScale: c.numberScale,
+         plainText: c.plainText,
+         images: images,
+       );
 
   ProseLayout.ofDict(DictLayoutView d)
-      : this(
-          lines: d.lines,
-          refs: d.refs,
-          unitsPerEm: d.unitsPerEm,
-          measureUnits: d.measureUnits,
-          numberScale: d.numberScale,
-          plainText: d.plainText,
-        );
+    : this(
+        lines: d.lines,
+        refs: d.refs,
+        unitsPerEm: d.unitsPerEm,
+        measureUnits: d.measureUnits,
+        numberScale: d.numberScale,
+        plainText: d.plainText,
+      );
 
   final List<LineView> lines;
 
@@ -45,7 +51,20 @@ class ProseLayout {
   final int measureUnits;
   final double numberScale;
   final String plainText;
+
+  /// Decoded figures by the module's image index (ADR 0029); a figure
+  /// line whose image is missing here paints as a blank slot.
+  final Map<int, ui.Image> images;
+
+  /// Image indices the lines refer to.
+  Iterable<int> get imageIndices => lines.map((l) => l.image).whereType<int>();
 }
+
+/// Character style bits carried by runs (ADR 0029).
+const styleItalic = 1;
+const styleBold = 2;
+const styleSmallCaps = 4;
+const styleSuperscript = 8;
 
 /// Paints one typeset prose entry: the same Knuth–Plass lines and
 /// painting path as the Bible text, at the pane's own measure. Runs
@@ -110,7 +129,11 @@ class TypesetProse extends StatelessWidget {
             }
           }
           final run = runAtOffset(
-              layout.lines, scale, lineHeight, details.localPosition);
+            layout.lines,
+            scale,
+            lineHeight,
+            details.localPosition,
+          );
           final link = run?.link;
           if (link != null && link < layout.refs.length && onLinkTap != null) {
             onLinkTap!(layout.refs[link]);
@@ -122,7 +145,11 @@ class TypesetProse extends StatelessWidget {
             ? null
             : (details) {
                 final run = runAtOffset(
-                    layout.lines, scale, lineHeight, details.localPosition);
+                  layout.lines,
+                  scale,
+                  lineHeight,
+                  details.localPosition,
+                );
                 if (run != null) onWordLongPress!(run);
               },
         child: CustomPaint(
@@ -185,23 +212,88 @@ class _ProsePainter extends CustomPainter {
     );
     for (var i = 0; i < layout.lines.length; i++) {
       final y = i * lineHeight;
-      for (final run in layout.lines[i].runs) {
-        final style = run.verseNumber
+      final line = layout.lines[i];
+      final imageIndex = line.image;
+      if (imageIndex != null) {
+        _paintFigure(canvas, imageIndex, y, line.imageLines * lineHeight);
+        continue;
+      }
+      for (final run in line.runs) {
+        var style = run.verseNumber
             ? labelStyle
             : run.link != null
-                ? linkStyle
-                : textStyle;
-        paintRun(canvas, run.text, style, Offset(run.x * scale, y),
-            extraWeightEm: run.headingLevel > 0
-                ? weightEm + headingStrokeEm
-                : weightEm);
+            ? linkStyle
+            : textStyle;
+        // Styled runs (ADR 0029): the engine measured them at `scale`
+        // and, for small caps, in capitals; italics render as a slant
+        // of the same face so widths hold.
+        if (run.scale != 1.0 && !run.verseNumber) {
+          style = style.copyWith(fontSize: fontSize * run.scale);
+        }
+        if (run.style & styleItalic != 0) {
+          style = style.copyWith(fontStyle: FontStyle.italic);
+        }
+        final bold = run.style & styleBold != 0;
+        final raised = run.style & styleSuperscript != 0 || run.noteMarker;
+        final dy = raised ? -fontSize * 0.35 : 0.0;
+        paintRun(
+          canvas,
+          run.text,
+          style,
+          Offset(run.x * scale, y + dy),
+          extraWeightEm: run.headingLevel > 0 || bold
+              ? weightEm + headingStrokeEm
+              : weightEm,
+        );
       }
     }
+  }
+
+  /// A figure fills its reserved lines, letterboxed to keep its aspect.
+  void _paintFigure(Canvas canvas, int index, double top, double height) {
+    final image = layout.images[index];
+    final width = layout.measureUnits * scale;
+    if (image == null) {
+      final paint = Paint()
+        ..color = textColor.withValues(alpha: 0.06)
+        ..style = PaintingStyle.fill;
+      canvas.drawRect(
+        Rect.fromLTWH(0, top, width, height - lineHeight * 0.3),
+        paint,
+      );
+      return;
+    }
+    final aspect = image.width / image.height;
+    var drawWidth = width;
+    var drawHeight = width / aspect;
+    if (drawHeight > height) {
+      drawHeight = height;
+      drawWidth = height * aspect;
+    }
+    final dst = Rect.fromLTWH(
+      (width - drawWidth) / 2,
+      top,
+      drawWidth,
+      drawHeight,
+    );
+    final src = Rect.fromLTWH(
+      0,
+      0,
+      image.width.toDouble(),
+      image.height.toDouble(),
+    );
+    canvas.drawImageRect(
+      image,
+      src,
+      dst,
+      Paint()..filterQuality = FilterQuality.medium,
+    );
   }
 
   @override
   bool shouldRepaint(_ProsePainter old) {
     return old.layout != layout ||
+        old.layout.images != layout.images ||
         old.scale != scale ||
         old.textColor != textColor ||
         old.accentColor != accentColor ||

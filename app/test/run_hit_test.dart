@@ -4,6 +4,8 @@ import 'package:gramma/src/rust/api/typeset.dart';
 
 RunView _run(double x, double width, {bool marker = false, String? text}) =>
     RunView(
+      style: 0,
+      scale: 1.0,
       text: text ?? (marker ? 'a' : 'wort'),
       x: x,
       width: width,
@@ -15,20 +17,25 @@ RunView _run(double x, double width, {bool marker = false, String? text}) =>
     );
 
 void main() {
-  final line = LineView(runs: [
-    _run(0, 100),
-    _run(110, 12, marker: true),
-    _run(140, 100),
-  ]);
+  final line = LineView(
+    imageLines: 0,
+    runs: [_run(0, 100), _run(110, 12, marker: true), _run(140, 100)],
+  );
 
   test('words resolve by their exact box only (ADR 0019)', () {
     expect(runInLine(line, 1.0, 50)!.text, 'wort');
-    expect(runInLine(line, 1.0, 105), isNull,
-        reason: 'the gap between word and marker hits nothing');
+    expect(
+      runInLine(line, 1.0, 105),
+      isNull,
+      reason: 'the gap between word and marker hits nothing',
+    );
     expect(runInLine(line, 1.0, 130), isNull);
     expect(runInLine(line, 1.0, 300), isNull, reason: 'past the line end');
-    expect(runInLine(line, 1.0, 115)!.noteMarker, isTrue,
-        reason: 'a dead-center tap still hits the marker box');
+    expect(
+      runInLine(line, 1.0, 115)!.noteMarker,
+      isTrue,
+      reason: 'a dead-center tap still hits the marker box',
+    );
   });
 
   test('scale maps logical pixels to font units', () {
@@ -38,13 +45,17 @@ void main() {
 
   test('exact stacking picks the right line', () {
     final lines = [
-      LineView(runs: [_run(0, 100)]),
+      LineView(imageLines: 0, runs: [_run(0, 100)]),
       line,
     ];
-    expect(runAtOffset(lines, 1.0, 20, const Offset(115, 30))!.noteMarker,
-        isTrue);
-    expect(runAtOffset(lines, 1.0, 20, const Offset(50, 10))!.noteMarker,
-        isFalse);
+    expect(
+      runAtOffset(lines, 1.0, 20, const Offset(115, 30))!.noteMarker,
+      isTrue,
+    );
+    expect(
+      runAtOffset(lines, 1.0, 20, const Offset(50, 10))!.noteMarker,
+      isFalse,
+    );
     expect(runAtOffset(lines, 1.0, 20, const Offset(115, 10)), isNull);
     expect(runAtOffset(lines, 1.0, 20, const Offset(115, 99)), isNull);
     expect(runAtOffset(lines, 1.0, 20, const Offset(1, -5)), isNull);
@@ -65,11 +76,10 @@ void main() {
   });
 
   test('the halo reaches across neighboring lines; nearest marker wins', () {
-    final upper = LineView(runs: [_run(50, 12, marker: true)]);
+    final upper = LineView(imageLines: 0, runs: [_run(50, 12, marker: true)]);
     final stack = [(line: upper, top: 0.0), (line: line, top: 20.0)];
     // Between the lines, nearer the lower marker.
-    expect(
-        markerNear(stack, 1.0, 10, const Offset(110, 18))!.x, 110);
+    expect(markerNear(stack, 1.0, 10, const Offset(110, 18))!.x, 110);
     // Same spot but horizontally at the upper marker.
     expect(markerNear(stack, 1.0, 10, const Offset(52, 14))!.x, 50);
   });

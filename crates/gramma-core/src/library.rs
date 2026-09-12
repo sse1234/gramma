@@ -761,18 +761,21 @@ impl Library {
                            (module_id, book, chapter, verse_start, seq, ref_start, ref_end, osis)
                          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                     )?;
-                    // Two entries may share a start verse (a section intro
-                    // and its first quoted verse): merge the later into the
-                    // earlier so neither is lost.
+                    // Entries may share a start verse — a section intro and
+                    // its first quoted verse, or one verse treated in several
+                    // sections (exposition, notes, homiletics): they merge
+                    // into the first, in reading order, so nothing is lost.
                     let mut merged: Vec<(crate::sword::CommentaryEntry, interpret::EntryContent)> =
                         Vec::new();
                     for (entry, content) in commentary.entries.into_iter().zip(commentary.contents)
                     {
-                        if let Some((prev, prev_content)) = merged.last_mut()
-                            && prev.book == entry.book
-                            && prev.chapter == entry.chapter
-                            && prev.verse_start == entry.verse_start
-                        {
+                        let same = merged.iter().position(|(prev, _)| {
+                            prev.book == entry.book
+                                && prev.chapter == entry.chapter
+                                && prev.verse_start == entry.verse_start
+                        });
+                        if let Some(pos) = same {
+                            let (prev, prev_content) = &mut merged[pos];
                             let offset = prev.text.len() as u32 + 2;
                             prev.text.push_str("\n\n");
                             prev.text.push_str(&entry.text);
@@ -927,6 +930,28 @@ impl Library {
             Some(json) => Some(serde_json::from_str(&json)?),
             None => None,
         })
+    }
+
+    /// Pixel sizes of an imported document's images, by index (gaps for
+    /// images that were not stored).
+    pub fn image_sizes(&self, module_code: &str) -> Result<Vec<(u32, u32)>, LibraryError> {
+        let module_id = self.module_id(module_code)?;
+        let mut stmt = self.conn.prepare(
+            "SELECT idx, width, height FROM doc_image WHERE module_id = ?1 ORDER BY idx",
+        )?;
+        let rows: Vec<(u32, u32, u32)> = stmt
+            .query_map([module_id], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut out = Vec::new();
+        for (idx, w, h) in rows {
+            while out.len() < idx as usize {
+                out.push((0, 0));
+            }
+            out.push((w, h));
+        }
+        Ok(out)
     }
 
     /// An image of an imported document, by its index in the document.

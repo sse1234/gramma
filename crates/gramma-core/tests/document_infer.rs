@@ -320,3 +320,55 @@ fn two_column_pages_read_column_by_column() {
         "columns are not a table"
     );
 }
+
+#[test]
+fn soft_hyphens_and_inline_enumerations() {
+    // A line-final soft hyphen joins; a mid-line one vanishes without a
+    // space; "3)" at a line start inside a running paragraph is prose.
+    let lines = [
+        (
+            0.0,
+            "V. 3. Der fruchtbare Baum: 1) Wo er wächst; 2) wie er dahin gekommen ist;",
+        ),
+        (
+            0.0,
+            "3) was er hervorbringt; 4) wie wir ihm gleich werden können, Hilfs\u{ad}",
+        ),
+        (0.0, "mittel und Hin\u{ad}dernisse."),
+    ];
+    let pages = vec![page(1, &lines)];
+    let doc = document_from_pages(&pages, &InferOptions::default());
+    let text = paragraphs(&doc);
+    assert_eq!(
+        text,
+        vec![
+            "V. 3. Der fruchtbare Baum: 1) Wo er wächst; 2) wie er dahin gekommen ist; 3) was er hervorbringt; 4) wie wir ihm gleich werden können, Hilfsmittel und Hindernisse."
+                .to_string()
+        ],
+        "{:#?}",
+        doc.blocks
+    );
+}
+
+#[test]
+fn ordered_lists_restart_at_one() {
+    let pages = vec![page(
+        1,
+        &[
+            (0.0, "1. Erster Punkt."),
+            (0.0, "2. Zweiter Punkt."),
+            (0.0, "1. Eine neue Aufzählung beginnt hier."),
+            (0.0, "2. Und geht weiter."),
+        ],
+    )];
+    let doc = document_from_pages(&pages, &InferOptions::default());
+    let lists: Vec<usize> = doc
+        .blocks
+        .iter()
+        .filter_map(|b| match b {
+            Block::List { items, .. } => Some(items.len()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(lists, vec![2, 2], "{:#?}", doc.blocks);
+}

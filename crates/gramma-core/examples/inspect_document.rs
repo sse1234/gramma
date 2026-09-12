@@ -19,9 +19,14 @@ fn main() {
     let mut show = 40usize;
     let mut from = 0usize;
     let mut import: Option<(String, String, Option<String>)> = None;
+    let mut entries_chapter: Option<u16> = None;
     let mut i = 2;
     while i < args.len() {
         match args[i].as_str() {
+            "--entries" => {
+                entries_chapter = Some(args[i + 1].parse().unwrap());
+                i += 2;
+            }
             "--import" => {
                 let kind = args.get(i + 3).filter(|k| !k.starts_with("--")).cloned();
                 import = Some((args[i + 1].clone(), args[i + 2].clone(), kind.clone()));
@@ -129,6 +134,23 @@ fn main() {
     }
     let detection = detect(&doc);
     println!("detected: {detection:?}");
+    if let Some(chapter) = entries_chapter {
+        match gramma_core::document::interpret::to_commentary(&doc, None) {
+            Ok(c) => {
+                for e in c.entries.iter().filter(|e| e.chapter == chapter) {
+                    println!(
+                        "  entry {}:{}-{} heading={:?} {}",
+                        e.chapter,
+                        e.verse_start,
+                        e.verse_end,
+                        e.heading.as_deref().map(|h| trunc(h, 24)),
+                        trunc(&e.text, 60)
+                    );
+                }
+            }
+            Err(e) => println!("to_commentary failed: {e}"),
+        }
+    }
     if let Some((db, code, kind)) = import {
         let kind = match kind.as_deref() {
             Some("bible") => DocumentKind::Bible,
@@ -147,8 +169,36 @@ fn main() {
         }
     }
     println!("--- blocks {from}..{}", from + show);
+    let show_inlines = std::env::var("INLINES").is_ok();
     for (i, b) in doc.blocks.iter().enumerate().skip(from).take(show) {
         println!("{i:5} {}", describe(b));
+        if show_inlines {
+            let inlines: Option<&Vec<Inline>> = match b {
+                Block::Paragraph { inlines, .. } | Block::Heading { inlines, .. } => Some(inlines),
+                Block::List { items, .. } => {
+                    items
+                        .first()
+                        .and_then(|it| it.first())
+                        .and_then(|b| match b {
+                            Block::Paragraph { inlines, .. } => Some(inlines),
+                            _ => None,
+                        })
+                }
+                _ => None,
+            };
+            if let Some(inlines) = inlines {
+                for inline in inlines.iter().take(4) {
+                    println!(
+                        "         {:?}",
+                        match inline {
+                            Inline::Text { text, style } =>
+                                format!("{:?} {:?}", trunc(text, 40), style),
+                            other => format!("{other:?}"),
+                        }
+                    );
+                }
+            }
+        }
     }
     if !doc.notes.is_empty() {
         println!("--- first notes");

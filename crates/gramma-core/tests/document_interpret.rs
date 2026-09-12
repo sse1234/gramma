@@ -43,6 +43,14 @@ fn bible() -> Document {
                 "1 Im Anfang schuf Gott die Himmel und die Erde.",
             )]),
             h(3, "Der erste Tag"),
+            p(vec![Inline::styled(
+                "Der Anfang",
+                Style {
+                    italic: true,
+                    ..Style::PLAIN
+                },
+            )]),
+            p(vec![Inline::text("Ps 104,2; Jes 45,7; 2Kor 4,6")]),
             p(vec![
                 Inline::VerseNumber(2),
                 Inline::text("Die Erde aber war "),
@@ -159,7 +167,16 @@ fn a_bible_is_detected_and_converted() {
         .collect();
     assert_eq!(
         headings,
-        vec![(1, 1, "Die Urzeit"), (1, 2, "Der erste Tag")]
+        vec![
+            (1, 1, "Die Urzeit"),
+            (1, 2, "Der erste Tag"),
+            (1, 2, "Der Anfang"),
+            (1, 2, "Ps 104,2; Jes 45,7; 2Kor 4,6")
+        ]
+    );
+    assert_eq!(
+        osis.headings.iter().map(|h| h.level).collect::<Vec<_>>(),
+        vec![1, 1, 1, 2]
     );
 
     // The marked note anchors at its word; the located one at its verse's end.
@@ -350,4 +367,76 @@ fn publisher_book_headings_resolve() {
         None
     );
     assert_eq!(book_in_heading("Der siebte Tag"), None);
+}
+
+#[test]
+fn verse_numbered_lists_anchor_commentary_entries() {
+    let long = "x".repeat(150);
+    let doc = Document {
+        title: "Die Schatzkammer".into(),
+        blocks: vec![
+            h(3, "Psalm"),
+            h(1, "1"),
+            p(vec![Inline::text("INHALT: Der Psalm ist das Vorwort.")]),
+            h(5, "AUSLEGUNG"),
+            Block::List {
+                ordered: true,
+                items: vec![
+                    vec![p(vec![Inline::text(format!(
+                        "1. Wohl dem, der nicht wandelt. {long}"
+                    ))])],
+                    vec![p(vec![Inline::text(format!(
+                        "2. Sondern hat Lust zum Gesetz. {long}"
+                    ))])],
+                ],
+            },
+            Block::Paragraph {
+                style: ParagraphStyle::Body,
+                inlines: vec![
+                    Inline::styled(
+                        "3.",
+                        Style {
+                            bold: true,
+                            ..Style::PLAIN
+                        },
+                    ),
+                    Inline::text(" Also nicht ein wilder Baum ist er."),
+                ],
+            },
+            h(5, "HOMILETISCHE HINWEISE"),
+            p(vec![Inline::text("V. 1. Zwei Wege.")]),
+            Block::List {
+                ordered: true,
+                items: vec![
+                    vec![p(vec![Inline::text("kurz")])],
+                    vec![p(vec![Inline::text("auch kurz")])],
+                ],
+            },
+        ],
+        ..Document::default()
+    };
+    let commentary = to_commentary(&doc, book_by_osis("Ps")).unwrap();
+    let anchors: Vec<(u16, u16, Option<&str>)> = commentary
+        .entries
+        .iter()
+        .map(|e| (e.chapter, e.verse_start, e.heading.as_deref()))
+        .collect();
+    assert_eq!(
+        anchors,
+        vec![
+            (1, 0, Some("Psalm 1")),
+            (1, 1, Some("AUSLEGUNG")),
+            (1, 2, None),
+            (1, 3, None),
+            (1, 1, Some("HOMILETISCHE HINWEISE")),
+        ],
+        "a heading without a body of its own titles the entry that follows: {anchors:?}"
+    );
+    // The short enumeration stays a list inside the verse-1 entry.
+    assert!(
+        commentary.contents[4]
+            .blocks
+            .iter()
+            .any(|b| matches!(b, Block::List { .. }))
+    );
 }

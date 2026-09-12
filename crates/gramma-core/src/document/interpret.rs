@@ -465,6 +465,20 @@ pub fn to_bible(doc: &Document, code: &str) -> Result<OsisDocument, InterpretErr
     let mut book: Option<BookId> = None;
     let mut chapter: u16 = 0;
     let mut verse: u16 = 0;
+    // Section headings rank below the book title's level: the next level
+    // down is a section (1), anything deeper a subsection (2).
+    let book_level: u8 = doc
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(i, b)| match b {
+            Block::Heading { level, .. } => {
+                let text = joined_heading_text(&doc.blocks, i).unwrap_or_default();
+                matches!(heading_meaning(&text, None), HeadingMeaning::Book(_)).then_some(*level)
+            }
+            _ => None,
+        })
+        .unwrap_or(1);
     let mut pending_headings: Vec<(u8, String)> = Vec::new();
     let mut note_seq: HashMap<(BookId, u16, u16), u16> = HashMap::new();
     // Unreferenced notes with a "(c,v)" locator, bound after the text.
@@ -487,8 +501,19 @@ pub fn to_bible(doc: &Document, code: &str) -> Result<OsisDocument, InterpretErr
                     continue;
                 }
                 if matches!(heading_meaning(&text, book), HeadingMeaning::Title) && chapter > 0 {
-                    pending_headings.push(((*level).clamp(1, 2), text));
+                    let relative = level.saturating_sub(book_level).clamp(1, 2);
+                    pending_headings.push((relative, text));
                 }
+            }
+            Block::Paragraph { inlines, .. }
+                if chapter > 0
+                    && !inlines.iter().any(|i| matches!(i, Inline::VerseNumber(_)))
+                    && let Some((level, text)) = heading_like(inlines) =>
+            {
+                // A section title set apart (short, italic or bold) or a
+                // line of parallel passages: headings before the next
+                // verse, never verse text.
+                pending_headings.push((level, text));
             }
             Block::Paragraph { inlines, .. } if chapter > 0 => {
                 // Split at verse numbers; text before the first number
@@ -633,6 +658,36 @@ pub fn to_bible(doc: &Document, code: &str) -> Result<OsisDocument, InterpretErr
         return Err(InterpretError::NoVerses);
     }
     Ok(out)
+}
+
+/// A paragraph without verse numbers that reads as a heading: short and
+/// wholly italic or bold (a section title, level 1), or made of
+/// scripture references only (a parallel-passage line, level 2).
+fn heading_like(inlines: &[Inline]) -> Option<(u8, String)> {
+    let text = collapse(&plain_text(inlines));
+    if text.is_empty() || text.chars().count() > 120 {
+        return None;
+    }
+    let styled = inlines.iter().all(|i| match i {
+        Inline::Text { text, style } => {
+            text.trim().is_empty() || style.italic || style.bold || style.small_caps
+        }
+        Inline::LineBreak => true,
+        _ => false,
+    });
+    if styled && !text.ends_with('.') {
+        return Some((1, text));
+    }
+    let refs = scan_references_in(&text, ReferenceContext::default());
+    if refs.is_empty() {
+        return None;
+    }
+    let covered: usize = refs.iter().map(|r| (r.end - r.start) as usize).sum();
+    let letters = text
+        .chars()
+        .filter(|c| !c.is_whitespace() && *c != ';' && *c != ',')
+        .count();
+    (covered * 10 >= text.len() * 8 && letters > 0).then_some((2, text))
 }
 
 /// Length of `verse_text` plus the not-yet-appended `pending` text, as
@@ -830,12 +885,42 @@ pub fn to_commentary(
                     &mut note_index,
                 ));
             }
+            Block::List {
+                ordered: true,
+                items,
+            } if chapter > 0 && verse_numbered_list(items) => {
+                for (k, item) in items.iter().enumerate() {
+                    // The item's own number when its text keeps it
+                    // ("2. Und nun …"), else its position.
+                    let n = item
+                        .first()
+                        .and_then(|b| match b {
+                            Block::Paragraph { inlines, .. } => {
+                                leading_number_dot(&plain_text(inlines))
+                            }
+                            _ => None,
+                        })
+                        .unwrap_or(k as u16 + 1);
+                    close_entry!();
+                    verse_start = n;
+                    verse_end = n;
+                    open = true;
+                    for b in item {
+                        blocks.push(relocate_notes(b.clone(), doc, &mut notes, &mut note_index));
+                    }
+                }
+            }
             Block::Paragraph { inlines, .. }
-                if chapter > 0 && verse_lead(&plain_text(inlines)).is_some() =>
+                if chapter > 0
+                    && (verse_lead(&plain_text(inlines)).is_some()
+                        || bold_number_lead(inlines).is_some()) =>
             {
-                // "V. 6. …": verse-by-verse notes open an entry per verse,
-                // the way a quoted verse does.
-                let n = verse_lead(&plain_text(inlines)).expect("checked");
+                // "V. 6. …" or a bold "6." opening the paragraph:
+                // verse-by-verse exposition opens an entry per verse, the
+                // way a quoted verse does.
+                let n = verse_lead(&plain_text(inlines))
+                    .or_else(|| bold_number_lead(inlines))
+                    .expect("checked");
                 close_entry!();
                 verse_start = n;
                 verse_end = n;
@@ -870,6 +955,65 @@ pub fn to_commentary(
         entries,
         contents,
     })
+}
+
+/// An ordered list standing for verses: items of some length (a quoted
+/// verse with its exposition), not a short enumeration.
+fn verse_numbered_list(items: &[Vec<Block>]) -> bool {
+    if items.is_empty() {
+        return false;
+    }
+    // Items keeping their own numbers ("2. Und nun …") are verses the
+    // way expositions number them; unnumbered items count only when
+    // they are long expositions, so a quoted psalm stays a list.
+    let numbered = items.iter().all(|item| {
+        matches!(item.first(), Some(Block::Paragraph { inlines, .. }) if leading_number_dot(&plain_text(inlines)).is_some())
+    });
+    if numbered {
+        return true;
+    }
+    let chars: usize = items
+        .iter()
+        .flat_map(|item| item.iter())
+        .map(|b| match b {
+            Block::Paragraph { inlines, .. } => plain_text(inlines).chars().count(),
+            _ => 0,
+        })
+        .sum();
+    chars / items.len() >= 200
+}
+
+/// "2. Und nun" → 2: a number with its dot opening the text.
+fn leading_number_dot(text: &str) -> Option<u16> {
+    let t = text.trim_start();
+    let digits = t.chars().take_while(|c| c.is_ascii_digit()).count();
+    if digits == 0 || digits > 3 || !t[digits..].starts_with('.') {
+        return None;
+    }
+    t[..digits].parse().ok()
+}
+
+/// A paragraph opening with a bold verse number ("**1.** Wohl dem …"),
+/// the way expositions number their verses; the number must be small
+/// enough to be a verse and the bold run must be just the number.
+fn bold_number_lead(inlines: &[Inline]) -> Option<u16> {
+    let Some(Inline::Text { text, style }) = inlines.first() else {
+        return None;
+    };
+    if !style.bold {
+        return None;
+    }
+    let t = text.trim();
+    let digits = t.chars().take_while(|c| c.is_ascii_digit()).count();
+    if digits == 0 || digits > 3 {
+        return None;
+    }
+    let rest = t[digits..].trim_end_matches('.').trim();
+    if !rest.is_empty() {
+        return None;
+    }
+    let n: u16 = t[..digits].parse().ok()?;
+    (n > 0 && n <= 176).then_some(n)
 }
 
 /// "V. 6.", "V.6", "Vers 6" opening a paragraph: the verse it treats.

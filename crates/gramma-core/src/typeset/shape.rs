@@ -64,6 +64,10 @@ impl TextMeasure for FontMeasure<'_> {
         (self.space_width, self.space_width / 2, self.space_width / 3)
     }
 
+    fn em(&self) -> Scaled {
+        self.units_per_em() as Scaled
+    }
+
     fn hyphen_width(&self) -> Scaled {
         self.hyphen_width
     }

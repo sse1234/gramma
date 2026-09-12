@@ -20,7 +20,7 @@ use super::{INFINITE_PENALTY, Item, Params, Scaled, break_lines, finish_paragrap
 pub const VERSE_NUMBER_SCALE_PERCENT: i64 = 65;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RunKind {
+pub(super) enum RunKind {
     Word,
     VerseNumber,
     NoteMarker,
@@ -49,21 +49,49 @@ pub struct RunOut {
     /// normalized text (ADR 0023: word-precise annotation anchors).
     /// Zero for non-word runs and prose layouts.
     pub offset: u32,
+    /// Character style bits (ADR 0029): see `STYLE_ITALIC` and friends.
+    pub style: u8,
+    /// Size relative to the text size the measure was shaped at; widths
+    /// are already scaled.
+    pub scale: f64,
 }
+
+pub const STYLE_ITALIC: u8 = 1;
+pub const STYLE_BOLD: u8 = 2;
+pub const STYLE_SMALL_CAPS: u8 = 4;
+pub const STYLE_SUPERSCRIPT: u8 = 8;
+pub const STYLE_MONOSPACE: u8 = 16;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LineOut {
     pub runs: Vec<RunOut>,
+    /// A figure occupying this and the following `image_lines - 1`
+    /// lines: index into the entry's images (ADR 0029).
+    pub image: Option<u32>,
+    pub image_lines: u16,
+}
+
+impl LineOut {
+    pub fn text(runs: Vec<RunOut>) -> LineOut {
+        LineOut {
+            runs,
+            image: None,
+            image_lines: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
-struct BoxMeta {
-    text: String,
-    kind: RunKind,
-    verse: u16,
-    heading_level: u8,
-    link: Option<u32>,
-    offset: u32,
+pub(super) struct BoxMeta {
+    pub(super) text: String,
+    pub(super) kind: RunKind,
+    pub(super) verse: u16,
+    pub(super) heading_level: u8,
+    pub(super) link: Option<u32>,
+    pub(super) offset: u32,
+    pub(super) style: u8,
+    /// Percent of the shaped size the box is set at.
+    pub(super) scale_percent: i64,
 }
 
 /// Lay out verses as justified paragraphs at `line_width` font units,
@@ -99,7 +127,7 @@ pub fn layout_verses(
             );
             segment.clear();
             if !lines.is_empty() {
-                lines.push(LineOut { runs: Vec::new() });
+                lines.push(LineOut::text(Vec::new()));
             }
             for &&(verse, level, text) in &verse_headings {
                 lines.extend(layout_heading(
@@ -159,7 +187,7 @@ pub fn marker_label(index: usize) -> String {
 
 /// A heading as its own small paragraph: justified breaking would look odd,
 /// and a single line comes out ragged naturally (the paragraph-final glue).
-fn layout_heading(
+pub(super) fn layout_heading(
     label: Option<&str>,
     text: &str,
     level: u8,
@@ -200,6 +228,8 @@ fn layout_heading(
             heading_level: level,
             link: None,
             offset: 0,
+            style: 0,
+            scale_percent: 100,
         }));
     }
     finish_paragraph(&mut items);
@@ -272,6 +302,8 @@ fn layout_paragraph(
                 heading_level: 0,
                 link: None,
                 offset: 0,
+                style: 0,
+                scale_percent: VERSE_NUMBER_SCALE_PERCENT,
             }),
         );
         // Never break between a verse number and its first word: an infinite
@@ -315,6 +347,8 @@ fn layout_paragraph(
                         heading_level: 0,
                         link: None,
                         offset: (word_start + fragment_start) as u32,
+                        style: 0,
+                        scale_percent: 100,
                     }),
                 );
                 if offset < word.len() {
@@ -397,6 +431,8 @@ fn push_marker(
         heading_level: 0,
         link: None,
         offset: 0,
+        style: 0,
+        scale_percent: VERSE_NUMBER_SCALE_PERCENT,
     }));
 }
 
@@ -407,7 +443,7 @@ fn words_with_offsets(text: &str) -> impl Iterator<Item = (&str, usize)> {
 
 /// Assemble a line's runs (merging word fragments not broken apart) and
 /// distribute slack over its glue.
-fn set_line(
+pub(super) fn set_line(
     items: &[Item],
     meta: &[Option<BoxMeta>],
     measure: &impl TextMeasure,
@@ -424,6 +460,8 @@ fn set_line(
             heading_level: u8,
             link: Option<u32>,
             offset: u32,
+            style: u8,
+            scale_percent: i64,
         },
         Space {
             stretch: Scaled,
@@ -438,8 +476,18 @@ fn set_line(
                 let m = meta[i].as_ref().expect("box has meta");
                 match pieces.last_mut() {
                     Some(Piece::Run {
-                        text, kind, link, ..
-                    }) if *kind == RunKind::Word && m.kind == RunKind::Word && *link == m.link => {
+                        text,
+                        kind,
+                        link,
+                        style,
+                        scale_percent,
+                        ..
+                    }) if *kind == RunKind::Word
+                        && m.kind == RunKind::Word
+                        && *link == m.link
+                        && *style == m.style
+                        && *scale_percent == m.scale_percent =>
+                    {
                         text.push_str(&m.text);
                     }
                     _ => pieces.push(Piece::Run {
@@ -449,6 +497,8 @@ fn set_line(
                         heading_level: m.heading_level,
                         link: m.link,
                         offset: m.offset,
+                        style: m.style,
+                        scale_percent: m.scale_percent,
                     }),
                 }
             }
@@ -480,14 +530,11 @@ fn set_line(
     let widths: Vec<f64> = pieces
         .iter()
         .map(|p| match p {
-            Piece::Run { text, kind, .. } => {
-                let w = measure.text_width(text);
-                if *kind == RunKind::Word || *kind == RunKind::Heading {
-                    w as f64
-                } else {
-                    (w * VERSE_NUMBER_SCALE_PERCENT / 100) as f64
-                }
-            }
+            Piece::Run {
+                text,
+                scale_percent,
+                ..
+            } => (measure.text_width(text) * scale_percent / 100) as f64,
             Piece::Space { width, .. } => *width as f64,
         })
         .collect();
@@ -519,6 +566,8 @@ fn set_line(
                 heading_level,
                 link,
                 offset,
+                style,
+                scale_percent,
             } => {
                 runs.push(RunOut {
                     text: text.clone(),
@@ -530,6 +579,8 @@ fn set_line(
                     verse: *verse,
                     link: *link,
                     offset: *offset,
+                    style: *style,
+                    scale: *scale_percent as f64 / 100.0,
                 });
                 x += width;
             }
@@ -549,7 +600,7 @@ fn set_line(
             }
         }
     }
-    LineOut { runs }
+    LineOut::text(runs)
 }
 
 /// A prose paragraph (ADR 0018): text with byte ranges marking tappable
@@ -605,7 +656,7 @@ pub fn layout_prose(
     }
     for (i, paragraph) in paragraphs.iter().enumerate() {
         if i > 0 {
-            lines.push(LineOut { runs: Vec::new() });
+            lines.push(LineOut::text(Vec::new()));
         }
         lines.extend(prose_paragraph(
             label.take(),
@@ -622,7 +673,7 @@ pub fn layout_prose(
 
 /// The label box, set at verse-number scale and bound unbreakably to
 /// whatever follows.
-fn push_label(
+pub(super) fn push_label(
     items: &mut Vec<Item>,
     meta: &mut Vec<Option<BoxMeta>>,
     measure: &impl TextMeasure,
@@ -639,6 +690,8 @@ fn push_label(
         heading_level: 0,
         link: None,
         offset: 0,
+        style: 0,
+        scale_percent: VERSE_NUMBER_SCALE_PERCENT,
     }));
     items.push(Item::Penalty {
         width: 0,
@@ -714,6 +767,8 @@ fn prose_paragraph(
                 heading_level: 0,
                 link: link_at(word_start + fragment_start, word_start + offset),
                 offset: 0,
+                style: 0,
+                scale_percent: 100,
             }));
             if offset < word.len() {
                 items.push(Item::Penalty {

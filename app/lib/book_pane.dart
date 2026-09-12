@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'l10n.dart';
+import 'module_images.dart';
 import 'passage_preview.dart';
 import 'reader_pane.dart';
 import 'run_hit.dart';
@@ -54,8 +55,8 @@ class BookPane extends StatefulWidget {
 }
 
 /// The section ordinal of an anchor like "s:12".
-int? bookAnchorOrdinal(String? anchor) => anchor != null &&
-        anchor.startsWith('s:')
+int? bookAnchorOrdinal(String? anchor) =>
+    anchor != null && anchor.startsWith('s:')
     ? int.tryParse(anchor.substring(2))
     : null;
 
@@ -63,6 +64,11 @@ class _BookPaneState extends State<BookPane> {
   final Map<int, BookLayoutView> _layouts = {};
   final Set<int> _pending = {};
   String _signature = '';
+  late final ModuleImages _images = ModuleImages()..addListener(_repaint);
+
+  void _repaint() {
+    if (mounted) setState(() {});
+  }
 
   void _openPreview(String osis) {
     final module = widget.previewModule;
@@ -80,14 +86,21 @@ class _BookPaneState extends State<BookPane> {
     _pending.add(ordinal);
     layoutBookSection(moduleCode: module, ordinal: ordinal, measureEms: ems)
         .then((layout) {
-      if (!mounted) return;
-      setState(() {
-        _pending.remove(ordinal);
-        if (layout != null) _layouts[ordinal] = layout;
-      });
-    }).catchError((_) {
-      if (mounted) setState(() => _pending.remove(ordinal));
-    });
+          if (!mounted) return;
+          setState(() {
+            _pending.remove(ordinal);
+            if (layout != null) _layouts[ordinal] = layout;
+          });
+          if (layout != null) {
+            _images.ensure(
+              module,
+              layout.lines.map((line) => line.image).whereType<int>(),
+            );
+          }
+        })
+        .catchError((_) {
+          if (mounted) setState(() => _pending.remove(ordinal));
+        });
   }
 
   Future<void> _openToc(String module) async {
@@ -114,7 +127,9 @@ class _BookPaneState extends State<BookPane> {
                 dense: true,
                 selected: row.ordinal == current,
                 contentPadding: EdgeInsets.only(
-                    left: 12.0 + 16.0 * (row.level - 1), right: 12),
+                  left: 12.0 + 16.0 * (row.level - 1),
+                  right: 12,
+                ),
                 title: Text(row.name),
                 onTap: () => Navigator.of(context).pop(row.ordinal),
               );
@@ -174,8 +189,9 @@ class _BookPaneState extends State<BookPane> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final effWidth =
-            width < settings.columnWidth ? width : settings.columnWidth;
+        final effWidth = width < settings.columnWidth
+            ? width
+            : settings.columnWidth;
         final fontSize =
             effWidth / settings.measureEms * settings.commentaryScale;
         if (width <= 0 || fontSize <= 0) return const SizedBox.shrink();
@@ -213,16 +229,14 @@ class _BookPaneState extends State<BookPane> {
                   icon: const Icon(Icons.chevron_left, size: 20),
                   onPressed: section?.prevOrdinal == null
                       ? null
-                      : () =>
-                          widget.onAnchor('s:${section!.prevOrdinal}'),
+                      : () => widget.onAnchor('s:${section!.prevOrdinal}'),
                 ),
                 IconButton(
                   key: const Key('book-next'),
                   icon: const Icon(Icons.chevron_right, size: 20),
                   onPressed: section?.nextOrdinal == null
                       ? null
-                      : () =>
-                          widget.onAnchor('s:${section!.nextOrdinal}'),
+                      : () => widget.onAnchor('s:${section!.nextOrdinal}'),
                 ),
               ],
             ),
@@ -241,6 +255,7 @@ class _BookPaneState extends State<BookPane> {
                             measureUnits: section.measureUnits,
                             numberScale: section.numberScale,
                             plainText: section.plainText,
+                            images: _images.of(module),
                           ),
                           fontSize: fontSize,
                           lineHeightEm: settings.lineSpacing,

@@ -254,17 +254,36 @@ fn build_line(
         inlines: Vec::new(),
     }];
     let mut cursor = group[0].x;
-    for f in group {
+    let last_index = group.len() - 1;
+    for (fi, f) in group.iter().enumerate() {
         let gap = f.x - cursor;
         let cell = cells.last_mut().expect("one cell");
+        let after_soft_hyphen = matches!(cell.inlines.last(), Some(Inline::Text { text, .. }) if text.ends_with('\u{ad}'));
         if gap > options.cell_gap_spaces * space && !cell.inlines.is_empty() {
             cells.push(Cell {
                 left: f.x,
                 inlines: Vec::new(),
             });
-        } else if gap > space * 0.6 && !cell.inlines.is_empty() {
+        } else if gap > space * 0.6 && !cell.inlines.is_empty() && !after_soft_hyphen {
             push_text(&mut cell.inlines, " ", Style::PLAIN);
         }
+        // A soft hyphen inside a line is a hyphenation point the
+        // producer did not use; only a line-final one means a break.
+        let text: String = if fi == last_index {
+            let trimmed = f.text.trim_end();
+            let inner: String = trimmed.trim_end_matches('\u{ad}').replace('\u{ad}', "");
+            if trimmed.ends_with('\u{ad}') {
+                inner + "\u{ad}"
+            } else {
+                inner
+            }
+        } else {
+            f.text.replace('\u{ad}', "")
+        };
+        let f = &Fragment {
+            text,
+            ..(*f).clone()
+        };
         let cell = cells.last_mut().expect("one cell");
         let superscript =
             f.rise > 0.5 || (f.size < size * 0.8 && f.y > group[0].y - group[0].rise + 0.5);
@@ -280,6 +299,14 @@ fn build_line(
     }
     for cell in cells.iter_mut() {
         normalize_whitespace(&mut cell.inlines);
+        // Drop a stray soft hyphen left before an in-line space.
+        for inline in cell.inlines.iter_mut() {
+            if let Inline::Text { text, .. } = inline
+                && text.contains("\u{ad} ")
+            {
+                *text = text.replace("\u{ad} ", "");
+            }
+        }
     }
     cells.retain(|c| !c.inlines.is_empty());
     if cells.is_empty() {
@@ -661,8 +688,35 @@ impl<'a> BlockBuilder<'a> {
 
         let text = line.text();
         let indented = line.left > p.body_left + p.body_size * 0.6;
-        let starts_list = list_marker(&text).is_some();
         let big_gap = gap > p.body_pitch * 1.45;
+        let measure_all = p.body_right - p.body_left;
+        let prev_line_short = self
+            .last
+            .as_ref()
+            .is_some_and(|prev| prev.right < p.body_right - measure_all * 0.25);
+        let prev_colon = self
+            .last
+            .as_ref()
+            .is_some_and(|prev| prev.text().trim_end().ends_with(':'));
+        // Inside a list, a marker back at the items' margin is the next
+        // item even after a full hanging line.
+        let back_at_item_margin = self.list.is_some()
+            && (line.left - self.para_first_left).abs() < 1.0
+            && line.left < self.para_left;
+        // The next number of an open ordered list is an item on its own
+        // evidence.
+        let next_in_list = match (&self.list, list_number(&text)) {
+            (Some((true, items)), Some(n)) => n == items.len() as u32 + 1,
+            _ => false,
+        };
+        let starts_list = list_marker(&text).is_some()
+            && (self.para.is_empty()
+                || big_gap
+                || prev_line_short
+                || indented
+                || prev_colon
+                || back_at_item_margin
+                || next_in_list);
         // A previous line ending well before the measure closed its
         // paragraph (justified setting makes this reliable).
         let measure = p.body_right - p.body_left;
@@ -690,6 +744,10 @@ impl<'a> BlockBuilder<'a> {
             || prev_short
             || dedent;
 
+        if !new_para && self.para_lines >= 1 && line.left > self.para_first_left + 0.5 {
+            // A hanging continuation: remember its margin.
+            self.para_left = line.left;
+        }
         if new_para {
             self.flush_paragraph();
             self.para_style = if line.bold && starts_with_verse_number(&text) {
@@ -738,17 +796,25 @@ impl<'a> BlockBuilder<'a> {
     }
 
     fn list_item_start(&mut self, text: &str) {
-        let ordered = text
-            .trim_start()
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_ascii_digit());
-        match &mut self.list {
-            Some((o, items)) if *o == ordered => items.push(Vec::new()),
-            _ => {
-                self.flush_list();
-                self.list = Some((ordered, vec![Vec::new()]));
+        let t = text.trim_start();
+        let digits = t.chars().take_while(|c| c.is_ascii_digit()).count();
+        let number: Option<u32> = (digits > 0).then(|| t[..digits].parse().ok()).flatten();
+        let ordered = number.is_some();
+        // An ordered list continues only with the next number; "1." after
+        // "1. 2. 3." opens a new list (a restart, or a different kind of
+        // enumeration such as verse-by-verse exposition).
+        let continues = match (&self.list, number) {
+            (Some((true, items)), Some(n)) => n == items.len() as u32 + 1,
+            (Some((false, _)), None) => true,
+            _ => false,
+        };
+        if continues {
+            if let Some((_, items)) = &mut self.list {
+                items.push(Vec::new());
             }
+        } else {
+            self.flush_list();
+            self.list = Some((ordered, vec![Vec::new()]));
         }
     }
 
@@ -1075,6 +1141,16 @@ pub fn list_marker(text: &str) -> Option<usize> {
         return Some(offset + len);
     }
     None
+}
+
+/// The number of an ordered marker at the start of `text`, if any.
+fn list_number(text: &str) -> Option<u32> {
+    let t = text.trim_start();
+    let digits = t.chars().take_while(|c| c.is_ascii_digit()).count();
+    if digits == 0 || digits > 2 || list_marker(text).is_none() {
+        return None;
+    }
+    t[..digits].parse().ok()
 }
 
 fn strip_list_marker(inlines: &mut [Inline]) {

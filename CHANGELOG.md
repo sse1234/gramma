@@ -19,6 +19,9 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
   from layout (headings, paragraphs, lists, tables, footnotes,
   figures); the detected kind is confirmed in an import dialog;
   commentaries anchor to passages with references resolved in context.
+  Imported entries set with their formatting: italics, bold, small
+  caps, superscript note markers, hanging lists, tables, figures,
+  quotations, and footnotes at the entry's end.
 - Arch Linux: a `PKGBUILD` (package `gramma-bin`) is rendered for each
   release and attached to it; `makepkg -si` installs the release
   tarball with desktop integration.

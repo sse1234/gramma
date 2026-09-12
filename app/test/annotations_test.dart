@@ -3,15 +3,17 @@ import 'package:gramma/annotations.dart';
 import 'package:gramma/src/rust/api/typeset.dart';
 
 RunView _run(int verse, int offset, String text) => RunView(
-      text: text,
-      x: 0,
-      width: 10,
-      verseNumber: false,
-      noteMarker: false,
-      headingLevel: 0,
-      verse: verse,
-      offset: offset,
-    );
+  style: 0,
+  scale: 1.0,
+  text: text,
+  x: 0,
+  width: 10,
+  verseNumber: false,
+  noteMarker: false,
+  headingLevel: 0,
+  verse: verse,
+  offset: offset,
+);
 
 void main() {
   final mark = NoteMark(
@@ -30,9 +32,10 @@ void main() {
 
   test('mark encodes and decodes losslessly', () {
     final back = NoteMark.fromJson(
-        '{"v":1,"id":"n1","module":"FixDe","book":"Gen","chapter":1,'
-        '"verseStart":1,"verseEnd":2,"startOffset":10,"endOffset":8,'
-        '"color":3,"text":"Randnotiz","created":"2026-08-28T00:00:00Z"}')!;
+      '{"v":1,"id":"n1","module":"FixDe","book":"Gen","chapter":1,'
+      '"verseStart":1,"verseEnd":2,"startOffset":10,"endOffset":8,'
+      '"color":3,"text":"Randnotiz","created":"2026-08-28T00:00:00Z"}',
+    )!;
     expect(back.osis, 'Gen.1.1-Gen.1.2');
     expect(back.colorIndex, 3);
     expect(NoteMark.fromJson('garbage'), isNull);

@@ -19,6 +19,10 @@ pub trait TextMeasure {
     /// Inter-word space: (width, stretch, shrink).
     fn space(&self) -> (Scaled, Scaled, Scaled);
     fn hyphen_width(&self) -> Scaled;
+    /// One em in `Scaled` units (indents and hanging margins, ADR 0029).
+    fn em(&self) -> Scaled {
+        self.text_width("M").max(1)
+    }
 }
 
 /// Items plus, for every box item, the source-text range it covers.
