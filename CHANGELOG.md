@@ -4,7 +4,7 @@ All notable changes to gramma. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 are the app's `pubspec.yaml` version, tags are `v<version>`.
 
-## [Unreleased]
+## [1.1.0] - 2026-09-12
 
 ### Fixed
 - Linux: the app icon shows in launchers, task bars and window
@@ -25,6 +25,10 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
 - Arch Linux: a `PKGBUILD` (package `gramma-bin`) is rendered for each
   release and attached to it; `makepkg -si` installs the release
   tarball with desktop integration.
+- Book views read as one continuous column of sections; references in
+  a Bible text's headings (parallel passages) preview their passage.
+- Release notes per version for the stores; a closed-loop extraction
+  check (`tool/compare_extraction.py`) for the PDF reader.
 
 ## [1.0.1] - 2026-09-05
 
@@ -55,4 +59,5 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
 
 First release: iOS, iPadOS, macOS (App Store), Android.
 
+[1.1.0]: https://github.com/sse1234/gramma/releases/tag/v1.1.0
 [1.0.1]: https://github.com/sse1234/gramma/releases/tag/v1.0.1
