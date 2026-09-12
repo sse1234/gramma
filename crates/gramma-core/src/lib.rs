@@ -3,6 +3,7 @@
 //! All logic in this crate is UI-independent and deterministic; the Flutter
 //! shell consumes it through a narrow bridge layer.
 
+pub mod document;
 pub mod library;
 pub mod osis;
 pub mod reference;
