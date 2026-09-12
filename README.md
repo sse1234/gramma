@@ -64,7 +64,10 @@ reality, not a footnote), Windows and Linux (x64 and ARM64 each).
   and ARM64, built by the release workflow from the tagged source.
   The Windows build is not code-signed yet, so SmartScreen warns on
   first launch ("More info" → "Run anyway"); on Linux, mark the
-  AppImage executable or unpack the tarball and run `gramma`.
+  AppImage executable or unpack the tarball and run `gramma`. The
+  tarball's `share/` directory holds the desktop entry and icons for
+  manual integration; on Arch Linux, download the release's `PKGBUILD`
+  and run `makepkg -si`.
 
 Sample content to try it with (public-domain Bibles, a reading plan)
 is in the [`samples` release](https://github.com/sse1234/gramma/releases/tag/samples).

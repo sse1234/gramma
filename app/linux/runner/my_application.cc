@@ -135,12 +135,37 @@ static void my_application_class_init(MyApplicationClass* klass) {
 
 static void my_application_init(MyApplication* self) {}
 
+// Gives X11 window managers and task bars an icon for our windows. Wayland
+// compositors ignore this and resolve the icon through the .desktop file
+// instead, so the bundle's share/ directory has to be installed there.
+static void set_default_window_icon() {
+  // Prefer the icon shipped next to the executable, so an unpacked tarball or
+  // an AppImage has an icon without anything installed into the icon theme.
+  g_autofree gchar* exe = g_file_read_link("/proc/self/exe", nullptr);
+  if (exe != nullptr) {
+    g_autofree gchar* dir = g_path_get_dirname(exe);
+    // Tarball: share/ beside the executable. AppImage: usr/bin/../share.
+    const gchar* prefixes[] = {".", ".."};
+    for (const gchar* prefix : prefixes) {
+      g_autofree gchar* icon = g_build_filename(
+          dir, prefix, "share", "icons", "hicolor", "256x256", "apps",
+          APPLICATION_ID ".png", nullptr);
+      if (gtk_window_set_default_icon_from_file(icon, nullptr)) {
+        return;
+      }
+    }
+  }
+  // Otherwise fall back to the icon theme (packaged installs).
+  gtk_window_set_default_icon_name(APPLICATION_ID);
+}
+
 MyApplication* my_application_new() {
   // Set the program name to the application ID, which helps various systems
   // like GTK and desktop environments map this running application to its
   // corresponding .desktop file. This ensures better integration by allowing
   // the application to be recognized beyond its binary name.
   g_set_prgname(APPLICATION_ID);
+  set_default_window_icon();
 
   return MY_APPLICATION(g_object_new(my_application_get_type(),
                                      "application-id", APPLICATION_ID, "flags",

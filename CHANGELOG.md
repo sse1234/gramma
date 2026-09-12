@@ -4,6 +4,20 @@ All notable changes to gramma. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 are the app's `pubspec.yaml` version, tags are `v<version>`.
 
+## [Unreleased]
+
+### Fixed
+- Linux: the app icon shows in launchers, task bars and window
+  switchers. The icon set now ships in the standard sizes (16–512 px)
+  and the tarball and AppImage carry it together with the desktop
+  entry under `share/`; the window icon is also set directly for X11
+  sessions.
+
+### Added
+- Arch Linux: a `PKGBUILD` (package `gramma-bin`) is rendered for each
+  release and attached to it; `makepkg -si` installs the release
+  tarball with desktop integration.
+
 ## [1.0.1] - 2026-09-05
 
 ### Changed

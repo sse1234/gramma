@@ -1,0 +1,58 @@
+# Maintainer: Stephan Schmid-Eilber <mail@sse.io>
+#
+# Template. The release workflow renders it with the version and the
+# checksums of the release tarballs (tool/render-pkgbuild.sh) and attaches
+# the result to the GitHub release as PKGBUILD; that file is what gets
+# published to the AUR as gramma-bin.
+
+pkgname=gramma-bin
+_pkgname=gramma
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc="Multi-platform Bible study application: side-by-side texts, footnotes, dictionaries, notes (binary release)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/sse1234/gramma"
+license=('MIT')
+depends=(
+	'glibc'
+	'libgcc'
+	'libstdc++'
+	'gtk3'
+	'glib2'
+	'cairo'
+	'pango'
+	'gdk-pixbuf2'
+	'harfbuzz'
+	'fontconfig'
+	'at-spi2-core'
+	'libepoxy'
+	'zlib'
+)
+provides=("$_pkgname=$pkgver")
+conflicts=("$_pkgname")
+# The Flutter AOT snapshot and the Rust core ship pre-stripped; leave them alone.
+options=('!strip' '!debug')
+
+source_x86_64=("$url/releases/download/v$pkgver/$_pkgname-$pkgver-linux-x64.tar.gz")
+source_aarch64=("$url/releases/download/v$pkgver/$_pkgname-$pkgver-linux-arm64.tar.gz")
+sha256sums_x86_64=('@SHA256_X64@')
+sha256sums_aarch64=('@SHA256_ARM64@')
+
+package() {
+	cd "$srcdir/$_pkgname-$pkgver"
+
+	# Flutter locates lib/ and data/ relative to the real executable path, so
+	# keep the release layout intact under /opt and symlink the launcher.
+	install -dm755 "$pkgdir/opt/$_pkgname"
+	cp -a gramma lib data "$pkgdir/opt/$_pkgname/"
+	chmod 755 "$pkgdir/opt/$_pkgname/$_pkgname"
+
+	install -dm755 "$pkgdir/usr/bin"
+	ln -s "/opt/$_pkgname/$_pkgname" "$pkgdir/usr/bin/$_pkgname"
+
+	# Desktop entry and icon set, shipped in the tarball under share/.
+	install -dm755 "$pkgdir/usr/share"
+	cp -a share/applications share/icons "$pkgdir/usr/share/"
+
+	install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
