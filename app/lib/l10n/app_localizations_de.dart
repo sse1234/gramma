@@ -529,4 +529,52 @@ class AppLocalizationsDe extends AppLocalizations {
   String dropboxConnectionFailed(String error) {
     return 'Dropbox-Verbindung fehlgeschlagen: $error';
   }
+
+  @override
+  String get importDocumentTitle => 'Dokument importieren';
+
+  @override
+  String get importDocumentKind => 'Importieren als';
+
+  @override
+  String get importKindBible => 'Bibeltext';
+
+  @override
+  String get importKindCommentary => 'Kommentar';
+
+  @override
+  String get importKindBook => 'Buch';
+
+  @override
+  String get importDocumentTitleField => 'Titel';
+
+  @override
+  String get importDocumentCodeField => 'Modulkürzel';
+
+  @override
+  String get importDocumentSubject =>
+      'Buch, das der Kommentar behandelt (OSIS-Kürzel, z. B. Rom)';
+
+  @override
+  String importDocumentEvidence(
+    int blocks,
+    int headings,
+    int chapters,
+    int verses,
+    int references,
+    int notes,
+    int images,
+  ) {
+    return '$blocks Blöcke, $headings Überschriften, $chapters Kapitel, $verses Versnummern, $references Verweise, $notes Anmerkungen, $images Bilder';
+  }
+
+  @override
+  String get importDocumentRights =>
+      'Importiere nur Inhalte, die du nutzen darfst. Das Dokument bleibt auf diesem Gerät.';
+
+  @override
+  String get importDocumentAction => 'Importieren';
+
+  @override
+  String get importInspecting => 'Dokument wird gelesen…';
 }

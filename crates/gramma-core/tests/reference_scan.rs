@@ -107,3 +107,42 @@ fn colon_ranges_scan() {
     let refs: Vec<String> = found.iter().map(|r| r.reference.to_string()).collect();
     assert_eq!(refs, ["Rom.5.8-Rom.5.10", "1Cor.4.21"]);
 }
+
+#[test]
+fn verse_and_chapter_shorthand_resolve_in_context() {
+    use gramma_core::reference::{ReferenceContext, book_by_osis, scan_references_in};
+    let ctx = ReferenceContext {
+        book: book_by_osis("Rom"),
+        chapter: Some(7),
+    };
+    let text = "er nicht tun will (V. 15-16), während er das Gute (V. 19) nicht tut; in Kapitel 2 und Vv. 3–5 wie in Gal 2,17-21 und V. 12f.";
+    let found: Vec<(&str, String)> = scan_references_in(text, ctx)
+        .into_iter()
+        .map(|r| {
+            (
+                &text[r.start as usize..r.end as usize],
+                r.reference.display_concise(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        found,
+        vec![
+            ("V. 15-16", "Rö 7,15-16".to_string()),
+            ("V. 19", "Rö 7,19".to_string()),
+            ("Kapitel 2", "Rö 2".to_string()),
+            ("Vv. 3–5", "Rö 7,3-5".to_string()),
+            ("Gal 2,17-21", "Gal 2,17-21".to_string()),
+            ("V. 12f.", "Rö 7,12".to_string()),
+        ]
+    );
+    // Without a chapter, verse shorthand is left alone.
+    let none = scan_references_in(
+        "siehe V. 15",
+        ReferenceContext {
+            book: book_by_osis("Rom"),
+            chapter: None,
+        },
+    );
+    assert!(none.is_empty());
+}

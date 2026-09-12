@@ -991,6 +991,86 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Dropbox connection failed: {error}'**
   String dropboxConnectionFailed(String error);
+
+  /// No description provided for @importDocumentTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Import document'**
+  String get importDocumentTitle;
+
+  /// No description provided for @importDocumentKind.
+  ///
+  /// In en, this message translates to:
+  /// **'Import as'**
+  String get importDocumentKind;
+
+  /// No description provided for @importKindBible.
+  ///
+  /// In en, this message translates to:
+  /// **'Bible text'**
+  String get importKindBible;
+
+  /// No description provided for @importKindCommentary.
+  ///
+  /// In en, this message translates to:
+  /// **'Commentary'**
+  String get importKindCommentary;
+
+  /// No description provided for @importKindBook.
+  ///
+  /// In en, this message translates to:
+  /// **'Book'**
+  String get importKindBook;
+
+  /// No description provided for @importDocumentTitleField.
+  ///
+  /// In en, this message translates to:
+  /// **'Title'**
+  String get importDocumentTitleField;
+
+  /// No description provided for @importDocumentCodeField.
+  ///
+  /// In en, this message translates to:
+  /// **'Module code'**
+  String get importDocumentCodeField;
+
+  /// No description provided for @importDocumentSubject.
+  ///
+  /// In en, this message translates to:
+  /// **'Book the commentary treats (OSIS id, e.g. Rom)'**
+  String get importDocumentSubject;
+
+  /// No description provided for @importDocumentEvidence.
+  ///
+  /// In en, this message translates to:
+  /// **'{blocks} blocks, {headings} headings, {chapters} chapters, {verses} verse numbers, {references} references, {notes} notes, {images} images'**
+  String importDocumentEvidence(
+    int blocks,
+    int headings,
+    int chapters,
+    int verses,
+    int references,
+    int notes,
+    int images,
+  );
+
+  /// No description provided for @importDocumentRights.
+  ///
+  /// In en, this message translates to:
+  /// **'Import only content you have the right to use. The document stays on this device.'**
+  String get importDocumentRights;
+
+  /// No description provided for @importDocumentAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Import'**
+  String get importDocumentAction;
+
+  /// No description provided for @importInspecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading the document…'**
+  String get importInspecting;
 }
 
 class _AppLocalizationsDelegate

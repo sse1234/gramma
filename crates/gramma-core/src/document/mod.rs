@@ -5,6 +5,7 @@
 
 pub mod epub;
 pub mod infer;
+pub mod interpret;
 pub mod pdf;
 
 use serde::{Deserialize, Serialize};
@@ -224,6 +225,32 @@ pub fn normalize_whitespace(inlines: &mut Vec<Inline>) {
         text.truncate(trimmed);
     }
     inlines.retain(|i| !matches!(i, Inline::Text { text, .. } if text.is_empty()));
+}
+
+/// A readable title from a file name when the document states none:
+/// "256386_kommentar-zum-roemerbrief_download.pdf" → "Kommentar zum
+/// roemerbrief" (shop numbers and download suffixes dropped, separators
+/// spaced, first letter raised).
+pub fn title_from_filename(name: &str) -> String {
+    let stem = name.rsplit('/').next().unwrap_or(name);
+    let stem = stem.rsplit_once('.').map(|(s, _)| s).unwrap_or(stem);
+    let mut words: Vec<String> = stem
+        .split(['_', '-', ' '])
+        .filter(|w| !w.is_empty() && !w.chars().all(|c| c.is_ascii_digit()))
+        .map(|w| w.to_string())
+        .collect();
+    words.retain(|w| {
+        !matches!(
+            w.to_ascii_lowercase().as_str(),
+            "download" | "ebook" | "pdf" | "epub" | "final"
+        )
+    });
+    let mut title = words.join(" ");
+    if let Some(first) = title.chars().next() {
+        let upper: String = first.to_uppercase().collect();
+        title.replace_range(..first.len_utf8(), &upper);
+    }
+    title
 }
 
 /// Errors shared by the document readers.

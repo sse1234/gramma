@@ -14,6 +14,11 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
   sessions.
 
 ### Added
+- PDF and EPUB import (ADR 0029): Bible texts, commentaries, and
+  general books read through one document model; structure inferred
+  from layout (headings, paragraphs, lists, tables, footnotes,
+  figures); the detected kind is confirmed in an import dialog;
+  commentaries anchor to passages with references resolved in context.
 - Arch Linux: a `PKGBUILD` (package `gramma-bin`) is rendered for each
   release and attached to it; `makepkg -si` installs the release
   tarball with desktop integration.

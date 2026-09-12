@@ -169,5 +169,18 @@
   "connecting": "Connecting…",
   "connect": "Connect",
   "dropboxConnectionFailed": "Dropbox connection failed: {error}",
-  "@dropboxConnectionFailed": {"placeholders": {"error": {"type": "String"}}}
+  "@dropboxConnectionFailed": {"placeholders": {"error": {"type": "String"}}},
+  "importDocumentTitle": "Import document",
+  "importDocumentKind": "Import as",
+  "importKindBible": "Bible text",
+  "importKindCommentary": "Commentary",
+  "importKindBook": "Book",
+  "importDocumentTitleField": "Title",
+  "importDocumentCodeField": "Module code",
+  "importDocumentSubject": "Book the commentary treats (OSIS id, e.g. Rom)",
+  "importDocumentEvidence": "{blocks} blocks, {headings} headings, {chapters} chapters, {verses} verse numbers, {references} references, {notes} notes, {images} images",
+  "@importDocumentEvidence": {"placeholders": {"blocks": {"type": "int"}, "headings": {"type": "int"}, "chapters": {"type": "int"}, "verses": {"type": "int"}, "references": {"type": "int"}, "notes": {"type": "int"}, "images": {"type": "int"}}},
+  "importDocumentRights": "Import only content you have the right to use. The document stays on this device.",
+  "importDocumentAction": "Import",
+  "importInspecting": "Reading the document…"
 }

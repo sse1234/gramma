@@ -526,4 +526,52 @@ class AppLocalizationsEn extends AppLocalizations {
   String dropboxConnectionFailed(String error) {
     return 'Dropbox connection failed: $error';
   }
+
+  @override
+  String get importDocumentTitle => 'Import document';
+
+  @override
+  String get importDocumentKind => 'Import as';
+
+  @override
+  String get importKindBible => 'Bible text';
+
+  @override
+  String get importKindCommentary => 'Commentary';
+
+  @override
+  String get importKindBook => 'Book';
+
+  @override
+  String get importDocumentTitleField => 'Title';
+
+  @override
+  String get importDocumentCodeField => 'Module code';
+
+  @override
+  String get importDocumentSubject =>
+      'Book the commentary treats (OSIS id, e.g. Rom)';
+
+  @override
+  String importDocumentEvidence(
+    int blocks,
+    int headings,
+    int chapters,
+    int verses,
+    int references,
+    int notes,
+    int images,
+  ) {
+    return '$blocks blocks, $headings headings, $chapters chapters, $verses verse numbers, $references references, $notes notes, $images images';
+  }
+
+  @override
+  String get importDocumentRights =>
+      'Import only content you have the right to use. The document stays on this device.';
+
+  @override
+  String get importDocumentAction => 'Import';
+
+  @override
+  String get importInspecting => 'Reading the document…';
 }

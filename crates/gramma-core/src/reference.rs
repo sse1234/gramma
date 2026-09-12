@@ -262,6 +262,45 @@ fn parse_chapter_verse(s: &str) -> Option<(u16, Option<u16>, Option<u16>, usize)
     Some((chapter, verse, end, len))
 }
 
+/// "15", "15-16", "15–16", "16 und 17" after a verse prefix; returns
+/// (verse, end verse, bytes consumed including leading spaces).
+fn parse_verse_span(s: &str) -> Option<(u16, Option<u16>, usize)> {
+    let pad = s.len() - s.trim_start().len();
+    let rest = &s[pad..];
+    let digits = rest.chars().take_while(|c| c.is_ascii_digit()).count();
+    if digits == 0 || digits > 3 {
+        return None;
+    }
+    let verse: u16 = rest[..digits].parse().ok()?;
+    if verse == 0 {
+        return None;
+    }
+    let mut len = pad + digits;
+    let after = &rest[digits..];
+    for joiner in ["-", "–", " und ", " u. ", "f.", "ff."] {
+        if let Some(tail) = after.strip_prefix(joiner) {
+            if joiner.starts_with('f') {
+                // "V. 12f." / "12ff.": open-ended, keep the verse alone.
+                len += joiner.len();
+                return Some((verse, None, len));
+            }
+            let d = tail.chars().take_while(|c| c.is_ascii_digit()).count();
+            if d > 0
+                && d <= 3
+                && let Ok(end) = tail[..d].parse::<u16>()
+                && end > verse
+            {
+                len += joiner.len() + d;
+                return Some((verse, Some(end), len));
+            }
+        }
+    }
+    if after.chars().next().is_some_and(|c| c.is_alphanumeric()) {
+        return None;
+    }
+    Some((verse, None, len))
+}
+
 /// Parse a reference at the start of `input`, allowing trailing content.
 /// Returns the reference and the bytes consumed; the match must end at a
 /// word boundary. In prose only `,` and `:` introduce a verse, so sentence
@@ -319,13 +358,34 @@ pub fn parse_reference_prefix(input: &str) -> Option<(Reference, usize)> {
     Some((result, consumed))
 }
 
+/// Where prose stands: the book and chapter that shorthand references
+/// ("V. 15", "Kapitel 2") are relative to (ADR 0029).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ReferenceContext {
+    pub book: Option<BookId>,
+    pub chapter: Option<u16>,
+}
+
 /// Find verse references inside prose (footnotes, commentary text):
 /// full references ("1. Mose 49,25", "Joh 3,16-18"), context references
 /// ("Kap. 7,11" against the context book), and bare chapter,verse pairs
 /// chained from the most recently mentioned book.
 pub fn scan_references(text: &str, context: Option<BookId>) -> Vec<ScannedReference> {
+    scan_references_in(
+        text,
+        ReferenceContext {
+            book: context,
+            chapter: None,
+        },
+    )
+}
+
+/// `scan_references` with a chapter at hand: "V. 15", "Vv. 3-5", "Vers 12",
+/// "Verse 16-17" resolve in the context chapter, "Kapitel 2" and "Kap. 2"
+/// in the context book.
+pub fn scan_references_in(text: &str, context: ReferenceContext) -> Vec<ScannedReference> {
     let mut out = Vec::new();
-    let mut last_book = context;
+    let mut last_book = context.book;
     let mut prev_alnum = false;
     let mut iter = text.char_indices().peekable();
     while let Some((i, ch)) = iter.next() {
@@ -336,13 +396,38 @@ pub fn scan_references(text: &str, context: Option<BookId>) -> Vec<ScannedRefere
         }
         let slice = &text[i..];
         let mut matched_end: Option<(usize, Reference)> = None;
-        if let Some(book) = last_book
-            && (slice.starts_with("Kap.") || slice.starts_with("Kap "))
+        for prefix in ["Kapitel", "Kap.", "Kap ", "chapter", "ch."] {
+            if matched_end.is_none()
+                && let Some(book) = last_book
+                && slice.len() > prefix.len()
+                && slice
+                    .get(..prefix.len())
+                    .is_some_and(|head| head.eq_ignore_ascii_case(prefix))
+            {
+                let after = &slice[prefix.len()..];
+                let pad = prefix.len() + (after.len() - after.trim_start().len());
+                if pad < slice.len()
+                    && let Some((c, v, e, len)) = parse_chapter_verse(&slice[pad..])
+                {
+                    matched_end = Some((i + pad + len, build_ref(book, c, v, e)));
+                }
+            }
+        }
+        // Verse shorthand in the context chapter.
+        if matched_end.is_none()
+            && let (Some(book), Some(chapter)) = (context.book, context.chapter)
         {
-            let after = &slice[4..];
-            let pad = 4 + (after.len() - after.trim_start().len());
-            if let Some((c, v, e, len)) = parse_chapter_verse(&slice[pad..]) {
-                matched_end = Some((i + pad + len, build_ref(book, c, v, e)));
+            for prefix in ["Vv.", "V.", "Verse", "Vers", "vv.", "v."] {
+                if slice.len() > prefix.len()
+                    && slice.starts_with(prefix)
+                    && let Some((verse, end, len)) = parse_verse_span(&slice[prefix.len()..])
+                {
+                    matched_end = Some((
+                        i + prefix.len() + len,
+                        build_ref(book, chapter, Some(verse), end),
+                    ));
+                    break;
+                }
             }
         }
         if matched_end.is_none()
@@ -588,14 +673,26 @@ macro_rules! canon_table {
 static CANON: [BookInfo; 66] = canon_table![
     ("Gen", "Genesis", "1. Mose", "1Mo", ["1mo", "1mos"]),
     ("Exod", "Exodus", "2. Mose", "2Mo", ["2mo", "2mos", "ex"]),
-    ("Lev", "Leviticus", "3. Mose", "3Mo", ["3mo", "3mos"]),
-    ("Num", "Numbers", "4. Mose", "4Mo", ["4mo", "4mos"]),
+    (
+        "Lev",
+        "Leviticus",
+        "3. Mose",
+        "3Mo",
+        ["3mo", "3mos", "levitikus"]
+    ),
+    (
+        "Num",
+        "Numbers",
+        "4. Mose",
+        "4Mo",
+        ["4mo", "4mos", "numeri"]
+    ),
     (
         "Deut",
         "Deuteronomy",
         "5. Mose",
         "5Mo",
-        ["5mo", "5mos", "dtn", "dt"]
+        ["5mo", "5mos", "dtn", "dt", "deuteronomium"]
     ),
     ("Josh", "Joshua", "Josua", "Jos", ["jos"]),
     ("Judg", "Judges", "Richter", "Ri", ["ri"]),
@@ -663,7 +760,13 @@ static CANON: [BookInfo; 66] = canon_table![
     ("Mic", "Micah", "Micha", "Mi", ["mi"]),
     ("Nah", "Nahum", "Nahum", "Nah", ["nam"]),
     ("Hab", "Habakkuk", "Habakuk", "Hab", []),
-    ("Zeph", "Zephaniah", "Zefanja", "Zef", ["zef", "zep"]),
+    (
+        "Zeph",
+        "Zephaniah",
+        "Zefanja",
+        "Zef",
+        ["zef", "zep", "zephanja"]
+    ),
     ("Hag", "Haggai", "Haggai", "Hag", ["hgg"]),
     ("Zech", "Zechariah", "Sacharja", "Sach", ["sach", "zec"]),
     ("Mal", "Malachi", "Maleachi", "Mal", []),

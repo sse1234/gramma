@@ -7,13 +7,39 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `display_key`, `invalidate_search_indexes`, `with_library`
+// These functions are ignored because they are not marked as `pub`: `display_key`, `invalidate_search_indexes`, `read_document`, `with_library`
 
 void openLibrary({required String path}) =>
     RustLib.instance.api.crateApiLibraryOpenLibrary(path: path);
 
 Future<ModuleView> importOsisFile({required String path}) =>
     RustLib.instance.api.crateApiLibraryImportOsisFile(path: path);
+
+/// Read a PDF or EPUB and report what it looks like; the parsed document
+/// is kept for the import that follows.
+Future<DocumentInspectionView> inspectDocumentFile({required String path}) =>
+    RustLib.instance.api.crateApiLibraryInspectDocumentFile(path: path);
+
+/// Import an inspected document as `kind` under module `code` with the
+/// given title; `subject_osis` names a commentary's book.
+Future<ModuleView> importDocumentFile({
+  required String path,
+  required String kind,
+  required String code,
+  required String title,
+  String? subjectOsis,
+}) => RustLib.instance.api.crateApiLibraryImportDocumentFile(
+  path: path,
+  kind: kind,
+  code: code,
+  title: title,
+  subjectOsis: subjectOsis,
+);
+
+/// A module code from a title: letters and digits of its words, at most
+/// 16 characters ("Kommentar zum Römerbrief" → "KommentarZumRoem").
+String moduleCodeFromTitle({required String title}) =>
+    RustLib.instance.api.crateApiLibraryModuleCodeFromTitle(title: title);
 
 /// Import a SWORD package (a CrossWire zip): zCom commentaries
 /// (ADR 0017) and zLD dictionaries (ADR 0019), dispatched by driver.
@@ -303,6 +329,73 @@ class DictHitView {
           displayKey == other.displayKey &&
           headword == other.headword &&
           pron == other.pron;
+}
+
+/// What importing a PDF or EPUB would produce (ADR 0029): the detected
+/// kind and the evidence behind it, so the import dialog can confirm.
+class DocumentInspectionView {
+  final String path;
+
+  /// The document's own title, or one derived from the file name.
+  final String title;
+
+  /// "bible", "commentary", or "book".
+  final String kind;
+
+  /// OSIS id of the book a commentary treats, when detected.
+  final String? subjectBook;
+  final int verseNumbers;
+  final int chapters;
+  final int references;
+  final int headings;
+  final int notes;
+  final int images;
+  final int blocks;
+
+  const DocumentInspectionView({
+    required this.path,
+    required this.title,
+    required this.kind,
+    this.subjectBook,
+    required this.verseNumbers,
+    required this.chapters,
+    required this.references,
+    required this.headings,
+    required this.notes,
+    required this.images,
+    required this.blocks,
+  });
+
+  @override
+  int get hashCode =>
+      path.hashCode ^
+      title.hashCode ^
+      kind.hashCode ^
+      subjectBook.hashCode ^
+      verseNumbers.hashCode ^
+      chapters.hashCode ^
+      references.hashCode ^
+      headings.hashCode ^
+      notes.hashCode ^
+      images.hashCode ^
+      blocks.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DocumentInspectionView &&
+          runtimeType == other.runtimeType &&
+          path == other.path &&
+          title == other.title &&
+          kind == other.kind &&
+          subjectBook == other.subjectBook &&
+          verseNumbers == other.verseNumbers &&
+          chapters == other.chapters &&
+          references == other.references &&
+          headings == other.headings &&
+          notes == other.notes &&
+          images == other.images &&
+          blocks == other.blocks;
 }
 
 class ModuleView {

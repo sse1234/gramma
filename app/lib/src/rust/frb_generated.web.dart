@@ -75,6 +75,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DictLayoutView dco_decode_dict_layout_view(dynamic raw);
 
   @protected
+  DocumentInspectionView dco_decode_document_inspection_view(dynamic raw);
+
+  @protected
   double dco_decode_f_64(dynamic raw);
 
   @protected
@@ -249,6 +252,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DictLayoutView sse_decode_dict_layout_view(SseDeserializer deserializer);
+
+  @protected
+  DocumentInspectionView sse_decode_document_inspection_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   double sse_decode_f_64(SseDeserializer deserializer);
@@ -461,6 +469,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_dict_layout_view(
     DictLayoutView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_document_inspection_view(
+    DocumentInspectionView self,
     SseSerializer serializer,
   );
 

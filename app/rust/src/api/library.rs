@@ -113,6 +113,154 @@ pub fn import_osis_file(path: String) -> anyhow::Result<ModuleView> {
     })
 }
 
+/// What importing a PDF or EPUB would produce (ADR 0029): the detected
+/// kind and the evidence behind it, so the import dialog can confirm.
+pub struct DocumentInspectionView {
+    pub path: String,
+    /// The document's own title, or one derived from the file name.
+    pub title: String,
+    /// "bible", "commentary", or "book".
+    pub kind: String,
+    /// OSIS id of the book a commentary treats, when detected.
+    pub subject_book: Option<String>,
+    pub verse_numbers: u32,
+    pub chapters: u32,
+    pub references: u32,
+    pub headings: u32,
+    pub notes: u32,
+    pub images: u32,
+    pub blocks: u32,
+}
+
+static DOCUMENT_CACHE: Mutex<Option<(String, gramma_core::document::Document)>> = Mutex::new(None);
+
+#[flutter_rust_bridge::frb(ignore)]
+fn read_document(path: &str) -> anyhow::Result<gramma_core::document::Document> {
+    use gramma_core::document::{epub, pdf, title_from_filename};
+    let lower = path.to_ascii_lowercase();
+    let mut doc = if lower.ends_with(".epub") {
+        epub::read(File::open(path).with_context(|| format!("open {path}"))?)?
+    } else {
+        let data = std::fs::read(path).with_context(|| format!("read {path}"))?;
+        pdf::read(data)?
+    };
+    if doc.title.trim().is_empty() {
+        doc.title = title_from_filename(path);
+    }
+    Ok(doc)
+}
+
+/// Read a PDF or EPUB and report what it looks like; the parsed document
+/// is kept for the import that follows.
+pub fn inspect_document_file(path: String) -> anyhow::Result<DocumentInspectionView> {
+    use gramma_core::document::interpret::{detect, DocumentKind};
+    let doc = read_document(&path)?;
+    let detection = detect(&doc);
+    let view = DocumentInspectionView {
+        path: path.clone(),
+        title: doc.title.clone(),
+        kind: match detection.kind {
+            DocumentKind::Bible => "bible",
+            DocumentKind::Commentary => "commentary",
+            DocumentKind::Book => "book",
+        }
+        .to_string(),
+        subject_book: detection.subject_book,
+        verse_numbers: detection.verse_numbers as u32,
+        chapters: detection.chapters as u32,
+        references: detection.references as u32,
+        headings: detection.headings as u32,
+        notes: detection.notes as u32,
+        images: detection.images as u32,
+        blocks: doc.blocks.len() as u32,
+    };
+    *DOCUMENT_CACHE.lock().unwrap() = Some((path, doc));
+    Ok(view)
+}
+
+/// Import an inspected document as `kind` under module `code` with the
+/// given title; `subject_osis` names a commentary's book.
+pub fn import_document_file(
+    path: String,
+    kind: String,
+    code: String,
+    title: String,
+    subject_osis: Option<String>,
+) -> anyhow::Result<ModuleView> {
+    use gramma_core::document::interpret::DocumentKind;
+    let cached = DOCUMENT_CACHE.lock().unwrap().take();
+    let mut doc = match cached {
+        Some((cached_path, doc)) if cached_path == path => doc,
+        _ => read_document(&path)?,
+    };
+    if !title.trim().is_empty() {
+        doc.title = title.trim().to_string();
+    }
+    let kind = match kind.as_str() {
+        "bible" => DocumentKind::Bible,
+        "commentary" => DocumentKind::Commentary,
+        "book" => DocumentKind::Book,
+        other => anyhow::bail!("unknown document kind: {other}"),
+    };
+    let subject = subject_osis
+        .as_deref()
+        .and_then(gramma_core::reference::book_by_osis);
+    let code = if code.trim().is_empty() {
+        module_code_from_title(doc.title.clone())
+    } else {
+        code.trim().to_string()
+    };
+    let mut guard = LIBRARY.lock().unwrap();
+    let library = guard
+        .as_mut()
+        .ok_or_else(|| anyhow!("library not opened"))?;
+    invalidate_search_indexes();
+    let info = library.import_document(&doc, kind, &code, subject)?;
+    Ok(ModuleView {
+        code: info.code,
+        title: info.title,
+        language: info.language,
+        verses: info.verses,
+        notes: info.notes,
+        kind: info.kind,
+        strongs: info.strongs,
+    })
+}
+
+/// A module code from a title: letters and digits of its words, at most
+/// 16 characters ("Kommentar zum Römerbrief" → "KommentarZumRoem").
+#[flutter_rust_bridge::frb(sync)]
+pub fn module_code_from_title(title: String) -> String {
+    let mut out = String::new();
+    for word in title.split(|c: char| !c.is_alphanumeric()) {
+        let mut chars = word.chars();
+        if let Some(first) = chars.next() {
+            out.extend(first.to_uppercase());
+            out.extend(chars.filter(|c| c.is_alphanumeric()));
+        }
+    }
+    let ascii: String = out
+        .chars()
+        .map(|c| match c {
+            'ä' => 'a',
+            'ö' => 'o',
+            'ü' => 'u',
+            'Ä' => 'A',
+            'Ö' => 'O',
+            'Ü' => 'U',
+            'ß' => 's',
+            c => c,
+        })
+        .filter(|c| c.is_ascii_alphanumeric())
+        .take(16)
+        .collect();
+    if ascii.is_empty() {
+        "Document".to_string()
+    } else {
+        ascii
+    }
+}
+
 /// Import a SWORD package (a CrossWire zip): zCom commentaries
 /// (ADR 0017) and zLD dictionaries (ADR 0019), dispatched by driver.
 pub fn import_sword_file(path: String) -> anyhow::Result<ModuleView> {

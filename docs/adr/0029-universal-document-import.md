@@ -4,7 +4,9 @@ Date: 2026-09-12
 
 ## Status
 
-Proposed (prototype under way)
+Accepted — first stage shipped (readers, inference, interpretation,
+storage, import dialog); rich typesetting of lists, tables, figures,
+and inline styles follows as the second stage.
 
 ## Context
 
@@ -90,6 +92,16 @@ sync, ADR 0014), so an imported document never leaves the device by
 itself. The importer states that imports are for content the user has
 the right to use; converting a lawfully obtained file for one's own
 reading is private use, and the tool takes no position beyond that.
+
+## Prototype findings (2026-09-12)
+
+Against the five samples: both Bible EPUBs import complete (31,165 and
+31,176 verses, every chapter, notes bound by marker or locator); the
+Romans commentary yields 388 passage-anchored entries with 272 notes
+and its references resolved; the 1088-page Treasury volume yields 425
+verse-anchored entries after two-column pages are read column-wise;
+the general book keeps 193 sections, its footnotes, 20 figures, and
+its tables. Whole-file reads take 50–370 ms.
 
 ## Consequences
 

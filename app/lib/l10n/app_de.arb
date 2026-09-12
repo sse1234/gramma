@@ -149,5 +149,18 @@
   "accessCode": "Zugriffscode",
   "connecting": "Verbinde…",
   "connect": "Verbinden",
-  "dropboxConnectionFailed": "Dropbox-Verbindung fehlgeschlagen: {error}"
+  "dropboxConnectionFailed": "Dropbox-Verbindung fehlgeschlagen: {error}",
+  "importDocumentTitle": "Dokument importieren",
+  "importDocumentKind": "Importieren als",
+  "importKindBible": "Bibeltext",
+  "importKindCommentary": "Kommentar",
+  "importKindBook": "Buch",
+  "importDocumentTitleField": "Titel",
+  "importDocumentCodeField": "Modulkürzel",
+  "importDocumentSubject": "Buch, das der Kommentar behandelt (OSIS-Kürzel, z. B. Rom)",
+  "importDocumentEvidence": "{blocks} Blöcke, {headings} Überschriften, {chapters} Kapitel, {verses} Versnummern, {references} Verweise, {notes} Anmerkungen, {images} Bilder",
+  "@importDocumentEvidence": {"placeholders": {"blocks": {"type": "int"}, "headings": {"type": "int"}, "chapters": {"type": "int"}, "verses": {"type": "int"}, "references": {"type": "int"}, "notes": {"type": "int"}, "images": {"type": "int"}}},
+  "importDocumentRights": "Importiere nur Inhalte, die du nutzen darfst. Das Dokument bleibt auf diesem Gerät.",
+  "importDocumentAction": "Importieren",
+  "importInspecting": "Dokument wird gelesen…"
 }

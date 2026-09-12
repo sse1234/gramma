@@ -2,22 +2,31 @@
 //! found: counts per block kind, notes, images, and the first blocks.
 //!
 //! Usage: cargo run --example inspect_document -- <file> [--blocks N] [--from I]
+//!        [--import <library.db> <code> [bible|commentary|book]]
 
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
 
+use gramma_core::document::interpret::{DocumentKind, detect};
 use gramma_core::document::{Block, Inline, ParagraphStyle, plain_text};
 use gramma_core::document::{epub, pdf};
+use gramma_core::library::Library;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let path = args.get(1).expect("file path");
     let mut show = 40usize;
     let mut from = 0usize;
+    let mut import: Option<(String, String, Option<String>)> = None;
     let mut i = 2;
     while i < args.len() {
         match args[i].as_str() {
+            "--import" => {
+                let kind = args.get(i + 3).filter(|k| !k.starts_with("--")).cloned();
+                import = Some((args[i + 1].clone(), args[i + 2].clone(), kind.clone()));
+                i += if kind.is_some() { 4 } else { 3 };
+            }
             "--blocks" => {
                 show = args[i + 1].parse().unwrap();
                 i += 2;
@@ -41,6 +50,10 @@ fn main() {
         pdf::read(data).expect("read pdf")
     };
     let elapsed = started.elapsed();
+    let mut doc = doc;
+    if doc.title.trim().is_empty() {
+        doc.title = gramma_core::document::title_from_filename(path);
+    }
     println!(
         "title: {:?}  language: {:?}  authors: {:?}",
         doc.title, doc.language, doc.authors
@@ -113,6 +126,25 @@ fn main() {
     );
     for (k, n) in &kinds {
         println!("  {k:12} {n}");
+    }
+    let detection = detect(&doc);
+    println!("detected: {detection:?}");
+    if let Some((db, code, kind)) = import {
+        let kind = match kind.as_deref() {
+            Some("bible") => DocumentKind::Bible,
+            Some("commentary") => DocumentKind::Commentary,
+            Some("book") => DocumentKind::Book,
+            _ => detection.kind,
+        };
+        let started = std::time::Instant::now();
+        let mut library = Library::open(std::path::Path::new(&db)).expect("open library");
+        match library.import_document(&doc, kind, &code, None) {
+            Ok(info) => println!(
+                "imported as {kind:?}: {info:?} in {:.1?}",
+                started.elapsed()
+            ),
+            Err(e) => println!("import failed: {e}"),
+        }
     }
     println!("--- blocks {from}..{}", from + show);
     for (i, b) in doc.blocks.iter().enumerate().skip(from).take(show) {

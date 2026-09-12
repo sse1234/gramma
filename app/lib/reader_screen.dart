@@ -7,6 +7,7 @@ import 'commentary_pane.dart';
 import 'devotional_pane.dart';
 import 'dictionary_pane.dart';
 import 'desks.dart';
+import 'document_import_dialog.dart';
 import 'l10n.dart';
 import 'footnotes_pane.dart';
 import 'notes_pane.dart';
@@ -522,13 +523,15 @@ class _ReaderScreenState extends State<ReaderScreen>
         // iOS/macOS match on UTIs, the other platforms on extensions.
         // SWORD commentary packages (ADR 0017) arrive as zip files.
         XTypeGroup(
-          label: 'OSIS XML / SWORD / Plan',
-          extensions: ['xml', 'osis', 'zip', 'json'],
+          label: 'OSIS XML / SWORD / Plan / PDF / EPUB',
+          extensions: ['xml', 'osis', 'zip', 'json', 'pdf', 'epub'],
           uniformTypeIdentifiers: [
             'public.xml',
             'public.text',
             'public.zip-archive',
             'public.json',
+            'com.adobe.pdf',
+            'org.idpf.epub-container',
           ],
         ),
       ],
@@ -537,6 +540,13 @@ class _ReaderScreenState extends State<ReaderScreen>
     final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
     try {
+      // PDF and EPUB go through the document model (ADR 0029): read,
+      // confirm what was detected, then import.
+      final lower = file.path.toLowerCase();
+      if (lower.endsWith('.pdf') || lower.endsWith('.epub')) {
+        await _importDocument(file.path);
+        return;
+      }
       // Reading plans arrive as JSON files (ADR 0025).
       if (file.path.toLowerCase().endsWith('.json')) {
         final plan = await importPlanFile(path: file.path);
@@ -578,6 +588,43 @@ class _ReaderScreenState extends State<ReaderScreen>
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(l10n.importFailed('$e'))));
     }
+  }
+
+  Future<void> _importDocument(String path) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(l10n.importInspecting),
+        duration: const Duration(seconds: 30),
+      ),
+    );
+    final inspection = await inspectDocumentFile(path: path);
+    messenger.hideCurrentSnackBar();
+    if (!mounted) return;
+    final choice = await showDocumentImportDialog(context, inspection);
+    if (choice == null) return;
+    final imported = await importDocumentFile(
+      path: path,
+      kind: choice.kind,
+      code: choice.code,
+      title: choice.title,
+      subjectOsis: choice.subject,
+    );
+    if (!mounted) return;
+    setState(() => _modules = modules());
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(switch (imported.kind) {
+          'commentary' => l10n.importedCommentary(
+            imported.title,
+            imported.verses.toInt(),
+          ),
+          'book' => l10n.importedBook(imported.title, imported.verses.toInt()),
+          _ => l10n.importedModule(imported.title, imported.verses.toInt()),
+        }),
+      ),
+    );
   }
 
   List<FollowOption> _followOptionsFor(PaneSpec spec) {

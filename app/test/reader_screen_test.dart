@@ -11,6 +11,7 @@ import 'package:gramma/reader_pane.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gramma/desks.dart';
+import 'package:gramma/document_import_dialog.dart';
 import 'package:gramma/typeset_chapter.dart';
 import 'package:gramma/typeset_column.dart';
 import 'package:gramma/typeset_prose.dart';
@@ -1949,6 +1950,8 @@ void main() {
     );
   });
 
+  _documentImportTests();
+
   testWidgets('reading plans import as JSON and land in the tools menu', (
     tester,
   ) async {
@@ -2215,5 +2218,133 @@ void main() {
         reason: 'no pane may be squeezed off the desk on restore',
       );
     }
+  });
+}
+
+/// A one-page PDF with Helvetica text, built by hand (ADR 0029 fixture).
+String _tinyPdf(String heading, List<String> lines) {
+  final ops = StringBuffer()
+    ..write('BT /F2 14 Tf 1 0 0 1 50 550 Tm ($heading) Tj ET\n')
+    ..write('BT /F1 10 Tf 1 0 0 1 50 520 Tm ');
+  for (var i = 0; i < lines.length; i++) {
+    if (i > 0) ops.write('0 -13 Td ');
+    ops.write('(${lines[i]}) Tj ');
+  }
+  ops.write('ET');
+  final content = ops.toString();
+  final objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 600] /Contents 4 0 R '
+        '/Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>',
+    '<< /Length ${content.length} >>\nstream\n$content\nendstream',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
+  ];
+  final out = StringBuffer('%PDF-1.4\n');
+  final offsets = <int>[];
+  for (var i = 0; i < objects.length; i++) {
+    offsets.add(out.length);
+    out.write('${i + 1} 0 obj\n${objects[i]}\nendobj\n');
+  }
+  final xref = out.length;
+  out.write('xref\n0 ${objects.length + 1}\n0000000000 65535 f \n');
+  for (final off in offsets) {
+    out.write('${off.toString().padLeft(10, '0')} 00000 n \n');
+  }
+  out.write(
+    'trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\n'
+    'startxref\n$xref\n%%EOF\n',
+  );
+  return out.toString();
+}
+
+void _documentImportTests() {
+  testWidgets('a PDF is inspected, confirmed in the dialog, and imported', (
+    tester,
+  ) async {
+    // ADR 0029: the bridge reads the file, the dialog shows the detected
+    // kind with the evidence, the user may change kind and title, and the
+    // import lands in the module list.
+    _freshUserStore();
+    final file = File('${Directory.systemTemp.path}/gramma-test-book.pdf');
+    file.writeAsStringSync(
+      _tinyPdf('Ein Titel', [
+        'Erste Zeile des Absatzes, die bis zum Rand des Satzspiegels reicht',
+        'und in der zweiten Zeile endet.',
+      ]),
+    );
+    addTearDown(() => file.deleteSync());
+    final inspection = await tester.runAsync(
+      () => inspectDocumentFile(path: file.path),
+    );
+    expect(inspection!.kind, 'book');
+    expect(inspection.title, 'Gramma test book');
+    expect(inspection.headings.toInt(), 1);
+
+    DocumentImportChoice? choice;
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              key: const Key('open-import'),
+              onPressed: () async {
+                choice = await showDocumentImportDialog(context, inspection);
+              },
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('open-import')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('import-evidence')), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('import-code')))
+          .controller!
+          .text,
+      'GrammaTestBook',
+      reason: 'the code follows the title',
+    );
+    await tester.enterText(find.byKey(const Key('import-title')), 'Probebuch');
+    await tester.pump();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('import-code')))
+          .controller!
+          .text,
+      'Probebuch',
+    );
+    await tester.tap(find.byKey(const Key('import-kind-book')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('import-confirm')));
+    await tester.pumpAndSettle();
+    expect(choice?.kind, 'book');
+    expect(choice?.title, 'Probebuch');
+
+    final imported = await tester.runAsync(
+      () => importDocumentFile(
+        path: file.path,
+        kind: choice!.kind,
+        code: choice!.code,
+        title: choice!.title,
+        subjectOsis: choice!.subject,
+      ),
+    );
+    expect(
+      (imported!.kind, imported.title, imported.verses.toInt()),
+      ('book', 'Probebuch', 1),
+    );
+    expect(
+      modules().any((m) => m.code == 'Probebuch' && m.kind == 'book'),
+      isTrue,
+    );
+    final toc = bookToc(moduleCode: 'Probebuch');
+    expect(toc.map((s) => s.name), ['Ein Titel']);
   });
 }

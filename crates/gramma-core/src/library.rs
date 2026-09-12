@@ -18,6 +18,12 @@ pub enum LibraryError {
     UnknownModule(String),
     #[error("not a reading plan: {0}")]
     Plan(String),
+    #[error("document import failed: {0}")]
+    Document(#[from] crate::document::DocumentError),
+    #[error("document not usable as this kind: {0}")]
+    Interpret(#[from] crate::document::interpret::InterpretError),
+    #[error("content encoding failed: {0}")]
+    Json(#[from] serde_json::Error),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -175,6 +181,15 @@ CREATE TABLE IF NOT EXISTS comment_ref(
   osis TEXT NOT NULL,
   PRIMARY KEY(module_id, book, chapter, verse_start, seq)
 ) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS doc_image(
+  module_id INTEGER NOT NULL REFERENCES module(id) ON DELETE CASCADE,
+  idx INTEGER NOT NULL,
+  media_type TEXT NOT NULL,
+  data BLOB NOT NULL,
+  width INTEGER NOT NULL,
+  height INTEGER NOT NULL,
+  PRIMARY KEY(module_id, idx)
+) WITHOUT ROWID;
 ";
 
 /// One dictionary entry (ADR 0019).
@@ -254,6 +269,10 @@ impl Library {
             "ALTER TABLE module ADD COLUMN kind TEXT NOT NULL DEFAULT 'bible'",
             [],
         );
+        // ADR 0029: imported documents keep their block trees beside the
+        // plain text the existing views read; older rows stay NULL.
+        let _ = conn.execute("ALTER TABLE comment ADD COLUMN blocks TEXT", []);
+        let _ = conn.execute("ALTER TABLE book_section ADD COLUMN blocks TEXT", []);
         Ok(Library { conn })
     }
 
@@ -264,6 +283,15 @@ impl Library {
         source: impl std::io::BufRead,
     ) -> Result<ModuleInfo, LibraryError> {
         let doc = osis::parse(source)?;
+        self.import_bible_document(&doc)
+    }
+
+    /// Import an already parsed Bible text (OSIS or a converted document,
+    /// ADR 0029), replacing any module with the same code.
+    pub fn import_bible_document(
+        &mut self,
+        doc: &osis::OsisDocument,
+    ) -> Result<ModuleInfo, LibraryError> {
         let tx = self.conn.transaction()?;
         tx.execute("DELETE FROM module WHERE code = ?1", [&doc.code])?;
         tx.execute(
@@ -327,9 +355,9 @@ impl Library {
         tx.commit()?;
         let verses = self.verse_count(module_id)?;
         Ok(ModuleInfo {
-            code: doc.code,
-            title: doc.title,
-            language: doc.language,
+            code: doc.code.clone(),
+            title: doc.title.clone(),
+            language: doc.language.clone(),
             verses,
             notes: doc.notes.len() as u32,
             kind: "bible".to_string(),
@@ -682,6 +710,248 @@ impl Library {
             kind: "book".to_string(),
             strongs: false,
         })
+    }
+
+    /// Import a document read from PDF or EPUB (ADR 0029) as `kind`,
+    /// under module code `code`, replacing any module with that code.
+    /// `subject` names a commentary's book when detection could not.
+    pub fn import_document(
+        &mut self,
+        doc: &crate::document::Document,
+        kind: crate::document::interpret::DocumentKind,
+        code: &str,
+        subject: Option<BookId>,
+    ) -> Result<ModuleInfo, LibraryError> {
+        use crate::document::interpret::{self, DocumentKind};
+        let title = if doc.title.trim().is_empty() {
+            code.to_string()
+        } else {
+            doc.title.clone()
+        };
+        let language = if doc.language.is_empty() {
+            "de".to_string()
+        } else {
+            doc.language.clone()
+        };
+        match kind {
+            DocumentKind::Bible => {
+                let mut osis = interpret::to_bible(doc, code)?;
+                osis.title = title;
+                osis.language = language;
+                self.import_bible_document(&osis)
+            }
+            DocumentKind::Commentary => {
+                let commentary = interpret::to_commentary(doc, subject)?;
+                let tx = self.conn.transaction()?;
+                tx.execute("DELETE FROM module WHERE code = ?1", [code])?;
+                tx.execute(
+                    "INSERT INTO module(code, title, language, kind)
+                     VALUES (?1, ?2, ?3, 'commentary')",
+                    (code, &title, &language),
+                )?;
+                let module_id = tx.last_insert_rowid();
+                {
+                    let mut insert = tx.prepare(
+                        "INSERT OR REPLACE INTO comment
+                           (module_id, book, chapter, verse_start, verse_end, heading, text, blocks)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    )?;
+                    let mut insert_ref = tx.prepare(
+                        "INSERT OR REPLACE INTO comment_ref
+                           (module_id, book, chapter, verse_start, seq, ref_start, ref_end, osis)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    )?;
+                    // Two entries may share a start verse (a section intro
+                    // and its first quoted verse): merge the later into the
+                    // earlier so neither is lost.
+                    let mut merged: Vec<(crate::sword::CommentaryEntry, interpret::EntryContent)> =
+                        Vec::new();
+                    for (entry, content) in commentary.entries.into_iter().zip(commentary.contents)
+                    {
+                        if let Some((prev, prev_content)) = merged.last_mut()
+                            && prev.book == entry.book
+                            && prev.chapter == entry.chapter
+                            && prev.verse_start == entry.verse_start
+                        {
+                            let offset = prev.text.len() as u32 + 2;
+                            prev.text.push_str("\n\n");
+                            prev.text.push_str(&entry.text);
+                            prev.verse_end = prev.verse_end.max(entry.verse_end);
+                            prev.refs.extend(entry.refs.into_iter().map(|r| {
+                                crate::sword::CommentRef {
+                                    start: r.start + offset,
+                                    end: r.end + offset,
+                                    osis: r.osis,
+                                }
+                            }));
+                            let note_base = prev_content.notes.len();
+                            prev_content.blocks.extend(
+                                content
+                                    .blocks
+                                    .into_iter()
+                                    .map(|b| shift_note_refs(b, note_base)),
+                            );
+                            prev_content.notes.extend(content.notes);
+                            continue;
+                        }
+                        merged.push((entry, content));
+                    }
+                    for (e, content) in &merged {
+                        insert.execute((
+                            module_id,
+                            e.book.index() as i64,
+                            e.chapter,
+                            e.verse_start,
+                            e.verse_end,
+                            &e.heading,
+                            &e.text,
+                            serde_json::to_string(content)?,
+                        ))?;
+                        for (seq, r) in e.refs.iter().enumerate() {
+                            insert_ref.execute((
+                                module_id,
+                                e.book.index() as i64,
+                                e.chapter,
+                                e.verse_start,
+                                seq as i64 + 1,
+                                r.start,
+                                r.end,
+                                &r.osis,
+                            ))?;
+                        }
+                    }
+                }
+                insert_images(&tx, module_id, &doc.images)?;
+                tx.commit()?;
+                let entries: u32 = self.conn.query_row(
+                    "SELECT COUNT(*) FROM comment WHERE module_id = ?1",
+                    [module_id],
+                    |row| row.get(0),
+                )?;
+                Ok(ModuleInfo {
+                    code: code.to_string(),
+                    title,
+                    language,
+                    verses: entries,
+                    notes: doc.notes.len() as u32,
+                    kind: "commentary".to_string(),
+                    strongs: false,
+                })
+            }
+            DocumentKind::Book => {
+                let book = interpret::to_book(doc)?;
+                let tx = self.conn.transaction()?;
+                tx.execute("DELETE FROM module WHERE code = ?1", [code])?;
+                tx.execute(
+                    "INSERT INTO module(code, title, language, kind)
+                     VALUES (?1, ?2, ?3, 'book')",
+                    (code, &title, &language),
+                )?;
+                let module_id = tx.last_insert_rowid();
+                {
+                    let mut insert = tx.prepare(
+                        "INSERT OR REPLACE INTO book_section
+                           (module_id, ordinal, level, name, heading, text, blocks)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    )?;
+                    for (section, content) in book.sections.iter().zip(&book.contents) {
+                        insert.execute((
+                            module_id,
+                            section.ordinal,
+                            section.level,
+                            &section.name,
+                            &section.heading,
+                            &section.text,
+                            serde_json::to_string(content)?,
+                        ))?;
+                    }
+                }
+                insert_images(&tx, module_id, &doc.images)?;
+                tx.commit()?;
+                Ok(ModuleInfo {
+                    code: code.to_string(),
+                    title,
+                    language,
+                    verses: book.sections.len() as u32,
+                    notes: doc.notes.len() as u32,
+                    kind: "book".to_string(),
+                    strongs: false,
+                })
+            }
+        }
+    }
+
+    /// The block tree of a commentary entry, when it was imported as a
+    /// document (ADR 0029); None for SWORD commentaries.
+    pub fn comment_content(
+        &self,
+        module_code: &str,
+        book: BookId,
+        chapter: u16,
+        verse_start: u16,
+    ) -> Result<Option<crate::document::interpret::EntryContent>, LibraryError> {
+        let module_id = self.module_id(module_code)?;
+        let json: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT blocks FROM comment
+                 WHERE module_id = ?1 AND book = ?2 AND chapter = ?3 AND verse_start = ?4",
+                (module_id, book.index() as i64, chapter, verse_start),
+                |row| row.get(0),
+            )
+            .optional()?
+            .flatten();
+        Ok(match json {
+            Some(json) => Some(serde_json::from_str(&json)?),
+            None => None,
+        })
+    }
+
+    /// The block tree of a book section imported as a document.
+    pub fn book_section_content(
+        &self,
+        module_code: &str,
+        ordinal: u32,
+    ) -> Result<Option<crate::document::interpret::EntryContent>, LibraryError> {
+        let module_id = self.module_id(module_code)?;
+        let json: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT blocks FROM book_section WHERE module_id = ?1 AND ordinal = ?2",
+                (module_id, ordinal),
+                |row| row.get(0),
+            )
+            .optional()?
+            .flatten();
+        Ok(match json {
+            Some(json) => Some(serde_json::from_str(&json)?),
+            None => None,
+        })
+    }
+
+    /// An image of an imported document, by its index in the document.
+    pub fn image(
+        &self,
+        module_code: &str,
+        index: u32,
+    ) -> Result<Option<crate::document::ImageAsset>, LibraryError> {
+        let module_id = self.module_id(module_code)?;
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT media_type, data, width, height FROM doc_image
+                 WHERE module_id = ?1 AND idx = ?2",
+                (module_id, index),
+                |row| {
+                    Ok(crate::document::ImageAsset {
+                        media_type: row.get(0)?,
+                        data: row.get(1)?,
+                        width: row.get(2)?,
+                        height: row.get(3)?,
+                    })
+                },
+            )
+            .optional()?)
     }
 
     /// The table of contents of a general book, in reading order.
@@ -1181,4 +1451,69 @@ pub struct PlanRecord {
     pub name: String,
     pub source: String,
     pub json: String,
+}
+
+/// Store a document's images (ADR 0029), skipping empty assets.
+fn insert_images(
+    tx: &rusqlite::Transaction,
+    module_id: i64,
+    images: &[crate::document::ImageAsset],
+) -> Result<(), LibraryError> {
+    let mut insert = tx.prepare(
+        "INSERT OR REPLACE INTO doc_image(module_id, idx, media_type, data, width, height)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+    )?;
+    for (idx, image) in images.iter().enumerate() {
+        if image.data.is_empty() {
+            continue;
+        }
+        insert.execute((
+            module_id,
+            idx as i64,
+            &image.media_type,
+            &image.data,
+            image.width,
+            image.height,
+        ))?;
+    }
+    Ok(())
+}
+
+/// Renumber note references in a block by `base` (entries merged).
+fn shift_note_refs(block: crate::document::Block, base: usize) -> crate::document::Block {
+    use crate::document::{Block, Inline};
+    fn shift(inlines: Vec<Inline>, base: usize) -> Vec<Inline> {
+        inlines
+            .into_iter()
+            .map(|i| match i {
+                Inline::NoteRef(n) => Inline::NoteRef(n + base),
+                other => other,
+            })
+            .collect()
+    }
+    match block {
+        Block::Heading { level, inlines } => Block::Heading {
+            level,
+            inlines: shift(inlines, base),
+        },
+        Block::Paragraph { style, inlines } => Block::Paragraph {
+            style,
+            inlines: shift(inlines, base),
+        },
+        Block::List { ordered, items } => Block::List {
+            ordered,
+            items: items
+                .into_iter()
+                .map(|item| item.into_iter().map(|b| shift_note_refs(b, base)).collect())
+                .collect(),
+        },
+        Block::Table { header_rows, rows } => Block::Table {
+            header_rows,
+            rows: rows
+                .into_iter()
+                .map(|row| row.into_iter().map(|c| shift(c, base)).collect())
+                .collect(),
+        },
+        other => other,
+    }
 }
