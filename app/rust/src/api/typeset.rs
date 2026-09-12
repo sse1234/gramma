@@ -84,6 +84,9 @@ pub struct LineView {
 
 pub struct ChapterLayoutView {
     pub lines: Vec<LineView>,
+    /// OSIS targets by `RunView.link` index: references inside verse
+    /// headings (ADR 0029).
+    pub refs: Vec<String>,
     pub units_per_em: u16,
     /// Line width in font units (MEASURE_EMS ems).
     pub measure_units: i64,
@@ -141,7 +144,7 @@ pub fn layout_chapter(
         .map(|h| (h.verse, h.level, h.text.as_str()))
         .collect();
     let measure_units = measure_ems as i64 * measure.units_per_em() as i64;
-    let lines = layout_verses(
+    let mut lines = layout_verses(
         &verse_refs,
         &note_refs,
         &heading_refs,
@@ -149,12 +152,14 @@ pub fn layout_chapter(
         hyphenator,
         measure_units,
     );
+    let refs = gramma_core::typeset::layout::link_heading_references(&mut lines, Some(book));
     let plain_text = verses
         .iter()
         .map(|v| format!("{} {}", v.verse, v.text))
         .collect::<Vec<_>>()
         .join(" ");
     Ok(ChapterLayoutView {
+        refs,
         lines: lines
             .into_iter()
             .map(|l| LineView {

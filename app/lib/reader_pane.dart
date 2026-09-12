@@ -11,6 +11,7 @@ import 'l10n.dart';
 import 'note_popup.dart';
 import 'column_snap_physics.dart';
 import 'pane_badge.dart';
+import 'passage_preview.dart';
 import 'pane_model.dart';
 import 'reference_selector.dart';
 import 'settings.dart';
@@ -684,6 +685,24 @@ class _ReaderPaneState extends State<ReaderPane> {
       return;
     }
     if (chapterIndex >= _spine.length) return;
+    // A reference inside a heading (parallel passages, ADR 0029)
+    // previews its passage.
+    final link = run.link;
+    final layout = _layouts[chapterIndex];
+    final module = widget.spec.module;
+    if (link != null &&
+        layout != null &&
+        link < layout.refs.length &&
+        module != null) {
+      final osis = layout.refs[link];
+      showPassagePreview(
+        context,
+        osis: osis,
+        moduleCode: module,
+        onOpen: () => widget.onJump(osis.split('-').first),
+      );
+      return;
+    }
     final chapter = _spine[chapterIndex];
     final covering = Annotations.forChapter(
       chapter.bookOsis,

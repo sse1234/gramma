@@ -181,13 +181,16 @@ pub fn read_pages(data: Vec<u8>) -> Result<(Vec<PageText>, String), DocumentErro
                                 state.draw(&t.data, &ctm, &mut out.fragments)
                             }
                             TextDrawAdjusted::Spacing(adjust) => {
-                                // Thousandths of text space; a large negative
-                                // adjustment is a gap the producer used as a
-                                // space.
-                                let tx = -adjust / 1000.0 * state.size * state.hscale;
-                                if adjust < -180.0 {
-                                    state.pending_space = true;
-                                }
+                                // Thousandths of text space: kerning and the
+                                // producer's own word gaps alike. Only the
+                                // resulting geometry decides where words
+                                // separate (see `infer::build_line`).
+                                let hscale = if state.hscale == 0.0 {
+                                    1.0
+                                } else {
+                                    state.hscale
+                                };
+                                let tx = -adjust / 1000.0 * state.size * hscale;
                                 state.tm = mul(&[1.0, 0.0, 0.0, 1.0, tx, 0.0], &state.tm);
                             }
                         }
@@ -336,8 +339,20 @@ impl LoadedFont {
                         cp1252(code as u8).to_string()
                     }
                 });
-            out.push_str(&text);
-            advance += self.width_of(code);
+            let width = self.width_of(code);
+            // Producers map both the printed hyphen and the discretionary
+            // (unprinted) hyphen to U+00AD; the advance tells them apart.
+            if text == "\u{ad}" {
+                if width > 0.0 {
+                    out.push('-');
+                }
+            } else if text == " " && width <= 0.0 {
+                // A zero-width space glyph marks a discretionary break
+                // inside a word (InDesign): no space in the text.
+            } else {
+                out.push_str(&text);
+            }
+            advance += width;
             i += len;
         }
         (out, advance)
@@ -345,10 +360,7 @@ impl LoadedFont {
 
     fn width_of(&self, code: u32) -> f32 {
         match &self.widths {
-            Some(w) => {
-                let width = w.get(code as usize);
-                if width > 0.0 { width } else { 500.0 }
-            }
+            Some(w) => w.get(code as usize),
             None => 500.0,
         }
     }
@@ -430,7 +442,6 @@ struct TextState {
     hscale: f32,
     tm: [f32; 6],
     tlm: [f32; 6],
-    pending_space: bool,
 }
 
 impl TextState {
@@ -439,14 +450,10 @@ impl TextState {
         let Some(font) = self.font.clone() else {
             return;
         };
-        let (mut text, advance) = font.decode(data);
+        let (text, advance) = font.decode(data);
         if text.is_empty() {
             return;
         }
-        if self.pending_space && !text.starts_with(' ') {
-            text.insert(0, ' ');
-        }
-        self.pending_space = false;
         let e = mul(&self.tm, ctm);
         let scale = (e[1] * e[1] + e[3] * e[3]).sqrt();
         let size = self.size * scale;
@@ -455,6 +462,11 @@ impl TextState {
             + self.char_space * data.len() as f32
             + self.word_space * spaces)
             * hscale;
+        // Whitespace that takes no room (word spacing cancelling a space
+        // glyph: a discretionary break inside a word) is no fragment.
+        if text.trim().is_empty() && tx.abs() < 0.01 {
+            return;
+        }
         let width = tx * scale;
         out.push(Fragment {
             x: e[4],

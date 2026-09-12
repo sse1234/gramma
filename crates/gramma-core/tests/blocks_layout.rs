@@ -241,3 +241,52 @@ fn lists_tables_figures_and_quotes() {
             .all(|r| r.style & STYLE_BOLD != 0)
     );
 }
+
+#[test]
+fn heading_references_become_links() {
+    use gramma_core::reference::book_by_osis;
+    use gramma_core::typeset::layout::{layout_verses, link_heading_references};
+    let m = measure();
+    let verses = [
+        (1u16, "Im Anfang schuf Gott die Himmel und die Erde."),
+        (2, "Die Erde aber war wüst."),
+    ];
+    let headings = [
+        (1u16, 1u8, "Der erste Tag"),
+        (1, 2, "Ps 104,2; Jes 45,7; 2Kor 4,6"),
+    ];
+    let mut lines = layout_verses(
+        &verses,
+        &[],
+        &headings,
+        &m,
+        None,
+        30 * m.units_per_em() as i64,
+    );
+    let refs = link_heading_references(&mut lines, book_by_osis("Gen"));
+    assert_eq!(refs, vec!["Ps.104.2", "Isa.45.7", "2Cor.4.6"]);
+    let linked: Vec<(String, u32)> = lines
+        .iter()
+        .flat_map(|l| l.runs.iter())
+        .filter_map(|r| r.link.map(|i| (r.text.clone(), i)))
+        .collect();
+    assert_eq!(
+        linked,
+        vec![
+            ("Ps".to_string(), 0),
+            ("104,2;".to_string(), 0),
+            ("Jes".to_string(), 1),
+            ("45,7;".to_string(), 1),
+            ("2Kor".to_string(), 2),
+            ("4,6".to_string(), 2)
+        ]
+    );
+    // The title heading and the verse words carry no link.
+    assert!(
+        lines
+            .iter()
+            .flat_map(|l| l.runs.iter())
+            .filter(|r| r.heading_level == 1)
+            .all(|r| r.link.is_none())
+    );
+}

@@ -58,7 +58,21 @@ pub fn layout_blocks(
         images,
     };
     for (i, block) in blocks.iter().enumerate() {
-        if i > 0 {
+        let poetry_pair = i > 0
+            && matches!(
+                (&blocks[i - 1], block),
+                (
+                    Block::Paragraph {
+                        style: ParagraphStyle::Poetry { .. },
+                        ..
+                    },
+                    Block::Paragraph {
+                        style: ParagraphStyle::Poetry { .. },
+                        ..
+                    }
+                )
+            );
+        if i > 0 && !poetry_pair {
             ctx.blank();
         }
         ctx.block(block, 0, 0);

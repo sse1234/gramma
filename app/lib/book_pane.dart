@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import 'l10n.dart';
 import 'module_images.dart';
@@ -64,6 +65,15 @@ class _BookPaneState extends State<BookPane> {
   final Map<int, BookLayoutView> _layouts = {};
   final Set<int> _pending = {};
   String _signature = '';
+
+  /// Sections in reading order (the table of contents), cached per module.
+  List<BookTocView> _toc = const [];
+  String? _tocModule;
+  final ItemScrollController _scroll = ItemScrollController();
+  final ItemPositionsListener _positions = ItemPositionsListener.create();
+
+  /// The ordinal the list shows first; emitted as the pane's anchor.
+  int? _shownOrdinal;
   late final ModuleImages _images = ModuleImages()..addListener(_repaint);
 
   void _repaint() {
@@ -142,6 +152,70 @@ class _BookPaneState extends State<BookPane> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _positions.itemPositions.addListener(_onPositions);
+  }
+
+  @override
+  void didUpdateWidget(BookPane old) {
+    super.didUpdateWidget(old);
+    // An anchor set from outside (table of contents, the arrows, sync)
+    // scrolls the list there; one the list itself emitted is in view.
+    final target = bookAnchorOrdinal(widget.anchor);
+    if (target != null &&
+        target != _shownOrdinal &&
+        old.anchor != widget.anchor) {
+      _jumpTo(target);
+    }
+  }
+
+  @override
+  void dispose() {
+    _positions.itemPositions.removeListener(_onPositions);
+    _images.dispose();
+    super.dispose();
+  }
+
+  void _onPositions() {
+    final positions = _positions.itemPositions.value;
+    if (positions.isEmpty || _toc.isEmpty) return;
+    // The first visible item is the pane's position.
+    ItemPosition? top;
+    for (final p in positions) {
+      if (p.itemTrailingEdge <= 0) continue;
+      if (top == null || p.index < top.index) top = p;
+    }
+    if (top == null || top.index >= _toc.length) return;
+    final ordinal = _toc[top.index].ordinal;
+    if (ordinal != _shownOrdinal) {
+      _shownOrdinal = ordinal;
+      if (mounted) setState(() {});
+      widget.onAnchor('s:$ordinal');
+    }
+  }
+
+  void _jumpTo(int ordinal) {
+    final index = _toc.indexWhere((t) => t.ordinal == ordinal);
+    if (index < 0) return;
+    _shownOrdinal = ordinal;
+    if (_scroll.isAttached) _scroll.jumpTo(index: index);
+  }
+
+  List<BookTocView> _tocFor(String module) {
+    if (_tocModule != module) {
+      _tocModule = module;
+      _shownOrdinal = null;
+      try {
+        _toc = bookToc(moduleCode: module);
+      } catch (_) {
+        _toc = const [];
+      }
+    }
+    return _toc;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Column(
@@ -184,7 +258,8 @@ class _BookPaneState extends State<BookPane> {
         ),
       );
     }
-    final ordinal = bookAnchorOrdinal(widget.anchor) ?? 1;
+    final toc = _tocFor(module);
+    final ordinal = _shownOrdinal ?? bookAnchorOrdinal(widget.anchor) ?? 1;
     final settings = SettingsScope.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -203,8 +278,13 @@ class _BookPaneState extends State<BookPane> {
           _layouts.clear();
           _pending.clear();
         }
-        _ensureLayout(module, ordinal, width / fontSize);
-        final section = _layouts[ordinal];
+        final ems = width / fontSize;
+        final index = toc.indexWhere((t) => t.ordinal == ordinal);
+        final name =
+            _layouts[ordinal]?.name ?? (index >= 0 ? toc[index].name : '');
+        // The book reads as one continuous column of sections (ADR
+        // 0029): each lays out as it scrolls into view; the first visible
+        // one is the pane's position.
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -218,7 +298,7 @@ class _BookPaneState extends State<BookPane> {
                 ),
                 Expanded(
                   child: Text(
-                    section?.name ?? '',
+                    name,
                     key: const Key('book-section-name'),
                     style: theme.textTheme.titleSmall,
                     overflow: TextOverflow.ellipsis,
@@ -227,48 +307,59 @@ class _BookPaneState extends State<BookPane> {
                 IconButton(
                   key: const Key('book-prev'),
                   icon: const Icon(Icons.chevron_left, size: 20),
-                  onPressed: section?.prevOrdinal == null
+                  onPressed: index <= 0
                       ? null
-                      : () => widget.onAnchor('s:${section!.prevOrdinal}'),
+                      : () => widget.onAnchor('s:${toc[index - 1].ordinal}'),
                 ),
                 IconButton(
                   key: const Key('book-next'),
                   icon: const Icon(Icons.chevron_right, size: 20),
-                  onPressed: section?.nextOrdinal == null
+                  onPressed: index < 0 || index + 1 >= toc.length
                       ? null
-                      : () => widget.onAnchor('s:${section!.nextOrdinal}'),
+                      : () => widget.onAnchor('s:${toc[index + 1].ordinal}'),
                 ),
               ],
             ),
             Expanded(
-              child: section == null
+              child: toc.isEmpty
                   ? const SizedBox.shrink()
-                  : SingleChildScrollView(
-                      key: Key('book-section-${section.ordinal}'),
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 4, bottom: 12),
-                        child: TypesetProse(
-                          layout: ProseLayout(
-                            lines: section.lines,
-                            refs: section.refs,
-                            unitsPerEm: section.unitsPerEm,
-                            measureUnits: section.measureUnits,
-                            numberScale: section.numberScale,
-                            plainText: section.plainText,
-                            images: _images.of(module),
-                          ),
-                          fontSize: fontSize,
-                          lineHeightEm: settings.lineSpacing,
-                          onLinkTap: _openPreview,
-                          onPlainTap: widget.onToggleMode,
-                          onWordLongPress: (run) {
-                            final word = lookupWord(run);
-                            if (word != null) {
-                              widget.onWordLookup?.call(word);
-                            }
-                          },
-                        ),
-                      ),
+                  : ScrollablePositionedList.builder(
+                      itemCount: toc.length,
+                      itemScrollController: _scroll,
+                      itemPositionsListener: _positions,
+                      initialScrollIndex: index < 0 ? 0 : index,
+                      itemBuilder: (context, i) {
+                        final ord = toc[i].ordinal;
+                        _ensureLayout(module, ord, ems);
+                        final section = _layouts[ord];
+                        return Padding(
+                          key: Key('book-section-$ord'),
+                          padding: const EdgeInsets.only(top: 4, bottom: 12),
+                          child: section == null
+                              ? SizedBox(height: fontSize * 6)
+                              : TypesetProse(
+                                  layout: ProseLayout(
+                                    lines: section.lines,
+                                    refs: section.refs,
+                                    unitsPerEm: section.unitsPerEm,
+                                    measureUnits: section.measureUnits,
+                                    numberScale: section.numberScale,
+                                    plainText: section.plainText,
+                                    images: _images.of(module),
+                                  ),
+                                  fontSize: fontSize,
+                                  lineHeightEm: settings.lineSpacing,
+                                  onLinkTap: _openPreview,
+                                  onPlainTap: widget.onToggleMode,
+                                  onWordLongPress: (run) {
+                                    final word = lookupWord(run);
+                                    if (word != null) {
+                                      widget.onWordLookup?.call(word);
+                                    }
+                                  },
+                                ),
+                        );
+                      },
                     ),
             ),
           ],

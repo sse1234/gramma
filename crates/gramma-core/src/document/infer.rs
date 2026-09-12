@@ -67,6 +67,9 @@ impl Line {
     }
 }
 
+/// A test picking a size class of fragments.
+type FragmentTest = Box<dyn Fn(&Fragment) -> bool>;
+
 /// A vertical gutter with text on both sides on many lines: the page is
 /// set in two columns. Returns the gutter's x position.
 pub fn column_gutter(page: &PageText) -> Option<f32> {
@@ -75,15 +78,20 @@ pub fn column_gutter(page: &PageText) -> Option<f32> {
         .iter()
         .filter(|f| !f.text.trim().is_empty())
         .collect();
+    gutter_of(&frags, page.width)
+}
+
+/// The gutter of a set of fragments (a whole page or a region of it).
+fn gutter_of(frags: &[&Fragment], page_width: f32) -> Option<f32> {
     if frags.len() < 20 {
         return None;
     }
-    let lo = page.width * 0.35;
-    let hi = page.width * 0.65;
+    let lo = page_width * 0.35;
+    let hi = page_width * 0.65;
     // Coverage histogram at 2 pt resolution across the middle band.
     let bins = ((hi - lo) / 2.0) as usize + 1;
     let mut covered = vec![0usize; bins];
-    for f in &frags {
+    for f in frags {
         let (a, b) = (f.x, f.x + f.width);
         if b < lo || a > hi {
             continue;
@@ -94,11 +102,13 @@ pub fn column_gutter(page: &PageText) -> Option<f32> {
             *bin += 1;
         }
     }
-    // The widest empty run in the band.
+    // The widest empty run in the band; a centered heading or a page
+    // number crossing it (a handful of fragments) does not fill it.
+    let allowed = frags.len() / 100;
     let mut best: Option<(usize, usize)> = None;
     let mut run_start = None;
     for (i, &c) in covered.iter().enumerate() {
-        match (c == 0, run_start) {
+        match (c <= allowed, run_start) {
             (true, None) => run_start = Some(i),
             (false, Some(s)) => {
                 if best.is_none_or(|(bs, be)| i - s > be - bs) {
@@ -119,14 +129,19 @@ pub fn column_gutter(page: &PageText) -> Option<f32> {
         return None;
     }
     let gutter = lo + (s + e) as f32;
-    // Text on both sides on enough lines.
+    // Text on both sides on enough lines, and next to nothing running
+    // across the gutter (single-column lines above a two-column
+    // apparatus would be torn apart).
     let left = frags.iter().filter(|f| f.x + f.width <= gutter).count();
     let right = frags.iter().filter(|f| f.x >= gutter).count();
-    (left >= 8 && right >= 8 && (left + right) * 10 >= frags.len() * 9).then_some(gutter)
+    let crossing = frags.len() - left - right;
+    (left >= 8 && right >= 8 && crossing * 50 <= frags.len()).then_some(gutter)
 }
 
 /// Group a page's fragments into lines; a two-column page reads its
-/// left column before its right one.
+/// left column before its right one. A page whose small-type apparatus
+/// (endnotes) is set in two columns under single-column text reads the
+/// text first, then the apparatus column by column.
 pub fn lines_of_page(page: &PageText, index: usize, options: &InferOptions) -> Vec<Line> {
     if let Some(gutter) = column_gutter(page) {
         let mut left = page.clone();
@@ -135,6 +150,59 @@ pub fn lines_of_page(page: &PageText, index: usize, options: &InferOptions) -> V
         right.fragments.retain(|f| f.x + f.width * 0.5 >= gutter);
         left.images.clear();
         let mut lines = lines_of_fragments(&left, index, options);
+        lines.extend(lines_of_fragments(&right, index, options));
+        return lines;
+    }
+    // A page mixing single-column text with a two-column region (an
+    // apparatus in small type, or endnotes in the page's dominant size
+    // under a few lines of text): find the size class that forms columns
+    // and read everything else first, then that region column by column.
+    let mut by_size: HashMap<u32, usize> = HashMap::new();
+    for f in &page.fragments {
+        *by_size.entry((f.size * 10.0).round() as u32).or_default() += f.text.chars().count();
+    }
+    let dominant = by_size
+        .iter()
+        .max_by_key(|(_, n)| **n)
+        .map(|(s, _)| *s as f32 / 10.0)
+        .unwrap_or(10.0);
+    let trace = std::env::var("GRAMMA_INFER_TRACE").is_ok();
+    let classes: [FragmentTest; 2] = [
+        Box::new(move |f: &Fragment| f.size < dominant * 0.85),
+        Box::new(move |f: &Fragment| (f.size - dominant).abs() < dominant * 0.15),
+    ];
+    for in_region in classes {
+        let region: Vec<&Fragment> = page
+            .fragments
+            .iter()
+            .filter(|f| in_region(f) && !f.text.trim().is_empty())
+            .collect();
+        if region.len() == page.fragments.len() || region.len() < 20 {
+            continue;
+        }
+        let Some(gutter) = gutter_of(&region, page.width) else {
+            continue;
+        };
+        if trace {
+            eprintln!(
+                "page {index}: region of {} fragments in columns at {gutter}",
+                region.len()
+            );
+        }
+        let region_top = region.iter().map(|f| f.y).fold(f32::MIN, f32::max);
+        let mut rest = page.clone();
+        rest.fragments.retain(|f| !in_region(f) || f.y > region_top);
+        let mut left = page.clone();
+        left.fragments
+            .retain(|f| in_region(f) && f.y <= region_top && f.x + f.width * 0.5 < gutter);
+        left.images.clear();
+        let mut right = page.clone();
+        right
+            .fragments
+            .retain(|f| in_region(f) && f.y <= region_top && f.x + f.width * 0.5 >= gutter);
+        right.images.clear();
+        let mut lines = lines_of_fragments(&rest, index, options);
+        lines.extend(lines_of_fragments(&left, index, options));
         lines.extend(lines_of_fragments(&right, index, options));
         return lines;
     }
@@ -259,12 +327,19 @@ fn build_line(
         let gap = f.x - cursor;
         let cell = cells.last_mut().expect("one cell");
         let after_soft_hyphen = matches!(cell.inlines.last(), Some(Inline::Text { text, .. }) if text.ends_with('\u{ad}'));
-        if gap > options.cell_gap_spaces * space && !cell.inlines.is_empty() {
+        if gap > options.cell_gap_spaces * space
+            && !cell.inlines.is_empty()
+            && !punctuation_only(&f.text)
+        {
             cells.push(Cell {
                 left: f.x,
                 inlines: Vec::new(),
             });
-        } else if gap > space * 0.6 && !cell.inlines.is_empty() && !after_soft_hyphen {
+        } else if gap > space * 0.6
+            && !cell.inlines.is_empty()
+            && !after_soft_hyphen
+            && !punctuation_only(&f.text)
+        {
             push_text(&mut cell.inlines, " ", Style::PLAIN);
         }
         // A soft hyphen inside a line is a hyphenation point the
@@ -323,6 +398,16 @@ fn build_line(
         monospace,
         cells,
     })
+}
+
+/// A fragment holding only punctuation ("-", ",", ")."): it belongs to
+/// the word before it whatever the geometry says.
+fn punctuation_only(text: &str) -> bool {
+    let t = text.trim();
+    !t.is_empty()
+        && t.chars()
+            .all(|c| c.is_ascii_punctuation() || c == '–' || c == '»' || c == '«' || c == '’')
+        && !t.starts_with(['(', '»', '„', '['])
 }
 
 /// Document-wide measurements the rules are relative to.
@@ -529,9 +614,24 @@ pub fn document_from_pages(pages: &[PageText], options: &InferOptions) -> Docume
     for (i, page) in pages.iter().enumerate() {
         all.extend(lines_of_page(page, i, options));
     }
+    let chars = |lines: &[Line]| -> usize { lines.iter().map(|l| l.text().chars().count()).sum() };
+    let trace = std::env::var("GRAMMA_INFER_TRACE").is_ok();
+    if trace {
+        eprintln!("stage lines: {}", chars(&all));
+    }
     let profile = profile(&all, pages.iter().map(|p| p.height).collect());
+    if trace {
+        eprintln!("profile: {profile:?}");
+    }
     let lines = strip_furniture(all, &profile, options);
+    if trace {
+        eprintln!("stage after furniture: {}", chars(&lines));
+    }
     let (body, note_lines) = split_footnotes(lines, &profile);
+    if trace {
+        let note_chars: usize = note_lines.iter().map(|(_, _, ls)| chars(ls)).sum();
+        eprintln!("stage body: {}  notes: {}", chars(&body), note_chars);
+    }
     let mut doc = Document::default();
     let mut images: Vec<(usize, f32, usize)> = Vec::new(); // (page, top, image index)
     for (p, page) in pages.iter().enumerate() {
@@ -593,6 +693,10 @@ struct BlockBuilder<'a> {
     /// Sizes of heading lines seen, to rank levels.
     heading_sizes: Vec<f32>,
     pending_headings: Vec<(usize, f32, bool)>, // (block index, size, bold)
+    /// Whether the last pushed line ended well before the measure.
+    last_line_short: bool,
+    /// Block indices of paragraphs made of one short line.
+    single_short: std::collections::HashSet<usize>,
 }
 
 impl<'a> BlockBuilder<'a> {
@@ -617,6 +721,8 @@ impl<'a> BlockBuilder<'a> {
             image_cursor: 0,
             heading_sizes: Vec::new(),
             pending_headings: Vec::new(),
+            last_line_short: false,
+            single_short: std::collections::HashSet::new(),
         }
     }
 
@@ -635,6 +741,13 @@ impl<'a> BlockBuilder<'a> {
     }
 
     fn push(&mut self, line: Line) {
+        // Leaving a page: note lines of earlier pages nobody referenced
+        // return to the flow as paragraphs (an unmarked apparatus).
+        if let Some(prev) = &self.last
+            && prev.page < line.page
+        {
+            self.flush_unbound_notes(line.page);
+        }
         // Figures above this line on the same page come first.
         self.place_images(line.page, line.top);
         let p = self.profile;
@@ -736,13 +849,15 @@ impl<'a> BlockBuilder<'a> {
             && line.left > self.para_left + p.body_size * 0.6;
         let dedent =
             line.left < self.para_left - p.body_size * 0.6 && self.para_lines >= 1 && prev_short;
+        let hyphen_pending = self.hyphen_break == Some(true);
         let new_para = self.para.is_empty()
-            || big_gap
-            || starts_list
-            || style_change
-            || first_line_indent
-            || prev_short
-            || dedent;
+            || (!hyphen_pending
+                && (big_gap
+                    || starts_list
+                    || style_change
+                    || first_line_indent
+                    || prev_short
+                    || dedent));
 
         if !new_para && self.para_lines >= 1 && line.left > self.para_first_left + 0.5 {
             // A hanging continuation: remember its margin.
@@ -771,6 +886,7 @@ impl<'a> BlockBuilder<'a> {
             self.para_lines = 0;
         }
         self.append_line(&line);
+        self.last_line_short = line.right < p.body_right - measure * 0.25;
         self.last = Some(line);
     }
 
@@ -850,6 +966,42 @@ impl<'a> BlockBuilder<'a> {
         self.para_lines += 1;
     }
 
+    /// Emit note lines of pages before `before` that no marker claimed.
+    fn flush_unbound_notes(&mut self, before: usize) {
+        let mut pages: Vec<usize> = self
+            .notes_by_page
+            .keys()
+            .copied()
+            .filter(|p| *p < before)
+            .collect();
+        pages.sort_unstable();
+        for p in pages {
+            let Some(notes) = self.notes_by_page.remove(&p) else {
+                continue;
+            };
+            if notes.is_empty() {
+                continue;
+            }
+            self.flush_paragraph();
+            for (label, lines) in notes {
+                let mut blocks = note_blocks(lines, &label);
+                if let Some(Block::Paragraph { inlines, .. }) = blocks.first_mut() {
+                    // Keep the label the note carried in print.
+                    let mut labelled = vec![Inline::styled(
+                        format!("{label} "),
+                        Style {
+                            bold: true,
+                            ..Style::PLAIN
+                        },
+                    )];
+                    labelled.append(inlines);
+                    *inlines = labelled;
+                }
+                self.blocks.extend(blocks);
+            }
+        }
+    }
+
     fn bind_note_refs(&mut self, inlines: &mut Vec<Inline>, page: usize) {
         let mut out = Vec::with_capacity(inlines.len());
         for inline in inlines.drain(..) {
@@ -864,10 +1016,24 @@ impl<'a> BlockBuilder<'a> {
                     let index = match self.note_map.get(&key) {
                         Some(i) => *i,
                         None => {
-                            let body = self.notes_by_page.get_mut(&page).and_then(|notes| {
-                                let pos = notes.iter().position(|(l, _)| *l == label)?;
-                                Some(notes.remove(pos).1)
-                            });
+                            // The note sits on this page (a footnote) or on
+                            // a later one (endnotes after the section).
+                            let mut body = None;
+                            let mut candidates: Vec<usize> = self
+                                .notes_by_page
+                                .keys()
+                                .copied()
+                                .filter(|p| *p >= page)
+                                .collect();
+                            candidates.sort_unstable();
+                            for p in candidates {
+                                if let Some(notes) = self.notes_by_page.get_mut(&p)
+                                    && let Some(pos) = notes.iter().position(|(l, _)| *l == label)
+                                {
+                                    body = Some(notes.remove(pos).1);
+                                    break;
+                                }
+                            }
                             let Some(body) = body else {
                                 // No note body on this page: keep the number.
                                 out.push(Inline::Text { text, style });
@@ -898,15 +1064,23 @@ impl<'a> BlockBuilder<'a> {
         normalize_whitespace(&mut inlines);
         let style = self.para_style;
         self.para_style = ParagraphStyle::Body;
+        let lines_in_para = self.para_lines;
         self.para_lines = 0;
         self.hyphen_break = None;
         if inlines.is_empty() {
             return;
         }
         let block = Block::Paragraph { style, inlines };
+        let one_short_line =
+            lines_in_para == 1 && self.last_line_short && style == ParagraphStyle::Body;
         match &mut self.list {
             Some((_, items)) => items.last_mut().expect("item").push(block),
-            None => self.blocks.push(block),
+            None => {
+                if one_short_line {
+                    self.single_short.insert(self.blocks.len());
+                }
+                self.blocks.push(block);
+            }
         }
     }
 
@@ -940,6 +1114,56 @@ impl<'a> BlockBuilder<'a> {
             return;
         }
         self.flush_paragraph();
+        // Long cells wrapping over many rows are two columns of running
+        // text (endnotes, a two-column apparatus), not a table: read them
+        // column by column, a paragraph per labelled note.
+        let cells_total: usize = rows.iter().map(|r| r.len()).sum();
+        let chars_total: usize = rows
+            .iter()
+            .flat_map(|r| r.iter())
+            .map(|c| super::plain_text(&c.inlines).chars().count())
+            .sum();
+        if rows.len() >= 6
+            && columns.len() <= 3
+            && cells_total > 0
+            && chars_total / cells_total >= 25
+        {
+            for column in &columns {
+                let mut para: Vec<Inline> = Vec::new();
+                for cells in &rows {
+                    let Some(cell) = cells.iter().find(|c| (c.left - column).abs() < 6.0) else {
+                        continue;
+                    };
+                    let text = super::plain_text(&cell.inlines);
+                    if leading_label(&text).is_some() && !para.is_empty() {
+                        normalize_whitespace(&mut para);
+                        self.blocks.push(Block::Paragraph {
+                            style: ParagraphStyle::Body,
+                            inlines: std::mem::take(&mut para),
+                        });
+                    }
+                    let mut next = cell.inlines.clone();
+                    let joined = join_hyphen(&mut para, &mut next);
+                    if !joined && !para.is_empty() {
+                        push_text(&mut para, " ", Style::PLAIN);
+                    }
+                    for inline in next {
+                        match inline {
+                            Inline::Text { text, style } => push_text(&mut para, &text, style),
+                            other => para.push(other),
+                        }
+                    }
+                }
+                if !para.is_empty() {
+                    normalize_whitespace(&mut para);
+                    self.blocks.push(Block::Paragraph {
+                        style: ParagraphStyle::Body,
+                        inlines: para,
+                    });
+                }
+            }
+            return;
+        }
         // Place cells by column; a wrapped cell (a row that only fills
         // columns the previous row also filled, with no text in the first
         // column) joins the row above.
@@ -1003,6 +1227,7 @@ impl<'a> BlockBuilder<'a> {
     fn finish(mut self, doc: &mut Document) {
         self.flush_table();
         self.flush_list();
+        self.flush_unbound_notes(usize::MAX);
         self.place_images(usize::MAX, 0.0);
         // Heading levels by size rank: the largest size is level 1.
         let mut sizes: Vec<u32> = self
@@ -1022,6 +1247,71 @@ impl<'a> BlockBuilder<'a> {
                 *level = (rank + 1).min(6) as u8;
             }
         }
+        // A title set over several lines arrives as several headings of
+        // one size: join them into one.
+        let sizes: std::collections::HashMap<usize, u32> = self
+            .pending_headings
+            .iter()
+            .map(|(i, size, _)| (*i, (size * 10.0).round() as u32))
+            .collect();
+        let mut i = 0;
+        let mut removed = 0;
+        let mut merged_blocks: Vec<Block> = Vec::with_capacity(self.blocks.len());
+        let mut merged_single: std::collections::HashSet<usize> = std::collections::HashSet::new();
+        while i < self.blocks.len() {
+            let block = self.blocks[i].clone();
+            if let Block::Heading { level, inlines } = &block
+                && let Some(size) = sizes.get(&i)
+            {
+                let level = *level;
+                let mut inlines = inlines.clone();
+                let mut j = i + 1;
+                while j < self.blocks.len()
+                    && let Block::Heading { inlines: next, .. } = &self.blocks[j]
+                    && sizes.get(&j) == Some(size)
+                {
+                    push_text(&mut inlines, " ", Style::PLAIN);
+                    inlines.extend(next.iter().cloned());
+                    j += 1;
+                }
+                removed += j - i - 1;
+                merged_blocks.push(Block::Heading { level, inlines });
+                i = j;
+                continue;
+            }
+            if self.single_short.contains(&i) {
+                merged_single.insert(merged_blocks.len());
+            }
+            merged_blocks.push(block);
+            i += 1;
+        }
+        let _ = removed;
+        self.blocks = merged_blocks;
+        self.single_short = merged_single;
+        // Runs of single short lines are set as they stand: poetry.
+        let single: Vec<usize> = {
+            let mut v: Vec<usize> = self.single_short.iter().copied().collect();
+            v.sort_unstable();
+            v
+        };
+        let mut run: Vec<usize> = Vec::new();
+        let flush_run = |run: &mut Vec<usize>, blocks: &mut Vec<Block>| {
+            if run.len() >= 2 {
+                for &k in run.iter() {
+                    if let Block::Paragraph { style, .. } = &mut blocks[k] {
+                        *style = ParagraphStyle::Poetry { indent: 1 };
+                    }
+                }
+            }
+            run.clear();
+        };
+        for k in single {
+            if run.last().is_some_and(|&last| last + 1 != k) {
+                flush_run(&mut run, &mut self.blocks);
+            }
+            run.push(k);
+        }
+        flush_run(&mut run, &mut self.blocks);
         // Captions: a paragraph right after a figure starting "Abb."/"Fig."
         let mut i = 0;
         while i + 1 < self.blocks.len() {
@@ -1095,6 +1385,9 @@ fn join_hyphen(para: &mut [Inline], next: &mut [Inline]) -> bool {
     }
     if text.ends_with('-') && text.len() > 1 && next_lower {
         text.pop();
+        while text.ends_with(' ') {
+            text.pop();
+        }
         return true;
     }
     false

@@ -103,6 +103,51 @@ verse-anchored entries after two-column pages are read column-wise;
 the general book keeps 193 sections, its footnotes, 20 figures, and
 its tables. Whole-file reads take 50–370 ms.
 
+## Refinements (2026-09-12, after reading the imports)
+
+Rules added once real pages were read; each is unit-tested:
+
+- **Hyphens by advance.** Producers map both the printed hyphen and the
+  unprinted discretionary hyphen to U+00AD; the glyph's advance tells
+  them apart (printed → "-", zero-width → dropped). A zero-width space
+  glyph inside a word is the same device and vanishes too. A line-final
+  hyphen joins the next line, also across a page break, and a hyphen
+  set as its own fragment at the margin stays glued to its word.
+- **Word gaps by geometry only.** Kerning values in the text stream say
+  nothing about words; only the distance between fragments does.
+- **Columns per size class.** A page's columns are found for the whole
+  page, else for the size class (small type, or the page's own dominant
+  size under a heading) that forms them; a centered heading crossing
+  the gutter does not hide it. Endnotes bind to their markers across
+  pages; unmarked note lines return to the flow.
+- **Enumerations inside prose.** "1) … 2) …" at a line start is a list
+  item only where a paragraph could begin (short previous line, gap,
+  indent, colon, or the next number of an open list); ordered lists
+  restart at "1.".
+- **Poetry.** A run of single short lines is set line by line without
+  blank lines between (a quoted psalm in a commentary).
+- **Split titles.** Consecutive headings of one size are one heading
+  ("Psalm" over "1"; a title page's lines).
+- **Two-column apparatus.** Aligned cells wrapping over many rows are
+  two columns of running text, read column-wise, not a table.
+- **Verse anchoring in commentaries.** A paragraph opening with "V. 6."
+  or a bold "6.", and a self-numbered list item, opens the entry for
+  that verse; sections treating the same verse (exposition, notes,
+  homiletics) merge into one entry.
+- **Bible headings.** Short italic or bold paragraphs are section
+  titles, lines made only of references are parallel-passage lines
+  (level 2); a drop-cap chapter number opens verse 1.
+- **Closed loop.** `tool/compare_extraction.py` compares gramma's words
+  with a reference extractor's, so lost or invented words are counted
+  per document rather than noticed by eye. After this round the three
+  sample PDFs lose 0.6–1.4% of the reference's words, nearly all of
+  them running heads dropped on purpose.
+- **Book view.** A general book reads as one continuous column of
+  sections, laid out as they scroll into view; the arrows and the
+  table of contents scroll rather than swap.
+- **Headings link.** References inside a Bible text's headings (the
+  parallel-passage lines) are tappable and preview their passage.
+
 ## Consequences
 
 - One reader per source, one inference pass, one storage shape: a new

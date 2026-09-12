@@ -20,9 +20,34 @@ fn main() {
     let mut from = 0usize;
     let mut import: Option<(String, String, Option<String>)> = None;
     let mut entries_chapter: Option<u16> = None;
+    let mut text_out: Option<String> = None;
+    let mut find: Option<String> = None;
+    let mut fragments_page: Option<usize> = None;
+    let mut lines_page: Option<usize> = None;
+    let mut page_chars = false;
     let mut i = 2;
     while i < args.len() {
         match args[i].as_str() {
+            "--lines" => {
+                lines_page = Some(args[i + 1].parse().unwrap());
+                i += 2;
+            }
+            "--fragments" => {
+                fragments_page = Some(args[i + 1].parse().unwrap());
+                i += 2;
+            }
+            "--pagechars" => {
+                page_chars = true;
+                i += 1;
+            }
+            "--find" => {
+                find = Some(args[i + 1].clone());
+                i += 2;
+            }
+            "--text" => {
+                text_out = Some(args[i + 1].clone());
+                i += 2;
+            }
             "--entries" => {
                 entries_chapter = Some(args[i + 1].parse().unwrap());
                 i += 2;
@@ -42,6 +67,68 @@ fn main() {
             }
             _ => i += 1,
         }
+    }
+    if let Some(n) = lines_page {
+        let mut data = Vec::new();
+        File::open(path)
+            .expect("open")
+            .read_to_end(&mut data)
+            .expect("read");
+        let (pages, _) = pdf::read_pages(data).expect("read pages");
+        let options = gramma_core::document::infer::InferOptions::default();
+        println!(
+            "gutter: {:?}",
+            gramma_core::document::infer::column_gutter(&pages[n])
+        );
+        for l in gramma_core::document::infer::lines_of_page(&pages[n], n, &options) {
+            println!(
+                "  top={:6.1} left={:6.1} right={:6.1} size={:4.1} cells={} {}",
+                l.top,
+                l.left,
+                l.right,
+                l.size,
+                l.cells.len(),
+                trunc(&l.text().replace('\t', " ⇥ "), 90)
+            );
+        }
+        return;
+    }
+    if fragments_page.is_some() || page_chars {
+        let mut data = Vec::new();
+        File::open(path)
+            .expect("open")
+            .read_to_end(&mut data)
+            .expect("read");
+        let (pages, _) = pdf::read_pages(data).expect("read pages");
+        if let Some(n) = fragments_page {
+            let page = &pages[n];
+            println!(
+                "page {n}: {}x{} fragments={}",
+                page.width,
+                page.height,
+                page.fragments.len()
+            );
+            for f in &page.fragments {
+                println!(
+                    "  y={:6.1} x={:6.1} w={:5.1} size={:4.1} {}{}{} {:?}",
+                    f.y,
+                    f.x,
+                    f.width,
+                    f.size,
+                    if f.font.bold { "B" } else { "-" },
+                    if f.font.italic { "I" } else { "-" },
+                    if f.rise != 0.0 { "^" } else { " " },
+                    f.text
+                );
+            }
+        }
+        if page_chars {
+            for (i, page) in pages.iter().enumerate() {
+                let chars: usize = page.fragments.iter().map(|f| f.text.chars().count()).sum();
+                println!("{i} {chars}");
+            }
+        }
+        return;
     }
     let started = std::time::Instant::now();
     let doc = if path.to_ascii_lowercase().ends_with(".epub") {
@@ -134,6 +221,45 @@ fn main() {
     }
     let detection = detect(&doc);
     println!("detected: {detection:?}");
+    if let Some(path) = text_out {
+        // Plain text of every block, one paragraph per line, for the
+        // extraction comparison tool.
+        fn dump(blocks: &[Block], out: &mut String) {
+            for b in blocks {
+                match b {
+                    Block::Heading { inlines, .. } | Block::Paragraph { inlines, .. } => {
+                        out.push_str(&plain_text(inlines));
+                        out.push('\n');
+                    }
+                    Block::List { items, .. } => {
+                        for item in items {
+                            dump(item, out);
+                        }
+                    }
+                    Block::Table { rows, .. } => {
+                        for row in rows {
+                            for cell in row {
+                                out.push_str(&plain_text(cell));
+                                out.push('\n');
+                            }
+                        }
+                    }
+                    Block::Figure { caption, .. } => {
+                        out.push_str(&plain_text(caption));
+                        out.push('\n');
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let mut out = String::new();
+        dump(&doc.blocks, &mut out);
+        for note in &doc.notes {
+            dump(&note.blocks, &mut out);
+        }
+        std::fs::write(&path, out).expect("write text dump");
+        println!("text written to {path}");
+    }
     if let Some(chapter) = entries_chapter {
         match gramma_core::document::interpret::to_commentary(&doc, None) {
             Ok(c) => {
@@ -166,6 +292,48 @@ fn main() {
                 started.elapsed()
             ),
             Err(e) => println!("import failed: {e}"),
+        }
+    }
+    if let Some(needle) = &find {
+        for (i, b) in doc.blocks.iter().enumerate() {
+            let d = describe(b);
+            let full = match b {
+                Block::Paragraph { inlines, .. } | Block::Heading { inlines, .. } => {
+                    plain_text(inlines)
+                }
+                Block::List { items, .. } => items
+                    .iter()
+                    .flat_map(|it| it.iter())
+                    .map(|b| match b {
+                        Block::Paragraph { inlines, .. } => plain_text(inlines),
+                        _ => String::new(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" / "),
+                Block::Table { rows, .. } => rows
+                    .iter()
+                    .flat_map(|r| r.iter())
+                    .map(|c| plain_text(c))
+                    .collect::<Vec<_>>()
+                    .join(" | "),
+                _ => String::new(),
+            };
+            if full.contains(needle.as_str()) || d.contains(needle.as_str()) {
+                println!("FOUND {i}: {}", trunc(&d, 160));
+                let k = full.find(needle.as_str()).unwrap_or(0);
+                let start = full[..k]
+                    .char_indices()
+                    .rev()
+                    .nth(60)
+                    .map(|(i, _)| i)
+                    .unwrap_or(0);
+                let end = full[k..]
+                    .char_indices()
+                    .nth(40)
+                    .map(|(i, _)| k + i)
+                    .unwrap_or(full.len());
+                println!("   context: {:?}", &full[start..end]);
+            }
         }
     }
     println!("--- blocks {from}..{}", from + show);

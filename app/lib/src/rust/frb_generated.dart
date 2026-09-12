@@ -1464,14 +1464,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ChapterLayoutView dco_decode_chapter_layout_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return ChapterLayoutView(
       lines: dco_decode_list_line_view(arr[0]),
-      unitsPerEm: dco_decode_u_16(arr[1]),
-      measureUnits: dco_decode_i_64(arr[2]),
-      numberScale: dco_decode_f_64(arr[3]),
-      plainText: dco_decode_String(arr[4]),
+      refs: dco_decode_list_String(arr[1]),
+      unitsPerEm: dco_decode_u_16(arr[2]),
+      measureUnits: dco_decode_i_64(arr[3]),
+      numberScale: dco_decode_f_64(arr[4]),
+      plainText: dco_decode_String(arr[5]),
     );
   }
 
@@ -2051,12 +2052,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_lines = sse_decode_list_line_view(deserializer);
+    var var_refs = sse_decode_list_String(deserializer);
     var var_unitsPerEm = sse_decode_u_16(deserializer);
     var var_measureUnits = sse_decode_i_64(deserializer);
     var var_numberScale = sse_decode_f_64(deserializer);
     var var_plainText = sse_decode_String(deserializer);
     return ChapterLayoutView(
       lines: var_lines,
+      refs: var_refs,
       unitsPerEm: var_unitsPerEm,
       measureUnits: var_measureUnits,
       numberScale: var_numberScale,
@@ -2820,6 +2823,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_line_view(self.lines, serializer);
+    sse_encode_list_String(self.refs, serializer);
     sse_encode_u_16(self.unitsPerEm, serializer);
     sse_encode_i_64(self.measureUnits, serializer);
     sse_encode_f_64(self.numberScale, serializer);

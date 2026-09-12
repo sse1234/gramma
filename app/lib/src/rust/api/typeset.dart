@@ -173,6 +173,10 @@ class BookLayoutView {
 
 class ChapterLayoutView {
   final List<LineView> lines;
+
+  /// OSIS targets by `RunView.link` index: references inside verse
+  /// headings (ADR 0029).
+  final List<String> refs;
   final int unitsPerEm;
 
   /// Line width in font units (MEASURE_EMS ems).
@@ -186,6 +190,7 @@ class ChapterLayoutView {
 
   const ChapterLayoutView({
     required this.lines,
+    required this.refs,
     required this.unitsPerEm,
     required this.measureUnits,
     required this.numberScale,
@@ -195,6 +200,7 @@ class ChapterLayoutView {
   @override
   int get hashCode =>
       lines.hashCode ^
+      refs.hashCode ^
       unitsPerEm.hashCode ^
       measureUnits.hashCode ^
       numberScale.hashCode ^
@@ -206,6 +212,7 @@ class ChapterLayoutView {
       other is ChapterLayoutView &&
           runtimeType == other.runtimeType &&
           lines == other.lines &&
+          refs == other.refs &&
           unitsPerEm == other.unitsPerEm &&
           measureUnits == other.measureUnits &&
           numberScale == other.numberScale &&

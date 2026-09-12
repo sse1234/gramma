@@ -1522,12 +1522,14 @@ impl SseDecode for crate::api::typeset::ChapterLayoutView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_lines = <Vec<crate::api::typeset::LineView>>::sse_decode(deserializer);
+        let mut var_refs = <Vec<String>>::sse_decode(deserializer);
         let mut var_unitsPerEm = <u16>::sse_decode(deserializer);
         let mut var_measureUnits = <i64>::sse_decode(deserializer);
         let mut var_numberScale = <f64>::sse_decode(deserializer);
         let mut var_plainText = <String>::sse_decode(deserializer);
         return crate::api::typeset::ChapterLayoutView {
             lines: var_lines,
+            refs: var_refs,
             units_per_em: var_unitsPerEm,
             measure_units: var_measureUnits,
             number_scale: var_numberScale,
@@ -2368,6 +2370,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::typeset::ChapterLayoutView {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.lines.into_into_dart().into_dart(),
+            self.refs.into_into_dart().into_dart(),
             self.units_per_em.into_into_dart().into_dart(),
             self.measure_units.into_into_dart().into_dart(),
             self.number_scale.into_into_dart().into_dart(),
@@ -2911,6 +2914,7 @@ impl SseEncode for crate::api::typeset::ChapterLayoutView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Vec<crate::api::typeset::LineView>>::sse_encode(self.lines, serializer);
+        <Vec<String>>::sse_encode(self.refs, serializer);
         <u16>::sse_encode(self.units_per_em, serializer);
         <i64>::sse_encode(self.measure_units, serializer);
         <f64>::sse_encode(self.number_scale, serializer);

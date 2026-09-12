@@ -805,3 +805,64 @@ fn prose_paragraph(
         })
         .collect()
 }
+
+/// Make scripture references inside verse headings tappable (ADR 0029):
+/// each heading — the consecutive heading runs of one level before one
+/// verse — is scanned for references; runs inside a reference get the
+/// link index of its OSIS target in the returned list. `context` is the
+/// module's book for bare "3,16" forms.
+pub fn link_heading_references(
+    lines: &mut [LineOut],
+    context: Option<crate::reference::BookId>,
+) -> Vec<String> {
+    use crate::reference::scan_references;
+    let mut refs: Vec<String> = Vec::new();
+    // Collect (line, run) positions per heading in reading order.
+    let mut groups: Vec<Vec<(usize, usize)>> = Vec::new();
+    let mut current_key: Option<(u16, u8)> = None;
+    for (li, line) in lines.iter().enumerate() {
+        let mut saw_heading = false;
+        for (ri, run) in line.runs.iter().enumerate() {
+            if run.heading_level == 0 || run.verse_number {
+                continue;
+            }
+            saw_heading = true;
+            let key = (run.verse, run.heading_level);
+            if current_key != Some(key) {
+                current_key = Some(key);
+                groups.push(Vec::new());
+            }
+            groups.last_mut().expect("group").push((li, ri));
+        }
+        if !saw_heading {
+            // A line without heading runs ends the heading.
+            current_key = None;
+        }
+    }
+    for group in groups {
+        // Heading text with one space between runs; remember each run's
+        // byte span so references map back to runs.
+        let mut text = String::new();
+        let mut spans: Vec<(usize, usize)> = Vec::new();
+        for &(li, ri) in &group {
+            if !text.is_empty() {
+                text.push(' ');
+            }
+            let start = text.len();
+            text.push_str(&lines[li].runs[ri].text);
+            spans.push((start, text.len()));
+        }
+        for found in scan_references(&text, context) {
+            let osis = crate::document::interpret::osis_of(found.reference);
+            let index = refs.len() as u32;
+            refs.push(osis);
+            for (k, &(li, ri)) in group.iter().enumerate() {
+                let (s, e) = spans[k];
+                if s < found.end as usize && e > found.start as usize {
+                    lines[li].runs[ri].link = Some(index);
+                }
+            }
+        }
+    }
+    refs
+}
