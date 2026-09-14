@@ -12,12 +12,18 @@
 /// title blocks included — landing at a column's foot with fewer than
 /// [keptContentRows] content rows beneath breaks the column early and
 /// heads the next one instead. A group already at its column's top stays.
+///
+/// An [origin] line forces a column boundary: the column that would
+/// contain it ends there, so a re-chunk (a new column height after the
+/// chrome toggles, ADR 0028) keeps the reader's first visible line at the
+/// top of a column instead of moving it back into the middle of one.
 class ColumnPlan {
   ColumnPlan({
     required List<int> textLines,
     required this.headingLines,
     required this.linesPerColumn,
     this.rowKinds,
+    this.origin,
   }) : _blockStarts = List<int>.filled(textLines.length, 0) {
     var offset = 0;
     for (var i = 0; i < textLines.length; i++) {
@@ -33,6 +39,7 @@ class ColumnPlan {
 
   final int headingLines;
   final int linesPerColumn;
+  final int? origin;
   final List<int> _blockStarts;
   final List<List<int>>? rowKinds;
   late final int totalLines;
@@ -111,6 +118,8 @@ class ColumnPlan {
       starts.add(s);
       var e = s + linesPerColumn;
       if (e > totalLines) e = totalLines;
+      final origin = this.origin;
+      if (origin != null && s < origin && origin < e) e = origin;
       if (aware) {
         var changed = true;
         while (changed) {

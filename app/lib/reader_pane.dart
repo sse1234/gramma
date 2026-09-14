@@ -190,6 +190,9 @@ class _ReaderPaneState extends State<ReaderPane> {
 
   ScrollController? _hController;
   String? _hParams;
+
+  /// Line at which the current column plan was forced to start a column.
+  int _planOrigin = 0;
   final List<ScrollController> _staleControllers = [];
   ColumnPlan? _hPlan;
   double _hStride = 0;
@@ -398,7 +401,7 @@ class _ReaderPaneState extends State<ReaderPane> {
     return verseAtLineStart(layout.lines, line);
   }
 
-  ColumnPlan? _linePlan({int linesPerColumn = 1}) {
+  ColumnPlan? _linePlan({int linesPerColumn = 1, int? origin}) {
     final counts = _lineCounts;
     if (counts == null || counts.length != _spine.length || counts.isEmpty) {
       return null;
@@ -408,6 +411,7 @@ class _ReaderPaneState extends State<ReaderPane> {
       headingLines: _headingLines,
       linesPerColumn: linesPerColumn,
       rowKinds: _rowKinds,
+      origin: origin,
     );
   }
 
@@ -1074,10 +1078,18 @@ class _ReaderPaneState extends State<ReaderPane> {
     final lineHeight = fontSize * _lineSpacing;
     var linesPerColumn = (constraints.maxHeight / lineHeight).floor();
     if (linesPerColumn < 1) linesPerColumn = 1;
-    final plan = _linePlan(linesPerColumn: linesPerColumn)!;
     final stride = columnWidth + _gutter;
     final params = '$columns-$linesPerColumn-${columnWidth.round()}';
-    if (params != _hParams) {
+    final changed = params != _hParams;
+    // A new column height re-chunks the lines: chunk so that the line the
+    // reader was looking at heads the first column again rather than
+    // landing somewhere inside one (ADR 0028 as amended).
+    if (changed) _planOrigin = _anchorLine;
+    final plan = _linePlan(
+      linesPerColumn: linesPerColumn,
+      origin: _planOrigin,
+    )!;
+    if (changed) {
       final old = _hController;
       if (old != null) {
         old.removeListener(_onHorizontalScroll);

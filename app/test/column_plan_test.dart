@@ -147,7 +147,11 @@ void main() {
         [0, 0, 0, 0, 2, 1, 1, 0, 0, 0],
       ],
     );
-    expect(p.firstLineOfColumn(1), 5, reason: 'group of two heading rows moves');
+    expect(
+      p.firstLineOfColumn(1),
+      5,
+      reason: 'group of two heading rows moves',
+    );
     expect(p.columnCount, 2);
     expect(p.linesInColumn(1), 5);
   });
@@ -162,5 +166,62 @@ void main() {
     expect(p.columnCount, 2);
     expect(p.linesInColumn(0), 8);
     expect(p.linesInColumn(1), 2);
+  });
+
+  test('an origin line starts a column, earlier columns unchanged', () {
+    // 20 lines, 6 per column: plain chunks are 0, 6, 12, 18. With the
+    // origin at line 9 the column holding it ends early so line 9 heads a
+    // column: 0, 6, 9, 15.
+    final p = ColumnPlan(
+      textLines: const [20],
+      headingLines: 0,
+      linesPerColumn: 6,
+      origin: 9,
+    );
+    expect(p.columnCount, 4);
+    expect(p.firstLineOfColumn(0), 0);
+    expect(p.firstLineOfColumn(1), 6);
+    expect(p.firstLineOfColumn(2), 9);
+    expect(p.linesInColumn(1), 3);
+    expect(p.columnOfLine(9), 2);
+    expect(p.firstLineOfColumn(3), 15);
+  });
+
+  test('an origin at a natural boundary or outside changes nothing', () {
+    final base = ColumnPlan(
+      textLines: const [20],
+      headingLines: 0,
+      linesPerColumn: 6,
+    );
+    for (final origin in [0, 6, 12, 20, 40]) {
+      final p = ColumnPlan(
+        textLines: const [20],
+        headingLines: 0,
+        linesPerColumn: 6,
+        origin: origin,
+      );
+      expect(p.columnCount, base.columnCount, reason: 'origin $origin');
+      for (var c = 0; c < p.columnCount; c++) {
+        expect(p.firstLineOfColumn(c), base.firstLineOfColumn(c));
+      }
+    }
+  });
+
+  test('an origin keeps a heading with its text', () {
+    // Rows: content except a heading at row 7; origin 9. The column [6, 9)
+    // would leave the heading at 7 with one content row beneath, so it
+    // breaks before the heading: columns 0, 6, 7, 9, 15.
+    final kinds = List<int>.filled(20, 0)..[7] = 1;
+    final p = ColumnPlan(
+      textLines: const [20],
+      headingLines: 0,
+      linesPerColumn: 6,
+      rowKinds: [kinds],
+      origin: 9,
+    );
+    expect(p.firstLineOfColumn(1), 6);
+    expect(p.firstLineOfColumn(2), 7);
+    expect(p.firstLineOfColumn(3), 9);
+    expect(p.firstLineOfColumn(4), 15);
   });
 }

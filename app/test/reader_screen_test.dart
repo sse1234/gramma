@@ -1686,9 +1686,26 @@ void main() {
       () => _found(find.byKey(const ValueKey('columns-active'))),
     );
     expect(find.byType(AppBar), findsOneWidget);
+    // Page forward twice so the anchor sits inside the chapter, where a
+    // re-chunk from the chapter start would land it mid-column.
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    String? firstLine() {
+      final column = tester.widget<TypesetColumn>(
+        find.byType(TypesetColumn).first,
+      );
+      final row = column.rows.first;
+      return row is TextRow
+          ? row.line.runs.map((r) => r.text).join()
+          : (row as HeadingRow).text;
+    }
+
     final before = tester.widget<TypesetColumn>(
       find.byType(TypesetColumn).first,
     );
+    final firstBefore = firstLine();
     final positionBefore = tester
         .widget<Text>(find.byKey(const Key('current-position')).first)
         .data;
@@ -1708,12 +1725,18 @@ void main() {
       greaterThan(before.rowCount),
       reason: 'without chrome the column holds more lines',
     );
+    expect(
+      firstLine(),
+      firstBefore,
+      reason: 'the line at the top left stays at the top left',
+    );
     // The header hides with the chrome, so the position is read back
     // after chrome returns.
     settings.setReadingMode(false);
     await tester.pumpAndSettle();
     final back = tester.widget<TypesetColumn>(find.byType(TypesetColumn).first);
     expect(back.rowCount, before.rowCount);
+    expect(firstLine(), firstBefore);
     expect(
       tester.widget<Text>(find.byKey(const Key('current-position')).first).data,
       positionBefore,

@@ -81,7 +81,12 @@ lines of every column were hidden whenever chrome was on, so real
 reading happened only in reading mode. The app bar and the pane header
 are laid out above the text again; the text reflows below them and the
 columns re-chunk on a toggle. The reading position is carried by the
-anchor (first visible verse), which is what the toggle preserves. The
-other decisions of this record stand: the keyboard follows the last
+anchor line (the first line of the first visible column). Re-chunking
+from the chapter start alone would put that line somewhere inside a
+column and show up to a column of text again; so the plan takes the
+anchor as an origin: the column that would contain it ends there and
+the anchor heads a column again. Text before the anchor keeps its
+layout except for that one shortened column. The other decisions of
+this record stand: the keyboard follows the last
 view acted in, footnote letters run through the chapter, the popup
 shows the chapter, and the reader draws no scrollbars.
