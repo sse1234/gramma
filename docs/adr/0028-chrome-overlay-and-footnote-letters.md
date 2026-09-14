@@ -4,7 +4,7 @@ Date: 2026-09-05
 
 ## Status
 
-Accepted
+Accepted; the overlay decision amended 2026-09-14 (see below)
 
 ## Context
 
@@ -72,3 +72,16 @@ keys remains.
 - Overlaid chrome hides the top lines while shown; users who read
   with chrome permanently visible see slightly less text — the
   reading-mode default is the intended way to read.
+
+## Amendment (2026-09-14): chrome takes its space again
+
+Reading with chrome shown turned out to matter more than a still
+position: with the header and app bar floating over the text, the top
+lines of every column were hidden whenever chrome was on, so real
+reading happened only in reading mode. The app bar and the pane header
+are laid out above the text again; the text reflows below them and the
+columns re-chunk on a toggle. The reading position is carried by the
+anchor (first visible verse), which is what the toggle preserves. The
+other decisions of this record stand: the keyboard follows the last
+view acted in, footnote letters run through the chapter, the popup
+shows the chapter, and the reader draws no scrollbars.

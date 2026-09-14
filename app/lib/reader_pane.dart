@@ -89,7 +89,6 @@ class ReaderPane extends StatefulWidget {
     this.dragHandle,
     this.onClose,
     this.onWordLookup,
-    this.chromeInset = 0,
   });
 
   /// Where the floating header starts (ADR 0028): below the app bar for
@@ -133,7 +132,6 @@ class ReaderPane extends StatefulWidget {
   final NavCommand? command;
   final Widget? dragHandle;
   final VoidCallback? onClose;
-  final double chromeInset;
 
   /// Height of the floating pane header band (ADR 0028); the content
   /// shifts by exactly this much (plus [chromeInset]) while chrome shows.
@@ -159,8 +157,6 @@ class _ReaderPaneState extends State<ReaderPane> {
 
   /// How far the content paints below its own top while chrome shows
   /// (ADR 0028): the floating header band plus the app bar's share.
-  double get _chromeShift =>
-      widget.readingMode ? 0.0 : widget.chromeInset + ReaderPane.chromeHeight;
 
   ModuleView? _active;
   List<ChapterRefView> _spine = const [];
@@ -969,84 +965,73 @@ class _ReaderPaneState extends State<ReaderPane> {
       onFollow: widget.onFollow,
       onClose: widget.onClose,
     );
-    // The chrome overlays the text instead of pushing it (ADR 0028): the
-    // content keeps its exact geometry in both modes, so columns never
-    // re-chunk and the reading position never jumps on a toggle.
-    // Chrome shown: the content keeps its full-height geometry but paints
-    // shifted below the floating header (its bottom rows clip away), so
-    // the anchor line stays visible and tappable; chrome hidden: no shift.
-    final shift = _chromeShift;
+    // The chrome takes its own space (ADR 0028, amended 2026-09-14): the
+    // header sits above the text and the text reflows below it. The
+    // reading position is kept across the toggle by the anchor; the
+    // columns re-chunk, which was judged better than text hidden under
+    // an overlay while reading with chrome on.
     return ScrollConfiguration(
       // No scrollbars (ADR 0028): the thumb's hit band at the column
       // edge swallowed taps on end-of-line footnote markers.
       behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Positioned.fill(
-            child: ClipRect(
-              child: Transform.translate(
-                offset: Offset(0, shift),
-                child: GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onTap: widget.onToggleMode,
-                  child: _spine.isEmpty
-                      ? Center(
-                          child: Text(
-                            context.l10n.importToBegin,
-                            style: theme.textTheme.bodyLarge,
-                          ),
-                        )
-                      : LayoutBuilder(
-                          builder: (context, constraints) {
-                            _vViewportH = constraints.maxHeight;
-                            final effWidth = constraints.maxWidth < _columnWidth
-                                ? constraints.maxWidth
-                                : _columnWidth;
-                            _vLineHeightPx =
-                                effWidth / (_measure ?? 26) * _lineSpacing;
-                            final columns = _columnsFor(constraints.maxWidth);
-                            final Widget reader;
-                            if (columns >= 2 && _linePlan() != null) {
-                              reader = _horizontalReader(constraints, columns);
-                            } else {
-                              _hPlan = null;
-                              _hParams = null;
-                              reader = _verticalReader();
-                            }
-                            // The selection bar floats over the content: adding
-                            // it to the layout would change the column height
-                            // mid-gesture and shift the text under the finger.
-                            return Stack(
-                              children: [
-                                reader,
-                                if (_selection != null)
-                                  Positioned(
-                                    left: 0,
-                                    right: 0,
-                                    bottom: _chromeShift,
-                                    child: _selectionBar(theme),
-                                  ),
-                              ],
-                            );
-                          },
-                        ),
-                ),
+          if (!widget.readingMode)
+            Material(
+              color: theme.colorScheme.surface,
+              child: SizedBox(
+                height: ReaderPane.chromeHeight,
+                child: Align(alignment: Alignment.topCenter, child: header),
               ),
+            ),
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: widget.onToggleMode,
+              child: _spine.isEmpty
+                  ? Center(
+                      child: Text(
+                        context.l10n.importToBegin,
+                        style: theme.textTheme.bodyLarge,
+                      ),
+                    )
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        _vViewportH = constraints.maxHeight;
+                        final effWidth = constraints.maxWidth < _columnWidth
+                            ? constraints.maxWidth
+                            : _columnWidth;
+                        _vLineHeightPx =
+                            effWidth / (_measure ?? 26) * _lineSpacing;
+                        final columns = _columnsFor(constraints.maxWidth);
+                        final Widget reader;
+                        if (columns >= 2 && _linePlan() != null) {
+                          reader = _horizontalReader(constraints, columns);
+                        } else {
+                          _hPlan = null;
+                          _hParams = null;
+                          reader = _verticalReader();
+                        }
+                        // The selection bar floats over the content: adding
+                        // it to the layout would change the column height
+                        // mid-gesture and shift the text under the finger.
+                        return Stack(
+                          children: [
+                            reader,
+                            if (_selection != null)
+                              Positioned(
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                child: _selectionBar(theme),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
             ),
           ),
-          if (!widget.readingMode)
-            Positioned(
-              top: widget.chromeInset,
-              left: 0,
-              right: 0,
-              child: Material(
-                color: theme.colorScheme.surface,
-                child: SizedBox(
-                  height: ReaderPane.chromeHeight,
-                  child: Align(alignment: Alignment.topCenter, child: header),
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -1068,7 +1053,6 @@ class _ReaderPaneState extends State<ReaderPane> {
         constraints: BoxConstraints(maxWidth: _columnWidth),
         child: ScrollablePositionedList.builder(
           key: const Key('vertical-reader'),
-          padding: EdgeInsets.only(bottom: _chromeShift),
           itemScrollController: _vScroll,
           itemPositionsListener: _vPositions,
           initialScrollIndex: initial,

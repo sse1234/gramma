@@ -41,7 +41,6 @@ class _ReaderScreenState extends State<ReaderScreen>
   static const _gripThickness = 12.0;
   static const _minPaneExtent = 140.0;
   static const _gutter = 48.0;
-  static const _deskTopPadding = 16.0;
 
   List<ModuleView> _modules = const [];
   late LayoutModel _layout;
@@ -967,30 +966,25 @@ class _ReaderScreenState extends State<ReaderScreen>
       ],
     );
     // SafeArea keeps the desk clear of the status bar, notch, and home
-    // indicator. The app bar floats over the desk (ADR 0028) so the
-    // desk's geometry is identical with and without chrome — toggling
-    // never re-chunks the columns.
+    // indicator. The app bar takes its own space (ADR 0028, amended):
+    // with chrome shown the desk starts below it and reflows.
     return Scaffold(
-      body: Stack(
-        children: [
-          SafeArea(
-            child: LayoutBuilder(
-              builder: (context, outer) {
-                final narrow = outer.maxWidth < 500;
-                return Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    narrow ? 10 : 24,
-                    16,
-                    narrow ? 10 : 24,
-                    0,
-                  ),
-                  child: _desk(),
-                );
-              },
-            ),
-          ),
-          if (!reading) Positioned(top: 0, left: 0, right: 0, child: appBar),
-        ],
+      appBar: reading ? null : appBar,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, outer) {
+            final narrow = outer.maxWidth < 500;
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                narrow ? 10 : 24,
+                16,
+                narrow ? 10 : 24,
+                0,
+              ),
+              child: _desk(),
+            );
+          },
+        ),
       ),
     );
   }
@@ -1071,22 +1065,8 @@ class _ReaderScreenState extends State<ReaderScreen>
     );
   }
 
-  /// A list pane in the top row simply starts below the floating app bar.
-  Widget _inset(double inset, Widget pane) => inset > 0
-      ? Padding(
-          padding: EdgeInsets.only(top: inset),
-          child: pane,
-        )
-      : pane;
-
   Widget _pane(PaneSpec spec, {bool topRow = false}) {
     final settings = SettingsScope.of(context);
-    // Top-row panes sit under the floating app bar (ADR 0028): their
-    // chrome offsets below it while chrome shows — text panes float
-    // their header there, list panes pad.
-    final chromeInset = topRow && !settings.readingMode
-        ? kToolbarHeight - _deskTopPadding
-        : 0.0;
     final followedAnchor = _layout.byId(spec.follow)?.anchor;
     final closable = _layout.allPanes.length > 1;
     void toggleMode() => settings.setReadingMode(!settings.readingMode);
@@ -1101,7 +1081,6 @@ class _ReaderScreenState extends State<ReaderScreen>
       case PaneKind.text:
         return ReaderPane(
           key: ValueKey('pane-${spec.id}'),
-          chromeInset: chromeInset,
           spec: spec,
           modules: _bibleModules,
           onWordLookup: _lookupWord,
@@ -1127,121 +1106,103 @@ class _ReaderScreenState extends State<ReaderScreen>
           onClose: closable ? () => _closePane(spec.id) : null,
         );
       case PaneKind.footnotes:
-        return _inset(
-          chromeInset,
-          FootnotesPane(
-            key: ValueKey('pane-${spec.id}'),
-            followedAnchor: followedAnchor,
-            followedAnchorEnd: _layout.byId(spec.follow)?.anchorEnd,
-            onOpenReference: (osis) => _openReference(spec, osis),
-            sourceModule: _layout.byId(spec.follow)?.module,
-            followValue: spec.follow,
-            followOptions: _followOptionsFor(spec),
-            readingMode: settings.readingMode,
-            onToggleMode: toggleMode,
-            badge: badge,
-            dragHandle: _dragHandle(spec),
-            onFollow: (follow) => _setFollow(spec.id, follow),
-            onClose: closable ? () => _closePane(spec.id) : null,
-          ),
+        return FootnotesPane(
+          key: ValueKey('pane-${spec.id}'),
+          followedAnchor: followedAnchor,
+          followedAnchorEnd: _layout.byId(spec.follow)?.anchorEnd,
+          onOpenReference: (osis) => _openReference(spec, osis),
+          sourceModule: _layout.byId(spec.follow)?.module,
+          followValue: spec.follow,
+          followOptions: _followOptionsFor(spec),
+          readingMode: settings.readingMode,
+          onToggleMode: toggleMode,
+          badge: badge,
+          dragHandle: _dragHandle(spec),
+          onFollow: (follow) => _setFollow(spec.id, follow),
+          onClose: closable ? () => _closePane(spec.id) : null,
         );
       case PaneKind.dictionary:
-        return _inset(
-          chromeInset,
-          DictionaryPane(
-            key: ValueKey('pane-${spec.id}'),
-            module: spec.module,
-            modules: _dictionaryModules,
-            onModule: (code) => _setModule(spec.id, code),
-            anchor: spec.anchor,
-            onAnchor: (anchor) => _setAnchor(spec.id, anchor),
-            previewModule:
-                settings.defaultModule ?? _bibleModules.firstOrNull?.code,
-            readingMode: settings.readingMode,
-            onToggleMode: toggleMode,
-            badge: badge,
-            onOpenReference: (osis) => _openReference(spec, osis),
-            dragHandle: _dragHandle(spec),
-            onClose: closable ? () => _closePane(spec.id) : null,
-          ),
+        return DictionaryPane(
+          key: ValueKey('pane-${spec.id}'),
+          module: spec.module,
+          modules: _dictionaryModules,
+          onModule: (code) => _setModule(spec.id, code),
+          anchor: spec.anchor,
+          onAnchor: (anchor) => _setAnchor(spec.id, anchor),
+          previewModule:
+              settings.defaultModule ?? _bibleModules.firstOrNull?.code,
+          readingMode: settings.readingMode,
+          onToggleMode: toggleMode,
+          badge: badge,
+          onOpenReference: (osis) => _openReference(spec, osis),
+          dragHandle: _dragHandle(spec),
+          onClose: closable ? () => _closePane(spec.id) : null,
         );
       case PaneKind.book:
-        return _inset(
-          chromeInset,
-          BookPane(
-            key: ValueKey('pane-${spec.id}'),
-            module: spec.module,
-            modules: _bookModules,
-            onModule: (code) => _setModule(spec.id, code),
-            anchor: spec.anchor,
-            onAnchor: (anchor) => _setAnchor(spec.id, anchor),
-            previewModule:
-                settings.defaultModule ?? _bibleModules.firstOrNull?.code,
-            readingMode: settings.readingMode,
-            onToggleMode: toggleMode,
-            badge: badge,
-            onOpenReference: (osis) => _openReference(spec, osis),
-            onWordLookup: _lookupWord,
-            dragHandle: _dragHandle(spec),
-            onClose: closable ? () => _closePane(spec.id) : null,
-          ),
+        return BookPane(
+          key: ValueKey('pane-${spec.id}'),
+          module: spec.module,
+          modules: _bookModules,
+          onModule: (code) => _setModule(spec.id, code),
+          anchor: spec.anchor,
+          onAnchor: (anchor) => _setAnchor(spec.id, anchor),
+          previewModule:
+              settings.defaultModule ?? _bibleModules.firstOrNull?.code,
+          readingMode: settings.readingMode,
+          onToggleMode: toggleMode,
+          badge: badge,
+          onOpenReference: (osis) => _openReference(spec, osis),
+          onWordLookup: _lookupWord,
+          dragHandle: _dragHandle(spec),
+          onClose: closable ? () => _closePane(spec.id) : null,
         );
       case PaneKind.devotional:
-        return _inset(
-          chromeInset,
-          DevotionalPane(
-            key: ValueKey('pane-${spec.id}'),
-            module: spec.module,
-            modules: _devotionalModules,
-            onModule: (code) => _setModule(spec.id, code),
-            anchor: spec.anchor,
-            onAnchor: (anchor) => _setAnchor(spec.id, anchor),
-            previewModule:
-                settings.defaultModule ?? _bibleModules.firstOrNull?.code,
-            readingMode: settings.readingMode,
-            onToggleMode: toggleMode,
-            badge: badge,
-            onOpenReference: (osis) => _openReference(spec, osis),
-            onWordLookup: _lookupWord,
-            dragHandle: _dragHandle(spec),
-            onClose: closable ? () => _closePane(spec.id) : null,
-          ),
+        return DevotionalPane(
+          key: ValueKey('pane-${spec.id}'),
+          module: spec.module,
+          modules: _devotionalModules,
+          onModule: (code) => _setModule(spec.id, code),
+          anchor: spec.anchor,
+          onAnchor: (anchor) => _setAnchor(spec.id, anchor),
+          previewModule:
+              settings.defaultModule ?? _bibleModules.firstOrNull?.code,
+          readingMode: settings.readingMode,
+          onToggleMode: toggleMode,
+          badge: badge,
+          onOpenReference: (osis) => _openReference(spec, osis),
+          onWordLookup: _lookupWord,
+          dragHandle: _dragHandle(spec),
+          onClose: closable ? () => _closePane(spec.id) : null,
         );
       case PaneKind.notes:
-        return _inset(
-          chromeInset,
-          NotesPane(
-            key: ValueKey('pane-${spec.id}'),
-            readingMode: settings.readingMode,
-            onToggleMode: toggleMode,
-            badge: badge,
-            onOpenReference: (osis) => _openReference(spec, osis),
-            dragHandle: _dragHandle(spec),
-            onClose: closable ? () => _closePane(spec.id) : null,
-          ),
+        return NotesPane(
+          key: ValueKey('pane-${spec.id}'),
+          readingMode: settings.readingMode,
+          onToggleMode: toggleMode,
+          badge: badge,
+          onOpenReference: (osis) => _openReference(spec, osis),
+          dragHandle: _dragHandle(spec),
+          onClose: closable ? () => _closePane(spec.id) : null,
         );
       case PaneKind.commentary:
-        return _inset(
-          chromeInset,
-          CommentaryPane(
-            key: ValueKey('pane-${spec.id}'),
-            module: spec.module,
-            modules: _commentaryModules,
-            onModule: (code) => _setModule(spec.id, code),
-            followedAnchor: followedAnchor,
-            followedAnchorEnd: _layout.byId(spec.follow)?.anchorEnd,
-            sourceModule: _layout.byId(spec.follow)?.module,
-            onOpenReference: (osis) => _openReference(spec, osis),
-            onWordLookup: _lookupWord,
-            followValue: spec.follow,
-            followOptions: _followOptionsFor(spec),
-            readingMode: settings.readingMode,
-            onToggleMode: toggleMode,
-            badge: badge,
-            dragHandle: _dragHandle(spec),
-            onFollow: (follow) => _setFollow(spec.id, follow),
-            onClose: closable ? () => _closePane(spec.id) : null,
-          ),
+        return CommentaryPane(
+          key: ValueKey('pane-${spec.id}'),
+          module: spec.module,
+          modules: _commentaryModules,
+          onModule: (code) => _setModule(spec.id, code),
+          followedAnchor: followedAnchor,
+          followedAnchorEnd: _layout.byId(spec.follow)?.anchorEnd,
+          sourceModule: _layout.byId(spec.follow)?.module,
+          onOpenReference: (osis) => _openReference(spec, osis),
+          onWordLookup: _lookupWord,
+          followValue: spec.follow,
+          followOptions: _followOptionsFor(spec),
+          readingMode: settings.readingMode,
+          onToggleMode: toggleMode,
+          badge: badge,
+          dragHandle: _dragHandle(spec),
+          onFollow: (follow) => _setFollow(spec.id, follow),
+          onClose: closable ? () => _closePane(spec.id) : null,
         );
     }
   }

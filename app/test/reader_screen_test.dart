@@ -1669,10 +1669,10 @@ void main() {
     );
   });
 
-  testWidgets('toggling chrome never re-chunks the columns', (tester) async {
-    // ADR 0028: the app bar and pane header float over the text, so the
-    // column geometry — lines per column, rows placed — is identical
-    // with and without chrome; the reading position cannot jump.
+  testWidgets('toggling chrome keeps the reading position', (tester) async {
+    // ADR 0028 as amended: the app bar and pane header take their own
+    // space, so the columns re-chunk on a toggle — but the anchor keeps
+    // the first visible verse where it was.
     _freshUserStore();
     tester.view.physicalSize = const Size(1200, 700);
     tester.view.devicePixelRatio = 1.0;
@@ -1689,6 +1689,9 @@ void main() {
     final before = tester.widget<TypesetColumn>(
       find.byType(TypesetColumn).first,
     );
+    final positionBefore = tester
+        .widget<Text>(find.byKey(const Key('current-position')).first)
+        .data;
 
     settings.setReadingMode(true);
     await tester.pumpAndSettle();
@@ -1702,17 +1705,20 @@ void main() {
     );
     expect(
       after.rowCount,
-      before.rowCount,
-      reason: 'lines per column are mode-independent',
+      greaterThan(before.rowCount),
+      reason: 'without chrome the column holds more lines',
     );
-    expect(after.rows.length, before.rows.length);
-    expect(after.rows.first.row, before.rows.first.row);
-
+    // The header hides with the chrome, so the position is read back
+    // after chrome returns.
     settings.setReadingMode(false);
     await tester.pumpAndSettle();
     final back = tester.widget<TypesetColumn>(find.byType(TypesetColumn).first);
     expect(back.rowCount, before.rowCount);
-    expect(back.rows.length, before.rows.length);
+    expect(
+      tester.widget<Text>(find.byKey(const Key('current-position')).first).data,
+      positionBefore,
+      reason: 'the reading position survives the round trip',
+    );
   });
 
   testWidgets('the keyboard follows the last view acted in', (tester) async {
@@ -1740,11 +1746,13 @@ void main() {
       findsNothing,
       reason: 'the reader draws no scrollbars',
     );
-    final lists = find.byType(ListView);
-    final first = tester.widget<ListView>(lists.at(0));
-    final second = tester.widget<ListView>(lists.at(1));
-    final firstStart = first.controller!.offset;
-    final secondStart = second.controller!.offset;
+    // The tap below toggles reading mode, which re-lays the panes and
+    // their scroll controllers (chrome takes its space, ADR 0028 as
+    // amended): read offsets fresh at each step.
+    double offsetOf(int index) => tester
+        .widget<ListView>(find.byType(ListView).at(index))
+        .controller!
+        .offset;
 
     // Act in the second view (a pointer down, released) and page.
     final gesture = await tester.startGesture(
@@ -1752,18 +1760,16 @@ void main() {
     );
     await gesture.up();
     await tester.pumpAndSettle();
+    final firstStart = offsetOf(0);
+    final secondStart = offsetOf(1);
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
     await tester.pumpAndSettle();
     expect(
-      second.controller!.offset,
+      offsetOf(1),
       greaterThan(secondStart),
       reason: 'the view acted in pages',
     );
-    expect(
-      first.controller!.offset,
-      firstStart,
-      reason: 'the other view stays',
-    );
+    expect(offsetOf(0), firstStart, reason: 'the other view stays');
   });
 
   testWidgets('arrow keys page the columns one at a time', (tester) async {
