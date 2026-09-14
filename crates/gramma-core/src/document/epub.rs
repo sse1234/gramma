@@ -406,6 +406,9 @@ struct Frame {
     note_label: bool,
     /// Label text seen inside this note body.
     note_label_text: String,
+    /// An in-page link's target, kept in case a raised child makes it a
+    /// note marker.
+    pending_fragment: Option<String>,
     /// Block context opened by this element.
     block: Option<BlockKind>,
 }
@@ -545,6 +548,14 @@ impl<'a> Walker<'a> {
                     let text = String::from_utf8_lossy(&t).into_owned();
                     self.text(&text);
                 }
+                Event::GeneralRef(r) if in_body => {
+                    // Character and entity references arrive on their own:
+                    // numeric ones resolve, the HTML names producers use
+                    // are mapped, the rest is dropped.
+                    if let Some(text) = resolve_reference(&r) {
+                        self.text(&text);
+                    }
+                }
                 Event::Eof => break,
                 _ => {}
             }
@@ -589,6 +600,7 @@ impl<'a> Walker<'a> {
             note_body: None,
             note_label: false,
             note_label_text: String::new(),
+            pending_fragment: None,
             block: None,
         };
         if self.classes.is_hidden(&class) {
@@ -602,7 +614,19 @@ impl<'a> Walker<'a> {
             "script" | "style" | "nav" | "svg" => frame.skip = true,
             "i" | "em" | "cite" | "dfn" => frame.style.italic = true,
             "b" | "strong" => frame.style.bold = true,
-            "sup" => frame.style.superscript = true,
+            "sup" => {
+                frame.style.superscript = true;
+                // A raised child makes a plain in-page link a note marker.
+                let in_body = self.in_note_body();
+                if let Some(link) = self.frames.last_mut()
+                    && link.name == "a"
+                    && link.note_ref.is_none()
+                    && link.pending_fragment.is_some()
+                    && !in_body
+                {
+                    link.note_ref = link.pending_fragment.take().map(NoteTarget::Id);
+                }
+            }
             "sub" => frame.style.subscript = true,
             "code" | "tt" | "kbd" | "samp" => frame.style.monospace = true,
             "br" if !self.skipping() => {
@@ -627,12 +651,20 @@ impl<'a> Walker<'a> {
             "a" => {
                 self.in_link = true;
                 let href = attr(e, b"href").unwrap_or_default();
+                // A link to a note: by class or type, by a target named like
+                // one ("#footnote-12"), or a raised link ("<sup>a</sup>"
+                // around or inside it).
+                let lower_href = href.to_ascii_lowercase();
                 let is_ref = epub_type.contains("noteref")
                     || lower_class.contains("noteref")
                     || lower_class.contains("footnote-anchor")
                     || lower_class.contains("footnotelink")
                     || lower_class.contains("footnoteref")
-                    || (href.starts_with('#') && self.frames.iter().any(|f| f.style.superscript));
+                    || (href.starts_with('#')
+                        && (lower_href.contains("footnote")
+                            || lower_href.contains("fn")
+                            || lower_href.contains("note")
+                            || self.frames.iter().any(|f| f.style.superscript)));
                 let target = match href.strip_prefix('#') {
                     Some(id) if !id.is_empty() => NoteTarget::Id(id.to_string()),
                     _ => NoteTarget::Ordinal,
@@ -641,6 +673,9 @@ impl<'a> Walker<'a> {
                     && (href.contains("backlink")
                         || lower_class.contains("anchor")
                         || lower_class.contains("backlink"));
+                if !is_ref && href.starts_with('#') && !self.in_note_body() {
+                    frame.pending_fragment = Some(href[1..].to_string());
+                }
                 if backlink {
                     frame.note_label = true;
                 } else if let Some(outer) =
@@ -806,10 +841,11 @@ impl<'a> Walker<'a> {
             push_text(cell, text, style);
             return;
         }
+        let letters = text.chars().filter(|c| c.is_alphanumeric()).count();
         if self.in_link {
-            self.link_chars += text.trim().chars().count();
+            self.link_chars += letters;
         } else {
-            self.other_chars += text.trim().chars().count();
+            self.other_chars += letters;
         }
         push_text(&mut self.inlines, text, style);
         self.inline_block_open = true;
@@ -1060,6 +1096,39 @@ fn strip_leading_label(note: &mut Note) {
         note.label = text[..digits].to_string();
     }
     *text = after.to_string();
+}
+
+fn resolve_reference(r: &quick_xml::events::BytesRef) -> Option<String> {
+    if let Ok(Some(c)) = r.resolve_char_ref() {
+        return Some(c.to_string());
+    }
+    let name = String::from_utf8_lossy(r.as_ref()).to_ascii_lowercase();
+    let text = match name.as_str() {
+        "nbsp" => "\u{a0}",
+        "shy" => "\u{ad}",
+        "amp" => "&",
+        "lt" => "<",
+        "gt" => ">",
+        "quot" => "\"",
+        "apos" => "'",
+        "ndash" => "–",
+        "mdash" => "—",
+        "hellip" => "…",
+        "laquo" => "«",
+        "raquo" => "»",
+        "bdquo" => "„",
+        "ldquo" => "“",
+        "rdquo" => "”",
+        "lsquo" => "‘",
+        "rsquo" => "’",
+        "ensp" | "emsp" | "thinsp" => " ",
+        "middot" => "·",
+        "sect" => "§",
+        "deg" => "°",
+        "times" => "×",
+        _ => return None,
+    };
+    Some(text.to_string())
 }
 
 fn local(e: &BytesStart) -> String {

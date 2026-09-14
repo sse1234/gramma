@@ -137,6 +137,13 @@ Rules added once real pages were read; each is unit-tested:
 - **Bible headings.** Short italic or bold paragraphs are section
   titles, lines made only of references are parallel-passage lines
   (level 2); a drop-cap chapter number opens verse 1.
+- **Raised links and references (EPUB).** A plain in-page link whose
+  content is raised, or whose target is named like a note, is a note
+  marker; numeric and named character references (`&#160;`, `&nbsp;`)
+  are resolved rather than dropped; a paragraph made only of links and
+  separators is navigation and is skipped.
+- **Section headings.** Set a shade heavier than text, never heavier
+  than the chapter heading; parallel-passage lines in italics below.
 - **Closed loop.** `tool/compare_extraction.py` compares gramma's words
   with a reference extractor's, so lost or invented words are counted
   per document rather than noticed by eye. After this round the three

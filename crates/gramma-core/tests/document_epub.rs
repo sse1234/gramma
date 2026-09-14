@@ -131,8 +131,9 @@ fn notes_lists_tables_figures_and_navigation() {
     ];
     let body = xhtml(
         r##"<div class="nav"><a href="toc.xhtml">[Inhalt]</a> | <a href="#c1">[1]</a></div>
-           <p class="textspalte"><a href="../Text/TOC.xhtml">[Inhaltsverzeichnis]</a> <a href="#x">[2]</a></p>
+           <p class="textspalte"><a href="../Text/TOC.xhtml">[Inhaltsverzeichnis]</a> | <a href="#x">[2]</a></p>
            <p>Text mit Anmerkung<a class="noteref" href="#fn1"><sup>1</sup></a> und zweiter<span class="noteref">2</span>.</p>
+           <p>Ein Aussätziger<a href="#footnote-9-3" id="footnote-9-3-backlink"><sup>a</sup></a>&#160;kam.</p>
            <ol><li>Erstens</li><li>Zweitens <b>fett</b></li></ol>
            <table><tr><th>Größe</th><th>Einheit</th></tr><tr><td>Länge</td><td>Meter</td></tr></table>
            <figure><img src="../Images/f.png"/><figcaption>Abb. 1</figcaption></figure>
@@ -170,7 +171,7 @@ fn notes_lists_tables_figures_and_navigation() {
         .collect();
     assert_eq!(
         kinds,
-        vec!["p", "list", "table", "figure", "quote"],
+        vec!["p", "p", "list", "table", "figure", "quote"],
         "{:#?}",
         doc.blocks
     );
@@ -188,7 +189,21 @@ fn notes_lists_tables_figures_and_navigation() {
             Inline::text("."),
         ]
     );
-    assert_eq!(doc.notes.len(), 2);
+    // A plain in-page link wrapping a raised letter is a marker too; the
+    // non-breaking space after it keeps the next word apart.
+    let Block::Paragraph { inlines, .. } = &doc.blocks[1] else {
+        panic!()
+    };
+    assert_eq!(
+        inlines,
+        &vec![
+            Inline::text("Ein Aussätziger"),
+            Inline::NoteRef(2),
+            Inline::text("\u{a0}kam."),
+        ],
+        "{inlines:?}"
+    );
+    assert_eq!(doc.notes.len(), 3);
     assert_eq!(doc.notes[0].label, "fn1");
     assert!(
         matches!(&doc.notes[0].blocks[0], Block::Paragraph { inlines, .. } if plain_text(inlines) == "Erste Anmerkung."),
@@ -202,7 +217,7 @@ fn notes_lists_tables_figures_and_navigation() {
     );
     assert_eq!(doc.notes[1].label, "2");
 
-    let Block::List { ordered, items } = &doc.blocks[1] else {
+    let Block::List { ordered, items } = &doc.blocks[2] else {
         panic!()
     };
     assert!(ordered);
@@ -211,14 +226,14 @@ fn notes_lists_tables_figures_and_navigation() {
         matches!(&items[1][0], Block::Paragraph { inlines, .. } if plain_text(inlines) == "Zweitens fett")
     );
 
-    let Block::Table { header_rows, rows } = &doc.blocks[2] else {
+    let Block::Table { header_rows, rows } = &doc.blocks[3] else {
         panic!()
     };
     assert_eq!(*header_rows, 1);
     assert_eq!(rows.len(), 2);
     assert_eq!(plain_text(&rows[1][1]), "Meter");
 
-    let Block::Figure { image, caption } = &doc.blocks[3] else {
+    let Block::Figure { image, caption } = &doc.blocks[4] else {
         panic!()
     };
     assert_eq!(plain_text(caption), "Abb. 1");

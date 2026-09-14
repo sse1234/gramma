@@ -63,7 +63,7 @@ TextPainter _layoutPainter(String text, TextStyle style, double strokeEm) {
 /// and a variable font (Literata) instantiates a genuinely wider real
 /// semibold, gluing heading words together. Added on top of the user's
 /// weight setting.
-const double headingStrokeEm = 0.05;
+const double headingStrokeEm = 0.02;
 
 /// Paints one text run at [offset]. [extraWeightEm] adds stroke weight in
 /// ems of the font size — the user's per-brightness font weight setting,
