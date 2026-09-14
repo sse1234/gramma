@@ -122,6 +122,8 @@
   "fontLiterataSubtitle": "fürs Lesen am Bildschirm entworfen — größere x-Höhe",
   "typefaceChangeFailed": "Schriftartwechsel fehlgeschlagen: {error}",
   "language": "Sprache",
+  "versionLine": "Version {version}",
+  "@versionLine": {"placeholders": {"version": {"type": "String"}}},
   "sectionSync": "Synchronisierung",
   "syncedFolder": "Synchronisierter Ordner",
   "syncOffSubtitle": "Aus — verbinde gramma mit einem Ordner, den dein Cloud-Anbieter oder Sync-Dienst synchron hält, oder verbinde Dropbox direkt. Schreibtische und Lesepositionen fließen zwischen deinen Geräten; Texte verlassen dieses Gerät nie.",

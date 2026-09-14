@@ -418,6 +418,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get language => 'Language';
 
   @override
+  String versionLine(String version) {
+    return 'Version $version';
+  }
+
+  @override
   String get sectionSync => 'Sync';
 
   @override

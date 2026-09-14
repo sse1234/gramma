@@ -824,6 +824,12 @@ abstract class AppLocalizations {
   /// **'Language'**
   String get language;
 
+  /// No description provided for @versionLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Version {version}'**
+  String versionLine(String version);
+
   /// No description provided for @sectionSync.
   ///
   /// In en, this message translates to:

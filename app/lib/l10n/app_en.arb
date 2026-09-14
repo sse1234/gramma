@@ -138,6 +138,8 @@
   "typefaceChangeFailed": "Typeface change failed: {error}",
   "@typefaceChangeFailed": {"placeholders": {"error": {"type": "String"}}},
   "language": "Language",
+  "versionLine": "Version {version}",
+  "@versionLine": {"placeholders": {"version": {"type": "String"}}},
   "sectionSync": "Sync",
   "syncedFolder": "Synced folder",
   "syncOffSubtitle": "Off — point gramma at a folder your cloud provider or sync agent keeps in sync, or connect Dropbox directly. Desks and reading positions flow between your devices; texts never leave this device.",

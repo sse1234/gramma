@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gramma/l10n.dart';
 import 'package:gramma/settings.dart';
 import 'package:gramma/settings_screen.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Future<SettingsController> _controller() async {
@@ -18,10 +19,17 @@ Widget _harness(SettingsController controller) {
       supportedLocales: AppLocalizations.supportedLocales,
       locale: controller.localeOverride,
       themeMode: controller.themeMode,
-      theme: grammaTheme(Brightness.light, controller.contrast,
-          tone: controller.tone),
-      darkTheme: grammaTheme(Brightness.dark, controller.contrast,
-          trueBlack: controller.trueBlackDark, tone: controller.tone),
+      theme: grammaTheme(
+        Brightness.light,
+        controller.contrast,
+        tone: controller.tone,
+      ),
+      darkTheme: grammaTheme(
+        Brightness.dark,
+        controller.contrast,
+        trueBlack: controller.trueBlackDark,
+        tone: controller.tone,
+      ),
       builder: (context, child) =>
           SettingsScope(controller: controller, child: child!),
       home: const SettingsScreen(),
@@ -82,57 +90,78 @@ void main() {
     );
   });
 
-  test('true black keeps the background at pure black and dims only text',
-      () async {
-    final dim = grammaTheme(Brightness.dark, 0.5, trueBlack: true);
-    final full = grammaTheme(Brightness.dark, 1.0, trueBlack: true);
-    expect(dim.scaffoldBackgroundColor, Colors.black);
-    expect(full.scaffoldBackgroundColor, Colors.black);
-    expect(
-      dim.colorScheme.onSurface.computeLuminance(),
-      lessThan(full.colorScheme.onSurface.computeLuminance()),
-    );
-    final controller = await _controller();
-    controller.setTrueBlackDark(true);
-    final reloaded =
-        SettingsController(await SharedPreferences.getInstance());
-    expect(reloaded.trueBlackDark, isTrue);
-  });
+  test(
+    'true black keeps the background at pure black and dims only text',
+    () async {
+      final dim = grammaTheme(Brightness.dark, 0.5, trueBlack: true);
+      final full = grammaTheme(Brightness.dark, 1.0, trueBlack: true);
+      expect(dim.scaffoldBackgroundColor, Colors.black);
+      expect(full.scaffoldBackgroundColor, Colors.black);
+      expect(
+        dim.colorScheme.onSurface.computeLuminance(),
+        lessThan(full.colorScheme.onSurface.computeLuminance()),
+      );
+      final controller = await _controller();
+      controller.setTrueBlackDark(true);
+      final reloaded = SettingsController(
+        await SharedPreferences.getInstance(),
+      );
+      expect(reloaded.trueBlackDark, isTrue);
+    },
+  );
 
-  test('tones tint the softened surface distinctly, neutral stone included',
-      () {
-    final backgrounds = [
-      for (final tone in ToneTheme.values)
-        grammaTheme(Brightness.light, SettingsController.minContrast,
-                tone: tone)
-            .scaffoldBackgroundColor,
-    ];
-    for (var i = 0; i < backgrounds.length; i++) {
-      for (var j = i + 1; j < backgrounds.length; j++) {
-        expect(backgrounds[i], isNot(backgrounds[j]),
-            reason: 'tones $i and $j must differ');
+  test(
+    'tones tint the softened surface distinctly, neutral stone included',
+    () {
+      final backgrounds = [
+        for (final tone in ToneTheme.values)
+          grammaTheme(
+            Brightness.light,
+            SettingsController.minContrast,
+            tone: tone,
+          ).scaffoldBackgroundColor,
+      ];
+      for (var i = 0; i < backgrounds.length; i++) {
+        for (var j = i + 1; j < backgrounds.length; j++) {
+          expect(
+            backgrounds[i],
+            isNot(backgrounds[j]),
+            reason: 'tones $i and $j must differ',
+          );
+        }
       }
-    }
-    final stone = grammaTheme(Brightness.light, SettingsController.minContrast,
-            tone: ToneTheme.stone)
-        .scaffoldBackgroundColor;
-    int ch(double x) => (x * 255).round();
-    expect((ch(stone.r) - ch(stone.b)).abs(), lessThan(3),
-        reason: 'stone is neutral');
-    // Full contrast converges to pure white regardless of tone.
-    expect(
-      grammaTheme(Brightness.light, 1.0, tone: ToneTheme.mist)
-          .scaffoldBackgroundColor,
-      Colors.white,
-    );
-    // True black stays black in every tone.
-    expect(
-      grammaTheme(Brightness.dark, 0.5,
-              trueBlack: true, tone: ToneTheme.sepia)
-          .scaffoldBackgroundColor,
-      Colors.black,
-    );
-  });
+      final stone = grammaTheme(
+        Brightness.light,
+        SettingsController.minContrast,
+        tone: ToneTheme.stone,
+      ).scaffoldBackgroundColor;
+      int ch(double x) => (x * 255).round();
+      expect(
+        (ch(stone.r) - ch(stone.b)).abs(),
+        lessThan(3),
+        reason: 'stone is neutral',
+      );
+      // Full contrast converges to pure white regardless of tone.
+      expect(
+        grammaTheme(
+          Brightness.light,
+          1.0,
+          tone: ToneTheme.mist,
+        ).scaffoldBackgroundColor,
+        Colors.white,
+      );
+      // True black stays black in every tone.
+      expect(
+        grammaTheme(
+          Brightness.dark,
+          0.5,
+          trueBlack: true,
+          tone: ToneTheme.sepia,
+        ).scaffoldBackgroundColor,
+        Colors.black,
+      );
+    },
+  );
 
   test('lower contrast softens ink and background', () {
     final full = grammaTheme(Brightness.light, 1.0);
@@ -160,8 +189,11 @@ void main() {
     expect(find.text('Zeilenbreite'), findsOneWidget);
     controller.setLocaleCode(null);
     await tester.pumpAndSettle();
-    expect(find.text('Settings'), findsOneWidget,
-        reason: 'system locale (en in tests) returns');
+    expect(
+      find.text('Settings'),
+      findsOneWidget,
+      reason: 'system locale (en in tests) returns',
+    );
   });
 
   testWidgets('theme mode selection applies', (tester) async {
@@ -179,8 +211,9 @@ void main() {
     expect(Theme.of(context).brightness, Brightness.dark);
   });
 
-  testWidgets('measure slider is locked behind a confirmation dialog',
-      (tester) async {
+  testWidgets('measure slider is locked behind a confirmation dialog', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(800, 1900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -221,8 +254,7 @@ void main() {
     controller.setColumnAdvance(0.01);
     expect(controller.columnAdvance, SettingsController.minColumnAdvance);
     controller.setColumnAdvance(0.3);
-    final reloaded =
-        SettingsController(await SharedPreferences.getInstance());
+    final reloaded = SettingsController(await SharedPreferences.getInstance());
     expect(reloaded.columnAdvance, 0.3);
   });
 
@@ -234,11 +266,13 @@ void main() {
       throwsStateError,
     );
     controller.setFontFamily('NoSuchFont', confirmed: true);
-    expect(controller.fontFamily, 'GentiumBookPlus',
-        reason: 'unknown families are refused');
+    expect(
+      controller.fontFamily,
+      'GentiumBookPlus',
+      reason: 'unknown families are refused',
+    );
     controller.setFontFamily('GentiumPlus', confirmed: true);
-    final reloaded =
-        SettingsController(await SharedPreferences.getInstance());
+    final reloaded = SettingsController(await SharedPreferences.getInstance());
     expect(reloaded.fontFamily, 'GentiumPlus');
   });
 
@@ -248,13 +282,17 @@ void main() {
     expect(controller.fontWeightDark, SettingsController.defaultFontWeight);
     controller.setFontWeightDark(0.04);
     controller.setFontWeightLight(0.9);
-    expect(controller.fontWeightLight, SettingsController.maxFontWeight,
-        reason: 'clamped');
+    expect(
+      controller.fontWeightLight,
+      SettingsController.maxFontWeight,
+      reason: 'clamped',
+    );
     expect(controller.fontWeightFor(Brightness.dark), 0.04);
-    expect(controller.fontWeightFor(Brightness.light),
-        SettingsController.maxFontWeight);
-    final reloaded =
-        SettingsController(await SharedPreferences.getInstance());
+    expect(
+      controller.fontWeightFor(Brightness.light),
+      SettingsController.maxFontWeight,
+    );
+    final reloaded = SettingsController(await SharedPreferences.getInstance());
     expect(reloaded.fontWeightDark, 0.04);
   });
 
@@ -270,8 +308,10 @@ void main() {
     // Dragging left (toward "light") must lower the required advance.
     await tester.drag(slider, const Offset(-300, 0));
     await tester.pumpAndSettle();
-    expect(controller.columnAdvance,
-        lessThan(SettingsController.defaultColumnAdvance));
+    expect(
+      controller.columnAdvance,
+      lessThan(SettingsController.defaultColumnAdvance),
+    );
   });
 
   test('keep-screen-on persists and hides off mobile', () async {
@@ -279,10 +319,29 @@ void main() {
     expect(controller.keepScreenOn, isFalse);
     controller.setKeepScreenOn(true);
     expect(controller.keepScreenOn, isTrue);
-    final reloaded =
-        SettingsController(await SharedPreferences.getInstance());
+    final reloaded = SettingsController(await SharedPreferences.getInstance());
     expect(reloaded.keepScreenOn, isTrue);
     // The test host is a desktop: the switch stays out of the screen.
     expect(SettingsController.keepScreenOnAvailable, isFalse);
+  });
+
+  testWidgets('the version and build number close the settings', (
+    tester,
+  ) async {
+    PackageInfo.setMockInitialValues(
+      appName: 'gramma',
+      packageName: 'io.sse.gramma',
+      version: '1.1.0',
+      buildNumber: '6',
+      buildSignature: '',
+    );
+    final controller = await _controller();
+    await tester.pumpWidget(_harness(controller));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byKey(const Key('app-version')), 300);
+    expect(
+      tester.widget<Text>(find.byKey(const Key('app-version'))).data,
+      startsWith('Version 1.1.0 (6)'),
+    );
   });
 }

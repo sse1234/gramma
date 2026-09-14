@@ -29,6 +29,13 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
   a Bible text's headings (parallel passages) preview their passage.
 - Release notes per version for the stores; a closed-loop extraction
   check (`tool/compare_extraction.py`) for the PDF reader.
+- Settings shows the app version, build number, and build time.
+
+### Changed
+- Menus and pane headers take their own space again (reverting the
+  1.0.1 overlay): with them shown, the first lines of a column are no
+  longer hidden. Toggling them reflows the text; the line at the top
+  left stays where it was.
 
 ## [1.0.1] - 2026-09-05
 

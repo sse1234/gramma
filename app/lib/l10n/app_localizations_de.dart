@@ -420,6 +420,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get language => 'Sprache';
 
   @override
+  String versionLine(String version) {
+    return 'Version $version';
+  }
+
+  @override
   String get sectionSync => 'Synchronisierung';
 
   @override

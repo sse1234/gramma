@@ -145,9 +145,13 @@ Archive, then export with destination `upload`. Authentication uses an
 App Store Connect API **Team key with the Admin role** (a Developer-role
 key authenticates but may not use the cloud-managed distribution
 certificate: "Cloud signing permission error"). The .p8 stays outside
-the repo; only its path is passed:
+the repo; only its path is passed. Build with Flutter first (this also
+stamps the build time shown under Settings; macOS in particular needs
+`flutter build macos --release` before the archive, or the archive
+carries the previous version):
 
 ```
+flutter build ios --release --dart-define=GRAMMA_BUILD_TIME="$(date -u +'%Y-%m-%d %H:%M UTC')"
 xcodebuild -workspace Runner.xcworkspace -scheme Runner \
   -configuration Release -destination 'generic/platform=iOS' \
   -archivePath /path/gramma-ios.xcarchive -allowProvisioningUpdates archive

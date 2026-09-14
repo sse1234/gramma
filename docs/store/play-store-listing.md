@@ -52,7 +52,7 @@ serviceAccountFile=/path/to/play-service-account.json
 track=alpha
 ```
 
-Then, after `flutter build appbundle --release`:
+Then, after `flutter build appbundle --release --dart-define=GRAMMA_BUILD_TIME="$(date -u +'%Y-%m-%d %H:%M UTC')"`:
 
 ```
 cd app/android && ./gradlew :app:publishReleaseBundle \

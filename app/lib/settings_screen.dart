@@ -2,7 +2,8 @@ import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show MissingPluginException, rootBundle;
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'dropbox_sync.dart';
@@ -31,9 +32,8 @@ class SettingsScreen extends StatefulWidget {
 /// content on desktops and tablets.
 Future<void> showSettings(BuildContext context) {
   if (MediaQuery.of(context).size.width < 700) {
-    return Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SettingsScreen()),
-    );
+    return Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
   }
   return showDialog<void>(
     context: context,
@@ -46,7 +46,27 @@ Future<void> showSettings(BuildContext context) {
   );
 }
 
+/// Build moment stamped by the build command
+/// (`--dart-define=GRAMMA_BUILD_TIME="2026-09-14 18:32 UTC"`); empty for
+/// ad-hoc builds, which then show the version alone.
+const buildTime = String.fromEnvironment('GRAMMA_BUILD_TIME');
+
 class _SettingsScreenState extends State<SettingsScreen> {
+  /// "1.1.0 (6)" once the platform reports it; absent where it cannot
+  /// (widget tests without a platform channel).
+  String? _version;
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      final built = buildTime.isEmpty ? '' : ' · $buildTime';
+      setState(() => _version = '${info.version} (${info.buildNumber})$built');
+    } on MissingPluginException {
+      // No platform channel (tests): the line is simply absent.
+    }
+  }
+
   bool _measureUnlocked = false;
   double? _measurePreview;
   List<ModuleView> _modules = const [];
@@ -55,12 +75,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _loadVersion();
     try {
       // The default text is a Bible text; commentaries (ADR 0017) are not
       // reading-view candidates.
       _modules = [
         for (final m in modules())
-          if (m.kind == 'bible') m
+          if (m.kind == 'bible') m,
       ];
     } catch (_) {
       _modules = const [];
@@ -89,14 +110,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final changed = path == null ? const <String>[] : await pullSync();
       if (!mounted) return;
       setState(() => _syncDir = path);
-      messenger.showSnackBar(SnackBar(
-        content: Text(path == null
-            ? l10n.syncDisabled
-            : l10n.syncEnabledPulled(changed.length)),
-      ));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            path == null
+                ? l10n.syncDisabled
+                : l10n.syncEnabledPulled(changed.length),
+          ),
+        ),
+      );
     } catch (e) {
       messenger.showSnackBar(
-          SnackBar(content: Text(l10n.folderNotUsable('$e'))));
+        SnackBar(content: Text(l10n.folderNotUsable('$e'))),
+      );
     }
   }
 
@@ -105,11 +131,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final path = await icloudContainerPath();
     if (!mounted) return;
     if (path == null) {
-      messenger.showSnackBar(SnackBar(
-        content: Text(Platform.isIOS
-            ? context.l10n.icloudUnavailable
-            : context.l10n.icloudNoContainer),
-      ));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            Platform.isIOS
+                ? context.l10n.icloudUnavailable
+                : context.l10n.icloudNoContainer,
+          ),
+        ),
+      );
       return;
     }
     await _applySyncFolder(path);
@@ -163,11 +193,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
     final changed = await pullSync();
-    messenger.showSnackBar(SnackBar(
-      content: Text(changed.isEmpty
-          ? l10n.alreadyUpToDate
-          : l10n.changesPulled(changed.length)),
-    ));
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          changed.isEmpty
+              ? l10n.alreadyUpToDate
+              : l10n.changesPulled(changed.length),
+        ),
+      ),
+    );
   }
 
   /// Folder transports replace Dropbox and vice versa: connecting one
@@ -206,7 +240,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       activeDropbox = null;
       if (!mounted) return;
       messenger.showSnackBar(
-          SnackBar(content: Text(context.l10n.dropboxConnectionFailed('$e'))));
+        SnackBar(content: Text(context.l10n.dropboxConnectionFailed('$e'))),
+      );
     }
   }
 
@@ -262,20 +297,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
-    if (chosen == null ||
-        !mounted ||
-        chosen == settings.fontFamily) {
+    if (chosen == null || !mounted || chosen == settings.fontFamily) {
       return;
     }
     try {
-      final font =
-          await rootBundle.load(SettingsController.fontAssets[chosen]!);
+      final font = await rootBundle.load(
+        SettingsController.fontAssets[chosen]!,
+      );
       setTypesetFont(fontData: font.buffer.asUint8List());
       settings.setFontFamily(chosen, confirmed: true);
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
-          SnackBar(content: Text(context.l10n.typefaceChangeFailed('$e'))));
+        SnackBar(content: Text(context.l10n.typefaceChangeFailed('$e'))),
+      );
     }
   }
 
@@ -309,389 +344,396 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final settings = SettingsScope.of(context);
     final theme = Theme.of(context);
     final list = ListView(
-            padding: const EdgeInsets.all(24),
-            children: [
-              Text(context.l10n.sectionReading,
-                  style: theme.textTheme.titleMedium),
-              const SizedBox(height: 8),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.textSize),
-                subtitle: Slider(
-                  key: const Key('zoom-slider'),
-                  min: 320,
-                  max: 520,
-                  divisions: 20,
-                  value: settings.columnWidth,
-                  label: context.l10n
-                      .pxColumnLabel(settings.columnWidth.round()),
-                  onChanged: settings.setColumnWidth,
-                ),
+      padding: const EdgeInsets.all(24),
+      children: [
+        Text(context.l10n.sectionReading, style: theme.textTheme.titleMedium),
+        const SizedBox(height: 8),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(context.l10n.textSize),
+          subtitle: Slider(
+            key: const Key('zoom-slider'),
+            min: 320,
+            max: 520,
+            divisions: 20,
+            value: settings.columnWidth,
+            label: context.l10n.pxColumnLabel(settings.columnWidth.round()),
+            onChanged: settings.setColumnWidth,
+          ),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(context.l10n.footnoteTextSize),
+          subtitle: Slider(
+            key: const Key('footnote-scale'),
+            min: 0.8,
+            max: 1.6,
+            divisions: 8,
+            value: settings.footnoteScale,
+            label: '${(settings.footnoteScale * 100).round()} %',
+            onChanged: settings.setFootnoteScale,
+          ),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(context.l10n.previewTextSize),
+          subtitle: Slider(
+            key: const Key('preview-scale'),
+            min: 0.8,
+            max: 1.6,
+            divisions: 8,
+            value: settings.previewScale,
+            label: '${(settings.previewScale * 100).round()} %',
+            onChanged: settings.setPreviewScale,
+          ),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(context.l10n.commentaryTextSize),
+          subtitle: Slider(
+            key: const Key('commentary-scale'),
+            min: 0.8,
+            max: 1.6,
+            divisions: 8,
+            value: settings.commentaryScale,
+            label: '${(settings.commentaryScale * 100).round()} %',
+            onChanged: settings.setCommentaryScale,
+          ),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(context.l10n.lineSpacing),
+          subtitle: Slider(
+            key: const Key('spacing-slider'),
+            min: 1.2,
+            max: 2.6,
+            divisions: 14,
+            value: settings.lineSpacing,
+            label: context.l10n.lineSpacingLabel(
+              settings.lineSpacing.toStringAsFixed(1),
+            ),
+            onChanged: settings.setLineSpacing,
+          ),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(context.l10n.columnTurnEffort),
+          subtitle: Slider(
+            key: const Key('advance-slider'),
+            // Left = a light swipe already turns the column,
+            // right = a firm one is needed.
+            min: SettingsController.minColumnAdvance,
+            max: SettingsController.maxColumnAdvance,
+            divisions: 9,
+            value: settings.columnAdvance,
+            label: context.l10n.columnAdvanceLabel(
+              (settings.columnAdvance * 100).round(),
+            ),
+            onChanged: settings.setColumnAdvance,
+          ),
+        ),
+        if (_modules.isNotEmpty)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(context.l10n.defaultText),
+            subtitle: Text(context.l10n.defaultTextSubtitle),
+            trailing: DropdownButton<String>(
+              key: const Key('default-module'),
+              value: _modules.any((m) => m.code == settings.defaultModule)
+                  ? settings.defaultModule
+                  : null,
+              hint: Text(context.l10n.firstModule),
+              items: [
+                for (final m in _modules)
+                  DropdownMenuItem(
+                    value: m.code,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(m.code),
+                        if (m.strongs) ...[
+                          const SizedBox(width: 4),
+                          const StrongsBadge(),
+                        ],
+                      ],
+                    ),
+                  ),
+              ],
+              onChanged: settings.setDefaultModule,
+            ),
+          ),
+        const SizedBox(height: 16),
+        Text(
+          context.l10n.sectionAppearance,
+          style: theme.textTheme.titleMedium,
+        ),
+        const SizedBox(height: 12),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(context.l10n.language),
+          trailing: DropdownButton<String>(
+            key: const Key('language-select'),
+            value: settings.localeCode ?? 'system',
+            underline: const SizedBox.shrink(),
+            items: [
+              DropdownMenuItem(
+                value: 'system',
+                child: Text(context.l10n.themeSystem),
               ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.footnoteTextSize),
-                subtitle: Slider(
-                  key: const Key('footnote-scale'),
-                  min: 0.8,
-                  max: 1.6,
-                  divisions: 8,
-                  value: settings.footnoteScale,
-                  label: '${(settings.footnoteScale * 100).round()} %',
-                  onChanged: settings.setFootnoteScale,
-                ),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.previewTextSize),
-                subtitle: Slider(
-                  key: const Key('preview-scale'),
-                  min: 0.8,
-                  max: 1.6,
-                  divisions: 8,
-                  value: settings.previewScale,
-                  label: '${(settings.previewScale * 100).round()} %',
-                  onChanged: settings.setPreviewScale,
-                ),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.commentaryTextSize),
-                subtitle: Slider(
-                  key: const Key('commentary-scale'),
-                  min: 0.8,
-                  max: 1.6,
-                  divisions: 8,
-                  value: settings.commentaryScale,
-                  label: '${(settings.commentaryScale * 100).round()} %',
-                  onChanged: settings.setCommentaryScale,
-                ),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.lineSpacing),
-                subtitle: Slider(
-                  key: const Key('spacing-slider'),
-                  min: 1.2,
-                  max: 2.6,
-                  divisions: 14,
-                  value: settings.lineSpacing,
-                  label: context.l10n.lineSpacingLabel(
-                      settings.lineSpacing.toStringAsFixed(1)),
-                  onChanged: settings.setLineSpacing,
-                ),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.columnTurnEffort),
-                subtitle: Slider(
-                  key: const Key('advance-slider'),
-                  // Left = a light swipe already turns the column,
-                  // right = a firm one is needed.
-                  min: SettingsController.minColumnAdvance,
-                  max: SettingsController.maxColumnAdvance,
-                  divisions: 9,
-                  value: settings.columnAdvance,
-                  label: context.l10n.columnAdvanceLabel(
-                      (settings.columnAdvance * 100).round()),
-                  onChanged: settings.setColumnAdvance,
-                ),
-              ),
-              if (_modules.isNotEmpty)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(context.l10n.defaultText),
-                  subtitle: Text(context.l10n.defaultTextSubtitle),
-                  trailing: DropdownButton<String>(
-                    key: const Key('default-module'),
-                    value: _modules.any(
-                            (m) => m.code == settings.defaultModule)
-                        ? settings.defaultModule
-                        : null,
-                    hint: Text(context.l10n.firstModule),
-                    items: [
-                      for (final m in _modules)
-                        DropdownMenuItem(
-                          value: m.code,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(m.code),
-                              if (m.strongs) ...[
-                                const SizedBox(width: 4),
-                                const StrongsBadge(),
-                              ],
-                            ],
+              const DropdownMenuItem(value: 'en', child: Text('English')),
+              const DropdownMenuItem(value: 'de', child: Text('Deutsch')),
+            ],
+            onChanged: (v) => settings.setLocaleCode(v == 'system' ? null : v),
+          ),
+        ),
+        SegmentedButton<ThemeMode>(
+          key: const Key('theme-select'),
+          segments: [
+            ButtonSegment(
+              value: ThemeMode.system,
+              label: Text(context.l10n.themeSystem),
+              icon: const Icon(Icons.brightness_auto_outlined),
+            ),
+            ButtonSegment(
+              value: ThemeMode.light,
+              label: Text(context.l10n.themeLight),
+              icon: const Icon(Icons.light_mode_outlined),
+            ),
+            ButtonSegment(
+              value: ThemeMode.dark,
+              label: Text(context.l10n.themeDark),
+              icon: const Icon(Icons.dark_mode_outlined),
+            ),
+          ],
+          selected: {settings.themeMode},
+          onSelectionChanged: (modes) => settings.setThemeMode(modes.first),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(context.l10n.tone),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Row(
+              children: [
+                for (final tone in ToneTheme.values)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: Tooltip(
+                      message: tone.name,
+                      child: InkWell(
+                        key: Key('tone-${tone.name}'),
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: () => settings.setTone(tone),
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: toneBackground(tone, theme.brightness),
+                            border: Border.all(
+                              color: settings.tone == tone
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.outlineVariant,
+                              width: settings.tone == tone ? 2.5 : 1,
+                            ),
                           ),
-                        ),
-                    ],
-                    onChanged: settings.setDefaultModule,
-                  ),
-                ),
-              const SizedBox(height: 16),
-              Text(context.l10n.sectionAppearance,
-                  style: theme.textTheme.titleMedium),
-              const SizedBox(height: 12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.language),
-                trailing: DropdownButton<String>(
-                  key: const Key('language-select'),
-                  value: settings.localeCode ?? 'system',
-                  underline: const SizedBox.shrink(),
-                  items: [
-                    DropdownMenuItem(
-                        value: 'system',
-                        child: Text(context.l10n.themeSystem)),
-                    const DropdownMenuItem(
-                        value: 'en', child: Text('English')),
-                    const DropdownMenuItem(
-                        value: 'de', child: Text('Deutsch')),
-                  ],
-                  onChanged: (v) => settings
-                      .setLocaleCode(v == 'system' ? null : v),
-                ),
-              ),
-              SegmentedButton<ThemeMode>(
-                key: const Key('theme-select'),
-                segments: [
-                  ButtonSegment(
-                    value: ThemeMode.system,
-                    label: Text(context.l10n.themeSystem),
-                    icon: const Icon(Icons.brightness_auto_outlined),
-                  ),
-                  ButtonSegment(
-                    value: ThemeMode.light,
-                    label: Text(context.l10n.themeLight),
-                    icon: const Icon(Icons.light_mode_outlined),
-                  ),
-                  ButtonSegment(
-                    value: ThemeMode.dark,
-                    label: Text(context.l10n.themeDark),
-                    icon: const Icon(Icons.dark_mode_outlined),
-                  ),
-                ],
-                selected: {settings.themeMode},
-                onSelectionChanged: (modes) =>
-                    settings.setThemeMode(modes.first),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.tone),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Row(
-                    children: [
-                      for (final tone in ToneTheme.values)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 10),
-                          child: Tooltip(
-                            message: tone.name,
-                            child: InkWell(
-                              key: Key('tone-${tone.name}'),
-                              borderRadius: BorderRadius.circular(18),
-                              onTap: () => settings.setTone(tone),
-                              child: Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: toneBackground(
-                                      tone, theme.brightness),
-                                  border: Border.all(
-                                    color: settings.tone == tone
-                                        ? theme.colorScheme.primary
-                                        : theme.colorScheme.outlineVariant,
-                                    width: settings.tone == tone ? 2.5 : 1,
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    'Aa',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontFamily: 'GentiumBookPlus',
-                                      color: toneInk(
-                                          tone, theme.brightness),
-                                    ),
-                                  ),
-                                ),
+                          child: Center(
+                            child: Text(
+                              'Aa',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontFamily: 'GentiumBookPlus',
+                                color: toneInk(tone, theme.brightness),
                               ),
                             ),
                           ),
                         ),
-                    ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.fontWeightLightMode),
-                subtitle: Slider(
-                  key: const Key('weight-light'),
-                  min: 0,
-                  max: SettingsController.maxFontWeight,
-                  divisions: 6,
-                  value: settings.fontWeightLight,
-                  label: settings.fontWeightLight == 0
-                      ? 'natural'
-                      : '+${(settings.fontWeightLight * 100).round()}',
-                  onChanged: settings.setFontWeightLight,
-                ),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.fontWeightDarkMode),
-                subtitle: Slider(
-                  key: const Key('weight-dark'),
-                  min: 0,
-                  max: SettingsController.maxFontWeight,
-                  divisions: 6,
-                  value: settings.fontWeightDark,
-                  label: settings.fontWeightDark == 0
-                      ? 'natural'
-                      : '+${(settings.fontWeightDark * 100).round()}',
-                  onChanged: settings.setFontWeightDark,
-                ),
-              ),
-              SwitchListTile(
-                key: const Key('true-black'),
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.trueBlack),
-                subtitle: Text(context.l10n.trueBlackSubtitle),
-                value: settings.trueBlackDark,
-                onChanged: settings.setTrueBlackDark,
-              ),
-              if (SettingsController.keepScreenOnAvailable)
-                SwitchListTile(
-                  key: const Key('keep-screen-on'),
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(context.l10n.keepScreenOn),
-                  subtitle: Text(context.l10n.keepScreenOnSubtitle),
-                  value: settings.keepScreenOn,
-                  onChanged: settings.setKeepScreenOn,
-                ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.contrast),
-                subtitle: Slider(
-                  key: const Key('contrast-slider'),
-                  min: SettingsController.minContrast,
-                  max: 1.0,
-                  divisions: 14,
-                  value: settings.contrast,
-                  label: '${(settings.contrast * 100).round()} %',
-                  onChanged: settings.setContrast,
-                ),
-              ),
-              const Divider(height: 32),
-              Text(context.l10n.sectionTypesetting,
-                  style: theme.textTheme.titleMedium),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.typeface),
-                subtitle: Text(
-                  SettingsController.fontDisplayNames[settings.fontFamily] ??
-                      settings.fontFamily,
-                ),
-                trailing: OutlinedButton(
-                  key: const Key('change-font'),
-                  onPressed: _changeTypeface,
+              ],
+            ),
+          ),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(context.l10n.fontWeightLightMode),
+          subtitle: Slider(
+            key: const Key('weight-light'),
+            min: 0,
+            max: SettingsController.maxFontWeight,
+            divisions: 6,
+            value: settings.fontWeightLight,
+            label: settings.fontWeightLight == 0
+                ? 'natural'
+                : '+${(settings.fontWeightLight * 100).round()}',
+            onChanged: settings.setFontWeightLight,
+          ),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(context.l10n.fontWeightDarkMode),
+          subtitle: Slider(
+            key: const Key('weight-dark'),
+            min: 0,
+            max: SettingsController.maxFontWeight,
+            divisions: 6,
+            value: settings.fontWeightDark,
+            label: settings.fontWeightDark == 0
+                ? 'natural'
+                : '+${(settings.fontWeightDark * 100).round()}',
+            onChanged: settings.setFontWeightDark,
+          ),
+        ),
+        SwitchListTile(
+          key: const Key('true-black'),
+          contentPadding: EdgeInsets.zero,
+          title: Text(context.l10n.trueBlack),
+          subtitle: Text(context.l10n.trueBlackSubtitle),
+          value: settings.trueBlackDark,
+          onChanged: settings.setTrueBlackDark,
+        ),
+        if (SettingsController.keepScreenOnAvailable)
+          SwitchListTile(
+            key: const Key('keep-screen-on'),
+            contentPadding: EdgeInsets.zero,
+            title: Text(context.l10n.keepScreenOn),
+            subtitle: Text(context.l10n.keepScreenOnSubtitle),
+            value: settings.keepScreenOn,
+            onChanged: settings.setKeepScreenOn,
+          ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(context.l10n.contrast),
+          subtitle: Slider(
+            key: const Key('contrast-slider'),
+            min: SettingsController.minContrast,
+            max: 1.0,
+            divisions: 14,
+            value: settings.contrast,
+            label: '${(settings.contrast * 100).round()} %',
+            onChanged: settings.setContrast,
+          ),
+        ),
+        const Divider(height: 32),
+        Text(
+          context.l10n.sectionTypesetting,
+          style: theme.textTheme.titleMedium,
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(context.l10n.typeface),
+          subtitle: Text(
+            SettingsController.fontDisplayNames[settings.fontFamily] ??
+                settings.fontFamily,
+          ),
+          trailing: OutlinedButton(
+            key: const Key('change-font'),
+            onPressed: _changeTypeface,
+            child: Text(context.l10n.changeEllipsis),
+          ),
+        ),
+        const SizedBox(height: 8),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(context.l10n.lineWidth),
+          subtitle: Text(
+            context.l10n.lineWidthSubtitle(
+              settings.measureEms,
+              (settings.measureEms * 2.1).round(),
+            ),
+          ),
+          trailing: _measureUnlocked
+              ? null
+              : OutlinedButton(
+                  key: const Key('change-measure'),
+                  onPressed: _confirmMeasureChange,
                   child: Text(context.l10n.changeEllipsis),
                 ),
+        ),
+        if (_measureUnlocked)
+          Slider(
+            key: const Key('measure-slider'),
+            min: 18,
+            max: 36,
+            divisions: 18,
+            value: _measurePreview ?? settings.measureEms.toDouble(),
+            label:
+                '${(_measurePreview ?? settings.measureEms.toDouble()).round()} em',
+            onChanged: (v) => setState(() => _measurePreview = v),
+            // Committing only at drag end avoids re-typesetting the
+            // whole module on every tick.
+            onChangeEnd: (v) {
+              settings.setMeasureEms(v.round(), confirmed: true);
+              setState(() => _measurePreview = null);
+            },
+          ),
+        const SizedBox(height: 16),
+        Text(context.l10n.sectionSync, style: theme.textTheme.titleMedium),
+        const SizedBox(height: 4),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(context.l10n.syncedFolder),
+          subtitle: Text(
+            settings.dropboxRefreshToken != null
+                ? context.l10n.syncDropboxSubtitle
+                : _syncDir ?? context.l10n.syncOffSubtitle,
+          ),
+        ),
+        Wrap(
+          spacing: 8,
+          children: [
+            if (settings.dropboxRefreshToken == null)
+              FilledButton.tonal(
+                key: const Key('sync-dropbox'),
+                onPressed: _connectDropbox,
+                child: Text(context.l10n.connectDropbox),
               ),
-              const SizedBox(height: 8),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.lineWidth),
-                subtitle: Text(context.l10n.lineWidthSubtitle(
-                    settings.measureEms,
-                    (settings.measureEms * 2.1).round())),
-                trailing: _measureUnlocked
-                    ? null
-                    : OutlinedButton(
-                        key: const Key('change-measure'),
-                        onPressed: _confirmMeasureChange,
-                        child: Text(context.l10n.changeEllipsis),
-                      ),
+            if (icloudTransportEnabled && (Platform.isIOS || Platform.isMacOS))
+              FilledButton.tonal(
+                key: const Key('sync-icloud'),
+                onPressed: _useICloud,
+                child: Text(context.l10n.useICloud),
               ),
-              if (_measureUnlocked)
-                Slider(
-                  key: const Key('measure-slider'),
-                  min: 18,
-                  max: 36,
-                  divisions: 18,
-                  value: _measurePreview ?? settings.measureEms.toDouble(),
-                  label: '${(_measurePreview ?? settings.measureEms.toDouble()).round()} em',
-                  onChanged: (v) => setState(() => _measurePreview = v),
-                  // Committing only at drag end avoids re-typesetting the
-                  // whole module on every tick.
-                  onChangeEnd: (v) {
-                    settings.setMeasureEms(v.round(), confirmed: true);
-                    setState(() => _measurePreview = null);
-                  },
-                ),
-              const SizedBox(height: 16),
-              Text(context.l10n.sectionSync,
-                  style: theme.textTheme.titleMedium),
-              const SizedBox(height: 4),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(context.l10n.syncedFolder),
-                subtitle: Text(
-                  settings.dropboxRefreshToken != null
-                      ? context.l10n.syncDropboxSubtitle
-                      : _syncDir ?? context.l10n.syncOffSubtitle,
-                ),
+            if (Platform.isMacOS || Platform.isLinux || Platform.isWindows)
+              FilledButton.tonal(
+                key: const Key('sync-choose'),
+                onPressed: _chooseSyncFolder,
+                child: Text(context.l10n.chooseFolder),
               ),
-              Wrap(
-                spacing: 8,
-                children: [
-                  if (settings.dropboxRefreshToken == null)
-                    FilledButton.tonal(
-                      key: const Key('sync-dropbox'),
-                      onPressed: _connectDropbox,
-                      child: Text(context.l10n.connectDropbox),
-                    ),
-                  if (icloudTransportEnabled &&
-                      (Platform.isIOS || Platform.isMacOS))
-                    FilledButton.tonal(
-                      key: const Key('sync-icloud'),
-                      onPressed: _useICloud,
-                      child: Text(context.l10n.useICloud),
-                    ),
-                  if (Platform.isMacOS ||
-                      Platform.isLinux ||
-                      Platform.isWindows)
-                    FilledButton.tonal(
-                      key: const Key('sync-choose'),
-                      onPressed: _chooseSyncFolder,
-                      child: Text(context.l10n.chooseFolder),
-                    ),
-                  OutlinedButton(
-                    key: const Key('sync-enter'),
-                    onPressed: _enterSyncFolder,
-                    child: Text(context.l10n.enterPath),
-                  ),
-                  if (_syncDir != null) ...[
-                    OutlinedButton(
-                      key: const Key('sync-now'),
-                      onPressed: _syncNowPressed,
-                      child: Text(context.l10n.syncNow),
-                    ),
-                    TextButton(
-                      key: const Key('sync-disable'),
-                      onPressed: () {
-                        _clearDropbox(settings);
-                        _applySyncFolder(null);
-                      },
-                      child: Text(context.l10n.disable),
-                    ),
-                  ],
-                ],
+            OutlinedButton(
+              key: const Key('sync-enter'),
+              onPressed: _enterSyncFolder,
+              child: Text(context.l10n.enterPath),
+            ),
+            if (_syncDir != null) ...[
+              OutlinedButton(
+                key: const Key('sync-now'),
+                onPressed: _syncNowPressed,
+                child: Text(context.l10n.syncNow),
               ),
-              const SizedBox(height: 24),
+              TextButton(
+                key: const Key('sync-disable'),
+                onPressed: () {
+                  _clearDropbox(settings);
+                  _applySyncFolder(null);
+                },
+                child: Text(context.l10n.disable),
+              ),
             ],
+          ],
+        ),
+        const SizedBox(height: 24),
+        if (_version != null)
+          Text(
+            context.l10n.versionLine(_version!),
+            key: const Key('app-version'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        const SizedBox(height: 24),
+      ],
     );
     if (widget.inDialog) {
       return Column(
@@ -701,8 +743,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Row(
               children: [
                 Expanded(
-                  child: Text(context.l10n.settingsTitle,
-                      style: theme.textTheme.titleLarge),
+                  child: Text(
+                    context.l10n.settingsTitle,
+                    style: theme.textTheme.titleLarge,
+                  ),
                 ),
                 IconButton(
                   key: const Key('settings-close'),
@@ -742,8 +786,9 @@ class DropboxConnectDialog extends StatefulWidget {
 
 class _DropboxConnectDialogState extends State<DropboxConnectDialog> {
   final _auth = DropboxAuth();
-  late final TextEditingController _appKey =
-      TextEditingController(text: widget.initialAppKey ?? '');
+  late final TextEditingController _appKey = TextEditingController(
+    text: widget.initialAppKey ?? '',
+  );
   final _code = TextEditingController();
   bool _busy = false;
   String? _error;
@@ -761,8 +806,7 @@ class _DropboxConnectDialogState extends State<DropboxConnectDialog> {
       _error = null;
     });
     try {
-      final refresh =
-          await _auth.exchangeCode(_appKey.text.trim(), _code.text);
+      final refresh = await _auth.exchangeCode(_appKey.text.trim(), _code.text);
       if (!mounted) return;
       Navigator.of(context).pop((_appKey.text.trim(), refresh));
     } catch (e) {
@@ -784,52 +828,47 @@ class _DropboxConnectDialogState extends State<DropboxConnectDialog> {
         child: ListView(
           shrinkWrap: true,
           children: [
-            Text(
-              context.l10n.dropboxIntro,
-              style: theme.textTheme.bodySmall,
-            ),
+            Text(context.l10n.dropboxIntro, style: theme.textTheme.bodySmall),
             const SizedBox(height: 8),
             TextField(
               key: const Key('dropbox-key'),
               controller: _appKey,
-              decoration:
-                  InputDecoration(labelText: context.l10n.appKey),
+              decoration: InputDecoration(labelText: context.l10n.appKey),
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 12),
             if (key.isNotEmpty) ...[
-              Text(context.l10n.dropboxStep1,
-                  style: theme.textTheme.bodySmall),
+              Text(context.l10n.dropboxStep1, style: theme.textTheme.bodySmall),
               SelectableText(
                 _auth.authorizeUrl(key).toString(),
                 key: const Key('dropbox-url'),
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: theme.colorScheme.primary),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
               ),
               const SizedBox(height: 8),
-              Text(context.l10n.dropboxStep2,
-                  style: theme.textTheme.bodySmall),
+              Text(context.l10n.dropboxStep2, style: theme.textTheme.bodySmall),
               TextField(
                 key: const Key('dropbox-code'),
                 controller: _code,
-                decoration:
-                    InputDecoration(labelText: context.l10n.accessCode),
+                decoration: InputDecoration(labelText: context.l10n.accessCode),
                 onSubmitted: (_) => _connect(),
               ),
             ],
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text(_error!,
-                    style: TextStyle(color: theme.colorScheme.error)),
+                child: Text(
+                  _error!,
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
               ),
           ],
         ),
       ),
       actions: [
         TextButton(
-          onPressed:
-              _busy ? null : () => Navigator.of(context).pop(),
+          onPressed: _busy ? null : () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
         FilledButton(
@@ -837,8 +876,7 @@ class _DropboxConnectDialogState extends State<DropboxConnectDialog> {
           onPressed: _busy || key.isEmpty || _code.text.isEmpty
               ? null
               : _connect,
-          child:
-              Text(_busy ? context.l10n.connecting : context.l10n.connect),
+          child: Text(_busy ? context.l10n.connecting : context.l10n.connect),
         ),
       ],
     );
