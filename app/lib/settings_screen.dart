@@ -405,9 +405,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: Text(context.l10n.lineSpacing),
           subtitle: Slider(
             key: const Key('spacing-slider'),
-            min: 1.2,
-            max: 2.6,
-            divisions: 14,
+            min: SettingsController.minLineSpacing,
+            max: SettingsController.maxLineSpacing,
+            divisions: 16,
             value: settings.lineSpacing,
             label: context.l10n.lineSpacingLabel(
               settings.lineSpacing.toStringAsFixed(1),

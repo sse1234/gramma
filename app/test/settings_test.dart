@@ -49,6 +49,14 @@ void main() {
     expect(controller.measureEms, 30);
   });
 
+  test('line spacing reaches down to solid', () async {
+    final controller = await _controller();
+    controller.setLineSpacing(1.0);
+    expect(controller.lineSpacing, 1.0);
+    controller.setLineSpacing(0.5);
+    expect(controller.lineSpacing, SettingsController.minLineSpacing);
+  });
+
   test('the measure reaches down to a few ems for very large type', () async {
     final controller = await _controller();
     controller.setMeasureEms(4, confirmed: true);

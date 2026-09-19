@@ -33,7 +33,8 @@ memory of the text — the core promise of the app.
   floor before). Readers with low vision set type so large that a
   column holds only a few characters; the setter must still break and
   hyphenate there instead of leaving one word per line, which is what a
-  floor of 18 forced through the text-size setting.
+  floor of 18 forced through the text-size setting. Line spacing runs
+  from 1.0 (solid) to 2.6 for the same reason.
 
 ## Consequences
 

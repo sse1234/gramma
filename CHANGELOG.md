@@ -31,7 +31,8 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
   check (`tool/compare_extraction.py`) for the PDF reader.
 - Settings shows the app version, build number, and build time.
 - The line width goes down to 4 ems for very large type: lines still
-  break and hyphenate instead of holding one word each.
+  break and hyphenate instead of holding one word each; line spacing
+  goes down to 1.0.
 
 ### Fixed
 - The first arrow press after a click on a toolbar button pages instead

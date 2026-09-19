@@ -105,6 +105,11 @@ class SettingsController extends ChangeNotifier {
   static const minMeasureEms = 4;
   static const maxMeasureEms = 36;
   static const defaultLineSpacing = 1.5;
+
+  /// Solid setting (1.0) is the floor: very large type wants its lines
+  /// close, and the font's own ascent and descent keep them apart.
+  static const minLineSpacing = 1.0;
+  static const maxLineSpacing = 2.6;
   static const defaultColumnAdvance = 0.5;
   static const minColumnAdvance = 0.15;
   static const maxColumnAdvance = 0.6;
@@ -254,7 +259,7 @@ class SettingsController extends ChangeNotifier {
   }
 
   void setLineSpacing(double value) {
-    _lineSpacing = value.clamp(1.2, 2.6);
+    _lineSpacing = value.clamp(minLineSpacing, maxLineSpacing);
     _prefs.setDouble('lineSpacing', _lineSpacing);
     notifyListeners();
   }
