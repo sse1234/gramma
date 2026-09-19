@@ -1,1 +1,1 @@
-Import PDF and EPUB: Bible texts, commentaries and books read through one document model, with headings, lists, tables, footnotes and figures kept, and commentaries following the Bible view verse by verse. Books scroll as one column; parallel-passage references in headings open a preview.
+Line width down to 4 ems and line spacing down to 1.0 for very large type: lines still break and hyphenate. The first arrow press after a toolbar click pages again. Toggling menus keeps the top-left line in place. Settings shows the version and build.

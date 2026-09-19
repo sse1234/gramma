@@ -4,6 +4,21 @@ All notable changes to gramma. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 are the app's `pubspec.yaml` version, tags are `v<version>`.
 
+## [1.1.1] - 2026-09-19
+
+### Added
+- The line width goes down to 4 ems for very large type: lines still
+  break and hyphenate instead of holding one word each; line spacing
+  goes down to 1.0.
+
+### Fixed
+- The first arrow press after a click on a toolbar button pages instead
+  of only moving the focus.
+- A failed line count after a typeface change no longer leaves the view
+  in a single column; it is retried.
+- Toggling menus and pane headers keeps the line at the top left where
+  it was instead of moving back into the text.
+
 ## [1.1.0] - 2026-09-12
 
 ### Fixed
@@ -30,21 +45,11 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
 - Release notes per version for the stores; a closed-loop extraction
   check (`tool/compare_extraction.py`) for the PDF reader.
 - Settings shows the app version, build number, and build time.
-- The line width goes down to 4 ems for very large type: lines still
-  break and hyphenate instead of holding one word each; line spacing
-  goes down to 1.0.
-
-### Fixed
-- The first arrow press after a click on a toolbar button pages instead
-  of only moving the focus.
-- A failed line count after a typeface change no longer leaves the view
-  in a single column; it is retried.
 
 ### Changed
 - Menus and pane headers take their own space again (reverting the
   1.0.1 overlay): with them shown, the first lines of a column are no
-  longer hidden. Toggling them reflows the text; the line at the top
-  left stays where it was.
+  longer hidden. Toggling them reflows the text.
 
 ## [1.0.1] - 2026-09-05
 
