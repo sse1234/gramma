@@ -1795,6 +1795,51 @@ void main() {
     expect(offsetOf(0), firstStart, reason: 'the other view stays');
   });
 
+  testWidgets('the first arrow press pages after a toolbar click', (
+    tester,
+  ) async {
+    // ADR 0028: focus parked on a toolbar button, or dropped to nowhere
+    // after a menu, must not swallow the first arrow press.
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1200, 420);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settle(
+      tester,
+      () => _found(find.byKey(const ValueKey('columns-active'))),
+    );
+    const stride = 448.0;
+    double offset() =>
+        tester.widget<ListView>(find.byType(ListView).first).controller!.offset;
+
+    // A toolbar button takes the focus, as a click does on desktop.
+    final icon = tester.element(
+      find
+          .descendant(of: find.byType(AppBar), matching: find.byType(Icon))
+          .first,
+    );
+    Focus.of(icon).requestFocus();
+    await tester.pump();
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      isNot('reader-pane'),
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(offset(), moreOrLessEquals(stride, epsilon: 1));
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'reader-pane');
+
+    // Focus dropped to nowhere: the view takes it back by itself.
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(offset(), moreOrLessEquals(2 * stride, epsilon: 1));
+  });
+
   testWidgets('arrow keys page the columns one at a time', (tester) async {
     _freshUserStore();
     tester.view.physicalSize = const Size(1200, 420);

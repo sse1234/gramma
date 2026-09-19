@@ -30,6 +30,14 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
 - Release notes per version for the stores; a closed-loop extraction
   check (`tool/compare_extraction.py`) for the PDF reader.
 - Settings shows the app version, build number, and build time.
+- The line width goes down to 4 ems for very large type: lines still
+  break and hyphenate instead of holding one word each.
+
+### Fixed
+- The first arrow press after a click on a toolbar button pages instead
+  of only moving the focus.
+- A failed line count after a typeface change no longer leaves the view
+  in a single column; it is retried.
 
 ### Changed
 - Menus and pane headers take their own space again (reverting the

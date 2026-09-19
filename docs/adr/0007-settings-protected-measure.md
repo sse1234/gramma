@@ -29,6 +29,11 @@ memory of the text — the core promise of the app.
   re-anchors at the chapter being read.
 - Bridge layout functions take the measure as a parameter; nothing in the
   Rust core holds measure state.
+- The measure ranges from 4 to 36 ems (amended 2026-09-19; 18 was the
+  floor before). Readers with low vision set type so large that a
+  column holds only a few characters; the setter must still break and
+  hyphenate there instead of leaving one word per line, which is what a
+  floor of 18 forced through the text-size setting.
 
 ## Consequences
 

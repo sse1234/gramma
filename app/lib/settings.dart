@@ -55,7 +55,8 @@ class SettingsController extends ChangeNotifier {
     _keepScreenOn = _prefs.getBool('keepScreenOn') ?? false;
     _applyWakelock();
     _defaultModule = _prefs.getString('defaultModule');
-    _tone = ToneTheme.values
+    _tone =
+        ToneTheme.values
             .where((t) => t.name == _prefs.getString('tone'))
             .firstOrNull ??
         ToneTheme.paper;
@@ -64,10 +65,8 @@ class SettingsController extends ChangeNotifier {
     _commentaryScale = _prefs.getDouble('commentaryScale') ?? 1.0;
     _columnAdvance = _prefs.getDouble('columnAdvance') ?? defaultColumnAdvance;
     _currentDeskId = _prefs.getString('currentDesk');
-    _fontWeightLight =
-        _prefs.getDouble('fontWeightLight') ?? defaultFontWeight;
-    _fontWeightDark =
-        _prefs.getDouble('fontWeightDark') ?? defaultFontWeight;
+    _fontWeightLight = _prefs.getDouble('fontWeightLight') ?? defaultFontWeight;
+    _fontWeightDark = _prefs.getDouble('fontWeightDark') ?? defaultFontWeight;
     final family = _prefs.getString('fontFamily');
     if (family != null && fontAssets.containsKey(family)) {
       _fontFamily = family;
@@ -99,6 +98,12 @@ class SettingsController extends ChangeNotifier {
   static const defaultContrast = 0.85;
   static const minContrast = 0.3;
   static const defaultMeasureEms = 26;
+
+  /// The measure runs down to a few ems: at very large type (low vision)
+  /// a column holds only a handful of characters, and the setter still
+  /// breaks and hyphenates rather than leaving one word per line.
+  static const minMeasureEms = 4;
+  static const maxMeasureEms = 36;
   static const defaultLineSpacing = 1.5;
   static const defaultColumnAdvance = 0.5;
   static const minColumnAdvance = 0.15;
@@ -169,7 +174,8 @@ class SettingsController extends ChangeNotifier {
   /// Impeller (iOS/Android) rasterizes glyphs visibly lighter than the
   /// desktop renderer, so those platforms default one notch up; the
   /// setting itself is the only mechanism — no hidden baseline.
-  static final defaultFontWeight = !kIsWeb &&
+  static final defaultFontWeight =
+      !kIsWeb &&
           (defaultTargetPlatform == TargetPlatform.iOS ||
               defaultTargetPlatform == TargetPlatform.android)
       ? 0.02
@@ -385,7 +391,7 @@ class SettingsController extends ChangeNotifier {
         'changed after explicit user confirmation',
       );
     }
-    _measureEms = value.clamp(18, 36);
+    _measureEms = value.clamp(minMeasureEms, maxMeasureEms);
     _prefs.setInt('measureEms', _measureEms);
     notifyListeners();
   }
@@ -413,25 +419,30 @@ class SettingsScope extends InheritedNotifier<SettingsController> {
 ///
 /// With [trueBlack], the dark background stays pure black (for OLED panels
 /// and dark rooms) and the contrast setting dims only the text.
-ThemeData grammaTheme(Brightness brightness, double contrast,
-    {bool trueBlack = false, ToneTheme tone = ToneTheme.paper}) {
-  final t = ((contrast - SettingsController.minContrast) /
-          (1.0 - SettingsController.minContrast))
-      .clamp(0.0, 1.0);
+ThemeData grammaTheme(
+  Brightness brightness,
+  double contrast, {
+  bool trueBlack = false,
+  ToneTheme tone = ToneTheme.paper,
+}) {
+  final t =
+      ((contrast - SettingsController.minContrast) /
+              (1.0 - SettingsController.minContrast))
+          .clamp(0.0, 1.0);
   final Color background;
   final Color ink;
   if (brightness == Brightness.light) {
-    background =
-        Color.lerp(toneBackground(tone, brightness), Colors.white, t)!;
-    ink = Color.lerp(
-        toneInk(tone, brightness), const Color(0xFF14120F), t)!;
+    background = Color.lerp(toneBackground(tone, brightness), Colors.white, t)!;
+    ink = Color.lerp(toneInk(tone, brightness), const Color(0xFF14120F), t)!;
   } else {
     background = trueBlack
         ? Colors.black
         : Color.lerp(
-            toneBackground(tone, brightness), const Color(0xFF0D0D0F), t)!;
-    ink = Color.lerp(
-        toneInk(tone, brightness), const Color(0xFFF2EFE8), t)!;
+            toneBackground(tone, brightness),
+            const Color(0xFF0D0D0F),
+            t,
+          )!;
+    ink = Color.lerp(toneInk(tone, brightness), const Color(0xFFF2EFE8), t)!;
   }
   final base = ThemeData(
     brightness: brightness,
@@ -439,9 +450,6 @@ ThemeData grammaTheme(Brightness brightness, double contrast,
   );
   return base.copyWith(
     scaffoldBackgroundColor: background,
-    colorScheme: base.colorScheme.copyWith(
-      surface: background,
-      onSurface: ink,
-    ),
+    colorScheme: base.colorScheme.copyWith(surface: background, onSurface: ink),
   );
 }

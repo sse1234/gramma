@@ -1,6 +1,6 @@
 # gramma
 
-*A multi-platform Bible study application.* (working title)
+*A multi-platform Bible study application.*
 
 Free, open source, offline. No price tag, no paid modules, no accounts,
 no analytics — and none of that will ever change.

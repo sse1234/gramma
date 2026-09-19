@@ -968,22 +968,30 @@ class _ReaderScreenState extends State<ReaderScreen>
     // SafeArea keeps the desk clear of the status bar, notch, and home
     // indicator. The app bar takes its own space (ADR 0028, amended):
     // with chrome shown the desk starts below it and reflows.
-    return Scaffold(
-      appBar: reading ? null : appBar,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, outer) {
-            final narrow = outer.maxWidth < 500;
-            return Padding(
-              padding: EdgeInsets.fromLTRB(
-                narrow ? 10 : 24,
-                16,
-                narrow ? 10 : 24,
-                0,
-              ),
-              child: _desk(),
-            );
-          },
+    // Arrow keys not taken by the focused widget page the last active
+    // text view (ADR 0028): a click on a toolbar button must not cost the
+    // first arrow press.
+    return Focus(
+      skipTraversal: true,
+      includeSemantics: false,
+      onKeyEvent: (node, event) => ReaderPane.handleStrayKey(event),
+      child: Scaffold(
+        appBar: reading ? null : appBar,
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, outer) {
+              final narrow = outer.maxWidth < 500;
+              return Padding(
+                padding: EdgeInsets.fromLTRB(
+                  narrow ? 10 : 24,
+                  16,
+                  narrow ? 10 : 24,
+                  0,
+                ),
+                child: _desk(),
+              );
+            },
+          ),
         ),
       ),
     );

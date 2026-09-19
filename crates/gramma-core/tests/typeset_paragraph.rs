@@ -107,6 +107,33 @@ fn umlauts_survive_hyphenation() {
 }
 
 #[test]
+fn a_few_ems_still_set_with_hyphenation() {
+    // Low-vision type (ADR 0007 amended): four character widths a line.
+    // Every fragment is placed, syllables break where the patterns allow,
+    // and no line is left with a word wider than it must be.
+    let text = "Die Silbentrennung verbessert die Zeilenumbrüche erheblich";
+    let para = build_paragraph(text, &CharMeasure, Some(&german()));
+    let result = break_lines(&para.items, &Params::new(4 * U)).unwrap();
+    let lines = render_lines(text, &para, &result);
+    let joined: String = lines
+        .iter()
+        .map(|l| l.trim_end_matches('-'))
+        .collect::<Vec<_>>()
+        .join("");
+    assert_eq!(
+        joined.replace(' ', ""),
+        text.replace(' ', ""),
+        "every fragment placed: {lines:?}"
+    );
+    assert!(
+        lines.iter().filter(|l| l.ends_with('-')).count() >= 3,
+        "expected hyphenated lines: {lines:?}"
+    );
+    let widest = lines.iter().map(|l| l.chars().count()).max().unwrap();
+    assert!(widest <= 5, "lines wider than the measure: {lines:?}");
+}
+
+#[test]
 fn german_sentence_breaks_with_hyphenation_at_narrow_measure() {
     let text = "Die Silbentrennung verbessert die Zeilenumbrüche im schmalen Satzspiegel erheblich";
     let para = build_paragraph(text, &CharMeasure, Some(&german()));

@@ -65,6 +65,25 @@ typedef HistoryItem = ({
 /// a header for choosing its module and its position link. Emits its
 /// reading position and follows a linked pane's position when set.
 class ReaderPane extends StatefulWidget {
+  /// The text view that last owned the keyboard.
+  static _ReaderPaneState? _lastActive;
+
+  /// Arrow keys that reach the screen unhandled — focus sitting on a
+  /// toolbar button, or nowhere after a menu closed — page the view
+  /// that last owned the keyboard (ADR 0028), and give it the keyboard
+  /// back. Keys typed into a text field are left to the field.
+  static KeyEventResult handleStrayKey(KeyEvent event) {
+    final pane = _lastActive;
+    if (pane == null || !pane.mounted) return KeyEventResult.ignored;
+    final focused = FocusManager.instance.primaryFocus?.context;
+    if (focused?.findAncestorWidgetOfExactType<EditableText>() != null) {
+      return KeyEventResult.ignored;
+    }
+    final result = pane._handleKey(event);
+    if (result == KeyEventResult.handled) pane._focus.requestFocus();
+    return result;
+  }
+
   const ReaderPane({
     super.key,
     required this.spec,
@@ -210,6 +229,7 @@ class _ReaderPaneState extends State<ReaderPane> {
   @override
   void initState() {
     super.initState();
+    _focus.addListener(_onFocusChange);
     _vPositions.itemPositions.addListener(_onVerticalPositions);
     // The first text view owns the keyboard from the start: the very
     // first arrow press pages, no focusing press needed.
@@ -220,8 +240,44 @@ class _ReaderPaneState extends State<ReaderPane> {
     }
   }
 
+  /// Focus gained makes this the keyboard's view. Focus lost to nowhere
+  /// — a closed menu, a rebuilt toolbar — is taken back after the frame,
+  /// so the next arrow press pages instead of being spent on focusing.
+  /// Focus on a real widget (a field, a button) is left alone.
+  void _onFocusChange() {
+    if (_focus.hasFocus) {
+      ReaderPane._lastActive = this;
+      return;
+    }
+    if (ReaderPane._lastActive != this) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || ReaderPane._lastActive != this) return;
+      final primary = FocusManager.instance.primaryFocus;
+      final route = ModalRoute.of(context);
+      if (primary is FocusScopeNode && (route == null || route.isCurrent)) {
+        _focus.requestFocus();
+      }
+    });
+  }
+
+  /// Arrow keys page; anything else passes.
+  KeyEventResult _handleKey(KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      _step(1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      _step(-1);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   @override
   void dispose() {
+    if (ReaderPane._lastActive == this) ReaderPane._lastActive = null;
+    _focus.removeListener(_onFocusChange);
     _focus.dispose();
     _vPositions.itemPositions.removeListener(_onVerticalPositions);
     _hController?.dispose();
@@ -489,21 +545,35 @@ class _ReaderPaneState extends State<ReaderPane> {
     });
     final active = _active;
     if (active == null) return;
-    moduleLineKinds(moduleCode: active.code, measureEms: _measure!).then((
-      kinds,
-    ) {
-      if (!mounted || _active?.code != active.code) return;
-      setState(() {
-        _rowKinds = kinds;
-        _lineCounts = [for (final k in kinds) k.length];
-        final plan = _linePlan();
-        if (plan != null && keepChapter < _spine.length) {
-          _anchorLine = plan.blockStart(keepChapter);
-          _topChapter = keepChapter;
+    moduleLineKinds(moduleCode: active.code, measureEms: _measure!).then(
+      (kinds) {
+        if (!mounted || _active?.code != active.code) return;
+        _kindsRetries = 0;
+        setState(() {
+          _rowKinds = kinds;
+          _lineCounts = [for (final k in kinds) k.length];
+          final plan = _linePlan();
+          if (plan != null && keepChapter < _spine.length) {
+            _anchorLine = plan.blockStart(keepChapter);
+            _topChapter = keepChapter;
+          }
+        });
+      },
+      onError: (Object error) {
+        // Without line counts the view falls back to a single column
+        // for good; a failed count (a typeface swapped mid-flight) is
+        // retried rather than left there.
+        if (!mounted || _active?.code != active.code) return;
+        debugPrint('gramma: line kinds for ${active.code} failed: $error');
+        if (_kindsRetries++ < 2) {
+          Future.delayed(const Duration(milliseconds: 400), _remeasure);
         }
-      });
-    });
+      },
+    );
   }
+
+  /// Failed line-count attempts since the last success (see [_remeasure]).
+  int _kindsRetries = 0;
 
   void _requestLayout(int index) {
     if (_layouts.containsKey(index) || _loading.contains(index)) return;
@@ -1107,18 +1177,7 @@ class _ReaderPaneState extends State<ReaderPane> {
     return Focus(
       focusNode: _focus,
       autofocus: widget.spec.badge == '1',
-      onKeyEvent: (node, event) {
-        if (event is KeyUpEvent) return KeyEventResult.ignored;
-        if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-          _step(1);
-          return KeyEventResult.handled;
-        }
-        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-          _step(-1);
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
+      onKeyEvent: (node, event) => _handleKey(event),
       child: Listener(
         key: const ValueKey('columns-active'),
         onPointerDown: (_) => _focus.requestFocus(),

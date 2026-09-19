@@ -654,9 +654,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (_measureUnlocked)
           Slider(
             key: const Key('measure-slider'),
-            min: 18,
-            max: 36,
-            divisions: 18,
+            min: SettingsController.minMeasureEms.toDouble(),
+            max: SettingsController.maxMeasureEms.toDouble(),
+            divisions:
+                SettingsController.maxMeasureEms -
+                SettingsController.minMeasureEms,
             value: _measurePreview ?? settings.measureEms.toDouble(),
             label:
                 '${(_measurePreview ?? settings.measureEms.toDouble()).round()} em',

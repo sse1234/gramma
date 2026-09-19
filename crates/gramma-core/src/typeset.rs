@@ -251,7 +251,11 @@ fn break_pass(
                 continue;
             }
             let bad = if overfull {
-                INF_BAD
+                // Overfull lines are all infinitely bad to TeX; graded by
+                // how far they overflow, the last-resort pass prefers a
+                // syllable a little too wide over a whole word far too
+                // wide — which is what a few-em measure comes down to.
+                INF_BAD + INF_BAD * (-slack) as f64 / params.line_width.max(1) as f64
             } else {
                 (100.0 * r.abs().powi(3)).min(INF_BAD)
             };

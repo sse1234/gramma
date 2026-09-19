@@ -49,6 +49,14 @@ void main() {
     expect(controller.measureEms, 30);
   });
 
+  test('the measure reaches down to a few ems for very large type', () async {
+    final controller = await _controller();
+    controller.setMeasureEms(4, confirmed: true);
+    expect(controller.measureEms, 4);
+    controller.setMeasureEms(1, confirmed: true);
+    expect(controller.measureEms, SettingsController.minMeasureEms);
+  });
+
   test('settings persist across controller instances', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
