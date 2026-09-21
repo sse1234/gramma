@@ -99,7 +99,7 @@ crates/gramma-core/   headless Rust domain core (all logic lives here)
 app/                  Flutter application for all platforms
 app/rust/             bridge crate exposing gramma-core via flutter_rust_bridge
 docs/adr/             architecture decision records — the project's memory
-tools/                fixture generators and asset pipelines
+tool/                 fixture generators, release packaging, extraction checks
 ```
 
 ## Development
