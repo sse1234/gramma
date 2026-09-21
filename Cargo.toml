@@ -1,9 +1,24 @@
 [workspace]
 resolver = "2"
-members = ["crates/gramma-core", "app/rust"]
+members = ["crates/*", "app/rust"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
 publish = false
+
+# One version of every external dependency for all crates (ADR 0030).
+[workspace.dependencies]
+flate2 = "1.1.9"
+hyphenation = { version = "0.8.4", features = ["embed_all"] }
+pdf = "0.10.0"
+proptest = "1.11.0"
+quick-xml = "0.41.0"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+rustybuzz = "0.20.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0.20"
+unicode-normalization = "0.1.25"
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }

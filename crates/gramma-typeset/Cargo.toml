@@ -1,0 +1,17 @@
+[package]
+name = "gramma-typeset"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Knuth-Plass paragraph breaking, shaping, and block layout (ADR 0002)"
+
+[dependencies]
+gramma-reference = { path = "../gramma-reference" }
+gramma-document = { path = "../gramma-document" }
+hyphenation.workspace = true
+rustybuzz.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true

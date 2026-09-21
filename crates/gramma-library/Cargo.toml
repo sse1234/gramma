@@ -1,18 +1,20 @@
 [package]
-name = "gramma-core"
+name = "gramma-library"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "gramma's headless domain core: one facade over the layered crates (ADR 0030)"
+description = "The offline-first content library in SQLite, with lexical search (ADR 0003, 0022)"
 
 [dependencies]
 gramma-reference = { path = "../gramma-reference" }
 gramma-osis = { path = "../gramma-osis" }
 gramma-document = { path = "../gramma-document" }
-gramma-typeset = { path = "../gramma-typeset" }
-gramma-library = { path = "../gramma-library" }
-gramma-user = { path = "../gramma-user" }
+rusqlite.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+unicode-normalization.workspace = true
 
 [dev-dependencies]
-hyphenation.workspace = true
+flate2.workspace = true
+zip.workspace = true

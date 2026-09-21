@@ -629,18 +629,80 @@ dependencies = [
 name = "gramma-core"
 version = "0.1.0"
 dependencies = [
- "flate2",
+ "gramma-document",
+ "gramma-library",
+ "gramma-osis",
+ "gramma-reference",
+ "gramma-typeset",
+ "gramma-user",
  "hyphenation",
+]
+
+[[package]]
+name = "gramma-document"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "gramma-osis",
+ "gramma-reference",
  "pdf",
- "proptest",
  "quick-xml",
- "rusqlite",
- "rustybuzz",
  "serde",
+ "serde_json",
+ "thiserror",
+ "zip",
+]
+
+[[package]]
+name = "gramma-library"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "gramma-document",
+ "gramma-osis",
+ "gramma-reference",
+ "rusqlite",
  "serde_json",
  "thiserror",
  "unicode-normalization",
  "zip",
+]
+
+[[package]]
+name = "gramma-osis"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "gramma-reference",
+ "quick-xml",
+ "thiserror",
+ "zip",
+]
+
+[[package]]
+name = "gramma-reference"
+version = "0.1.0"
+
+[[package]]
+name = "gramma-typeset"
+version = "0.1.0"
+dependencies = [
+ "gramma-document",
+ "gramma-reference",
+ "hyphenation",
+ "proptest",
+ "rustybuzz",
+ "thiserror",
+]
+
+[[package]]
+name = "gramma-user"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

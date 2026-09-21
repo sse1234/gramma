@@ -1,0 +1,868 @@
+//! Chapter layout: verses flow into one Knuth–Plass-broken paragraph whose
+//! lines carry positioned text runs, ready to paint.
+//!
+//! Every run knows the verse it belongs to, giving the reader verse-level
+//! position granularity. Footnote anchors become inline markers: small
+//! lettered boxes bound unbreakably to the word they follow.
+//!
+//! Glue setting happens here: after the breaker chooses breakpoints, each
+//! justified line's leftover slack is distributed over its spaces in
+//! proportion to their stretch (or shrink), so painted lines end flush with
+//! the measure using the same shaped widths the painter will use.
+
+use hyphenation::Standard;
+
+use super::paragraph::{HYPHEN_PENALTY, TextMeasure, hyphen_offsets};
+use super::{INFINITE_PENALTY, Item, Params, Scaled, break_lines, finish_paragraph};
+
+/// Verse numbers and note markers are set at this percentage of the text
+/// size; widths here and the painter's font size must agree.
+pub const VERSE_NUMBER_SCALE_PERCENT: i64 = 65;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum RunKind {
+    Word,
+    VerseNumber,
+    NoteMarker,
+    Heading,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RunOut {
+    pub text: String,
+    /// Left edge in font units from the line start.
+    pub x: f64,
+    /// Shaped width of `text` in font units (already scaled for numbers).
+    pub width: f64,
+    pub verse_number: bool,
+    /// An inline footnote marker (lettered, matching the note's sequence).
+    pub note_marker: bool,
+    /// Section heading level (0 = body text, 1 = section, 2 = subsection).
+    pub heading_level: u8,
+    /// The verse this run belongs to.
+    pub verse: u16,
+    /// Index of the reference this run is part of (prose layout, ADR
+    /// 0018): tapping the run resolves the entry's reference at this
+    /// index. None for plain text.
+    pub link: Option<u32>,
+    /// Byte offset of this run's first fragment within its verse's
+    /// normalized text (ADR 0023: word-precise annotation anchors).
+    /// Zero for non-word runs and prose layouts.
+    pub offset: u32,
+    /// Character style bits (ADR 0029): see `STYLE_ITALIC` and friends.
+    pub style: u8,
+    /// Size relative to the text size the measure was shaped at; widths
+    /// are already scaled.
+    pub scale: f64,
+}
+
+pub const STYLE_ITALIC: u8 = 1;
+pub const STYLE_BOLD: u8 = 2;
+pub const STYLE_SMALL_CAPS: u8 = 4;
+pub const STYLE_SUPERSCRIPT: u8 = 8;
+pub const STYLE_MONOSPACE: u8 = 16;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LineOut {
+    pub runs: Vec<RunOut>,
+    /// A figure occupying this and the following `image_lines - 1`
+    /// lines: index into the entry's images (ADR 0029).
+    pub image: Option<u32>,
+    pub image_lines: u16,
+}
+
+impl LineOut {
+    pub fn text(runs: Vec<RunOut>) -> LineOut {
+        LineOut {
+            runs,
+            image: None,
+            image_lines: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct BoxMeta {
+    pub(super) text: String,
+    pub(super) kind: RunKind,
+    pub(super) verse: u16,
+    pub(super) heading_level: u8,
+    pub(super) link: Option<u32>,
+    pub(super) offset: u32,
+    pub(super) style: u8,
+    /// Percent of the shaped size the box is set at.
+    pub(super) scale_percent: i64,
+}
+
+/// Lay out verses as justified paragraphs at `line_width` font units,
+/// segmented by section headings. `notes` are (verse, byte offset) pairs;
+/// each produces an inline lettered marker bound to the word containing its
+/// anchor. `headings` are (verse, level, text) rows standing before their
+/// verse; each heading group is preceded by one empty spacing line (except
+/// at the very top) and rendered as its own ragged line(s).
+pub fn layout_verses(
+    verses: &[(u16, &str)],
+    notes: &[(u16, u32)],
+    headings: &[(u16, u8, &str)],
+    measure: &impl TextMeasure,
+    hyphenator: Option<&Standard>,
+    line_width: Scaled,
+) -> Vec<LineOut> {
+    let mut lines: Vec<LineOut> = Vec::new();
+    let mut segment: Vec<(u16, &str)> = Vec::new();
+    // Note markers letter through the whole chapter (ADR 0028): a, b, …
+    // z, aa, ab — never restarting at a verse or heading.
+    let mut marker_index = 0usize;
+    for &(number, text) in verses {
+        let verse_headings: Vec<_> = headings.iter().filter(|(v, _, _)| *v == number).collect();
+        if !verse_headings.is_empty() {
+            flush_segment(
+                &mut lines,
+                &segment,
+                notes,
+                measure,
+                hyphenator,
+                line_width,
+                &mut marker_index,
+            );
+            segment.clear();
+            if !lines.is_empty() {
+                lines.push(LineOut::text(Vec::new()));
+            }
+            for &&(verse, level, text) in &verse_headings {
+                lines.extend(layout_heading(
+                    None, text, level, verse, measure, line_width,
+                ));
+            }
+        }
+        segment.push((number, text));
+    }
+    flush_segment(
+        &mut lines,
+        &segment,
+        notes,
+        measure,
+        hyphenator,
+        line_width,
+        &mut marker_index,
+    );
+    lines
+}
+
+fn flush_segment(
+    lines: &mut Vec<LineOut>,
+    segment: &[(u16, &str)],
+    notes: &[(u16, u32)],
+    measure: &impl TextMeasure,
+    hyphenator: Option<&Standard>,
+    line_width: Scaled,
+    marker_index: &mut usize,
+) {
+    if segment.is_empty() {
+        return;
+    }
+    lines.extend(layout_paragraph(
+        segment,
+        notes,
+        measure,
+        hyphenator,
+        line_width,
+        marker_index,
+    ));
+}
+
+/// The inline marker label for the `index`-th note of a chapter:
+/// a … z, then aa, ab, … (bijective base 26).
+pub fn marker_label(index: usize) -> String {
+    let mut n = index + 1;
+    let mut out = Vec::new();
+    while n > 0 {
+        n -= 1;
+        out.push(b'a' + (n % 26) as u8);
+        n /= 26;
+    }
+    out.reverse();
+    String::from_utf8(out).expect("ascii letters")
+}
+
+/// A heading as its own small paragraph: justified breaking would look odd,
+/// and a single line comes out ragged naturally (the paragraph-final glue).
+pub(super) fn layout_heading(
+    label: Option<&str>,
+    text: &str,
+    level: u8,
+    verse: u16,
+    measure: &impl TextMeasure,
+    line_width: Scaled,
+) -> Vec<LineOut> {
+    let mut items: Vec<Item> = Vec::new();
+    let mut meta: Vec<Option<BoxMeta>> = Vec::new();
+    let (space_width, stretch, shrink) = measure.space();
+    if let Some(label) = label {
+        push_label(&mut items, &mut meta, measure, label, verse);
+        items.push(Item::Glue {
+            width: space_width,
+            stretch,
+            shrink,
+        });
+        meta.push(None);
+    }
+    let mut first = true;
+    for word in text.split_whitespace() {
+        if !first {
+            items.push(Item::Glue {
+                width: space_width,
+                stretch,
+                shrink,
+            });
+            meta.push(None);
+        }
+        first = false;
+        items.push(Item::Box {
+            width: measure.text_width(word),
+        });
+        meta.push(Some(BoxMeta {
+            text: word.to_string(),
+            kind: RunKind::Heading,
+            verse,
+            heading_level: level,
+            link: None,
+            offset: 0,
+            style: 0,
+            scale_percent: 100,
+        }));
+    }
+    finish_paragraph(&mut items);
+    meta.resize(items.len(), None);
+    let params = Params::new(line_width);
+    let Ok(broken) = break_lines(&items, &params) else {
+        return Vec::new();
+    };
+    broken
+        .lines
+        .iter()
+        .map(|line| {
+            set_line(
+                &items, &meta, measure, line.start, line.end, line_width, true,
+            )
+        })
+        .collect()
+}
+
+fn layout_paragraph(
+    verses: &[(u16, &str)],
+    notes: &[(u16, u32)],
+    measure: &impl TextMeasure,
+    hyphenator: Option<&Standard>,
+    line_width: Scaled,
+    marker_index: &mut usize,
+) -> Vec<LineOut> {
+    let mut items: Vec<Item> = Vec::new();
+    let mut meta: Vec<Option<BoxMeta>> = Vec::new();
+    let (space_width, stretch, shrink) = measure.space();
+    let space = Item::Glue {
+        width: space_width,
+        stretch,
+        shrink,
+    };
+
+    fn push(
+        items: &mut Vec<Item>,
+        meta: &mut Vec<Option<BoxMeta>>,
+        item: Item,
+        m: Option<BoxMeta>,
+    ) {
+        items.push(item);
+        meta.push(m);
+    }
+
+    for (number, text) in verses {
+        let mut verse_notes: Vec<usize> = notes
+            .iter()
+            .filter(|(v, _)| v == number)
+            .map(|&(_, offset)| offset as usize)
+            .collect();
+        verse_notes.sort_unstable();
+        let mut note_idx = 0usize;
+
+        if !items.is_empty() {
+            push(&mut items, &mut meta, space, None);
+        }
+        let number_text = number.to_string();
+        push(
+            &mut items,
+            &mut meta,
+            Item::Box {
+                width: measure.text_width(&number_text) * VERSE_NUMBER_SCALE_PERCENT / 100,
+            },
+            Some(BoxMeta {
+                text: number_text,
+                kind: RunKind::VerseNumber,
+                verse: *number,
+                heading_level: 0,
+                link: None,
+                offset: 0,
+                style: 0,
+                scale_percent: VERSE_NUMBER_SCALE_PERCENT,
+            }),
+        );
+        // Never break between a verse number and its first word: an infinite
+        // penalty makes the following glue an illegal breakpoint.
+        push(
+            &mut items,
+            &mut meta,
+            Item::Penalty {
+                width: 0,
+                penalty: INFINITE_PENALTY,
+                flagged: false,
+            },
+            None,
+        );
+        push(&mut items, &mut meta, space, None);
+        let mut first_word = true;
+        for (word, word_start) in words_with_offsets(text) {
+            if !first_word {
+                push(&mut items, &mut meta, space, None);
+            }
+            first_word = false;
+            let breaks = hyphenator
+                .map(|h| hyphen_offsets(word, h))
+                .unwrap_or_default();
+            let mut fragment_start = 0usize;
+            for offset in breaks.iter().copied().chain([word.len()]) {
+                if offset == fragment_start {
+                    continue;
+                }
+                let fragment = &word[fragment_start..offset];
+                push(
+                    &mut items,
+                    &mut meta,
+                    Item::Box {
+                        width: measure.text_width(fragment),
+                    },
+                    Some(BoxMeta {
+                        text: fragment.to_string(),
+                        kind: RunKind::Word,
+                        verse: *number,
+                        heading_level: 0,
+                        link: None,
+                        offset: (word_start + fragment_start) as u32,
+                        style: 0,
+                        scale_percent: 100,
+                    }),
+                );
+                if offset < word.len() {
+                    push(
+                        &mut items,
+                        &mut meta,
+                        Item::Penalty {
+                            width: measure.hyphen_width(),
+                            penalty: HYPHEN_PENALTY,
+                            flagged: true,
+                        },
+                        None,
+                    );
+                }
+                fragment_start = offset;
+            }
+            let word_end = word_start + word.len();
+            while note_idx < verse_notes.len() && verse_notes[note_idx] <= word_end {
+                note_idx += 1;
+                push_marker(&mut items, &mut meta, measure, marker_index, *number);
+            }
+        }
+        // Notes anchored past the last word still get their marker.
+        while note_idx < verse_notes.len() {
+            note_idx += 1;
+            push_marker(&mut items, &mut meta, measure, marker_index, *number);
+        }
+    }
+    finish_paragraph(&mut items);
+    meta.resize(items.len(), None);
+
+    let params = Params::new(line_width);
+    let Ok(broken) = break_lines(&items, &params) else {
+        return Vec::new();
+    };
+
+    let last_index = broken.lines.len() - 1;
+    broken
+        .lines
+        .iter()
+        .enumerate()
+        .map(|(line_no, line)| {
+            set_line(
+                &items,
+                &meta,
+                measure,
+                line.start,
+                line.end,
+                line_width,
+                line_no == last_index,
+            )
+        })
+        .collect()
+}
+
+/// Bind an inline lettered marker to the preceding word: an infinite
+/// penalty forbids a break between them.
+fn push_marker(
+    items: &mut Vec<Item>,
+    meta: &mut Vec<Option<BoxMeta>>,
+    measure: &impl TextMeasure,
+    marker_index: &mut usize,
+    verse: u16,
+) {
+    let label = marker_label(*marker_index);
+    *marker_index += 1;
+    items.push(Item::Penalty {
+        width: 0,
+        penalty: INFINITE_PENALTY,
+        flagged: false,
+    });
+    meta.push(None);
+    items.push(Item::Box {
+        width: measure.text_width(&label) * VERSE_NUMBER_SCALE_PERCENT / 100,
+    });
+    meta.push(Some(BoxMeta {
+        text: label,
+        kind: RunKind::NoteMarker,
+        verse,
+        heading_level: 0,
+        link: None,
+        offset: 0,
+        style: 0,
+        scale_percent: VERSE_NUMBER_SCALE_PERCENT,
+    }));
+}
+
+fn words_with_offsets(text: &str) -> impl Iterator<Item = (&str, usize)> {
+    text.split_whitespace()
+        .map(move |word| (word, word.as_ptr() as usize - text.as_ptr() as usize))
+}
+
+/// Assemble a line's runs (merging word fragments not broken apart) and
+/// distribute slack over its glue.
+pub(super) fn set_line(
+    items: &[Item],
+    meta: &[Option<BoxMeta>],
+    measure: &impl TextMeasure,
+    start: usize,
+    end: usize,
+    line_width: Scaled,
+    is_last: bool,
+) -> LineOut {
+    enum Piece {
+        Run {
+            text: String,
+            kind: RunKind,
+            verse: u16,
+            heading_level: u8,
+            link: Option<u32>,
+            offset: u32,
+            style: u8,
+            scale_percent: i64,
+        },
+        Space {
+            stretch: Scaled,
+            shrink: Scaled,
+            width: Scaled,
+        },
+    }
+    let mut pieces: Vec<Piece> = Vec::new();
+    for i in start..end {
+        match items[i] {
+            Item::Box { .. } => {
+                let m = meta[i].as_ref().expect("box has meta");
+                match pieces.last_mut() {
+                    Some(Piece::Run {
+                        text,
+                        kind,
+                        link,
+                        style,
+                        scale_percent,
+                        ..
+                    }) if *kind == RunKind::Word
+                        && m.kind == RunKind::Word
+                        && *link == m.link
+                        && *style == m.style
+                        && *scale_percent == m.scale_percent =>
+                    {
+                        text.push_str(&m.text);
+                    }
+                    _ => pieces.push(Piece::Run {
+                        text: m.text.clone(),
+                        kind: m.kind,
+                        verse: m.verse,
+                        heading_level: m.heading_level,
+                        link: m.link,
+                        offset: m.offset,
+                        style: m.style,
+                        scale_percent: m.scale_percent,
+                    }),
+                }
+            }
+            Item::Glue {
+                width,
+                stretch,
+                shrink,
+            } => {
+                if !pieces.is_empty() {
+                    pieces.push(Piece::Space {
+                        width,
+                        stretch,
+                        shrink,
+                    });
+                }
+            }
+            Item::Penalty { .. } => {}
+        }
+    }
+    if let Item::Penalty { flagged: true, .. } = items[end]
+        && let Some(Piece::Run { text, .. }) = pieces.last_mut()
+    {
+        text.push('-');
+    }
+    while matches!(pieces.last(), Some(Piece::Space { .. })) {
+        pieces.pop();
+    }
+
+    let widths: Vec<f64> = pieces
+        .iter()
+        .map(|p| match p {
+            Piece::Run {
+                text,
+                scale_percent,
+                ..
+            } => (measure.text_width(text) * scale_percent / 100) as f64,
+            Piece::Space { width, .. } => *width as f64,
+        })
+        .collect();
+    let natural: f64 = widths.iter().sum();
+    let slack = line_width as f64 - natural;
+    let total_stretch: f64 = pieces
+        .iter()
+        .filter_map(|p| match p {
+            Piece::Space { stretch, .. } => Some(*stretch as f64),
+            _ => None,
+        })
+        .sum();
+    let total_shrink: f64 = pieces
+        .iter()
+        .filter_map(|p| match p {
+            Piece::Space { shrink, .. } => Some(*shrink as f64),
+            _ => None,
+        })
+        .sum();
+
+    let mut runs = Vec::new();
+    let mut x = 0.0f64;
+    for (piece, width) in pieces.iter().zip(&widths) {
+        match piece {
+            Piece::Run {
+                text,
+                kind,
+                verse,
+                heading_level,
+                link,
+                offset,
+                style,
+                scale_percent,
+            } => {
+                runs.push(RunOut {
+                    text: text.clone(),
+                    x,
+                    width: *width,
+                    verse_number: *kind == RunKind::VerseNumber,
+                    note_marker: *kind == RunKind::NoteMarker,
+                    heading_level: *heading_level,
+                    verse: *verse,
+                    link: *link,
+                    offset: *offset,
+                    style: *style,
+                    scale: *scale_percent as f64 / 100.0,
+                });
+                x += width;
+            }
+            Piece::Space {
+                stretch, shrink, ..
+            } => {
+                let mut set = *width;
+                if !is_last && slack > 0.0 && total_stretch > 0.0 {
+                    set += slack * (*stretch as f64) / total_stretch;
+                } else if slack < 0.0 && total_shrink > 0.0 {
+                    // Shrink no further than the glue allows (overfull lines
+                    // keep maximum shrink).
+                    let factor = (-slack / total_shrink).min(1.0);
+                    set -= factor * (*shrink as f64);
+                }
+                x += set;
+            }
+        }
+    }
+    LineOut::text(runs)
+}
+
+/// A prose paragraph (ADR 0018): text with byte ranges marking tappable
+/// references, each carrying the index the painted runs report back.
+pub struct ProseParagraph<'a> {
+    pub text: &'a str,
+    /// (start, end, link index) byte ranges within `text`.
+    pub links: Vec<(usize, usize, u32)>,
+}
+
+/// How prose sets at the measure (ADR 0026): justified stretches
+/// spaces to the measure, ragged keeps every space natural.
+#[derive(Debug, Clone, Copy)]
+pub struct ProseSetting {
+    pub justify: bool,
+    /// Measure in font units.
+    pub line_width: Scaled,
+}
+
+/// Lay out one prose entry — a commentary section — with the same
+/// engine and voice as the Bible text: an optional label set like a
+/// verse number and bound to what follows, an optional level-1 heading
+/// directly above its body, and hyphenated paragraphs separated by one
+/// blank line. All runs carry `verse` for position granularity and
+/// reference words carry their link index. With `justify` off, lines
+/// break at the same measure but every space keeps its natural width —
+/// side-aligned setting for narrow, character-dense content like
+/// dictionary entries (ADR 0026).
+pub fn layout_prose(
+    label: Option<&str>,
+    heading: Option<&str>,
+    paragraphs: &[ProseParagraph],
+    verse: u16,
+    measure: &impl TextMeasure,
+    hyphenator: Option<&Standard>,
+    setting: ProseSetting,
+) -> Vec<LineOut> {
+    let ProseSetting {
+        justify,
+        line_width,
+    } = setting;
+    let mut lines: Vec<LineOut> = Vec::new();
+    let mut label = label;
+    if let Some(heading) = heading {
+        lines.extend(layout_heading(
+            label.take(),
+            heading,
+            1,
+            verse,
+            measure,
+            line_width,
+        ));
+    }
+    for (i, paragraph) in paragraphs.iter().enumerate() {
+        if i > 0 {
+            lines.push(LineOut::text(Vec::new()));
+        }
+        lines.extend(prose_paragraph(
+            label.take(),
+            paragraph,
+            verse,
+            measure,
+            hyphenator,
+            justify,
+            line_width,
+        ));
+    }
+    lines
+}
+
+/// The label box, set at verse-number scale and bound unbreakably to
+/// whatever follows.
+pub(super) fn push_label(
+    items: &mut Vec<Item>,
+    meta: &mut Vec<Option<BoxMeta>>,
+    measure: &impl TextMeasure,
+    label: &str,
+    verse: u16,
+) {
+    items.push(Item::Box {
+        width: measure.text_width(label) * VERSE_NUMBER_SCALE_PERCENT / 100,
+    });
+    meta.push(Some(BoxMeta {
+        text: label.to_string(),
+        kind: RunKind::VerseNumber,
+        verse,
+        heading_level: 0,
+        link: None,
+        offset: 0,
+        style: 0,
+        scale_percent: VERSE_NUMBER_SCALE_PERCENT,
+    }));
+    items.push(Item::Penalty {
+        width: 0,
+        penalty: INFINITE_PENALTY,
+        flagged: false,
+    });
+    meta.push(None);
+}
+
+fn prose_paragraph(
+    label: Option<&str>,
+    paragraph: &ProseParagraph,
+    verse: u16,
+    measure: &impl TextMeasure,
+    hyphenator: Option<&Standard>,
+    justify: bool,
+    line_width: Scaled,
+) -> Vec<LineOut> {
+    let mut items: Vec<Item> = Vec::new();
+    let mut meta: Vec<Option<BoxMeta>> = Vec::new();
+    let (space_width, stretch, shrink) = measure.space();
+    // Ragged setting: spaces may stretch freely for the breaker (the
+    // slack lands in the right margin, as with TeX's \raggedright),
+    // and set_line later keeps them at natural width.
+    let space = if justify {
+        Item::Glue {
+            width: space_width,
+            stretch,
+            shrink,
+        }
+    } else {
+        Item::Glue {
+            width: space_width,
+            stretch: line_width,
+            shrink: 0,
+        }
+    };
+    if let Some(label) = label {
+        push_label(&mut items, &mut meta, measure, label, verse);
+        items.push(space);
+        meta.push(None);
+    }
+    let link_at = |start: usize, end: usize| {
+        paragraph
+            .links
+            .iter()
+            .find(|&&(s, e, _)| s < end && e > start)
+            .map(|&(_, _, index)| index)
+    };
+    let mut first_word = true;
+    for (word, word_start) in words_with_offsets(paragraph.text) {
+        if !first_word {
+            items.push(space);
+            meta.push(None);
+        }
+        first_word = false;
+        let breaks = hyphenator
+            .map(|h| hyphen_offsets(word, h))
+            .unwrap_or_default();
+        let mut fragment_start = 0usize;
+        for offset in breaks.iter().copied().chain([word.len()]) {
+            if offset == fragment_start {
+                continue;
+            }
+            let fragment = &word[fragment_start..offset];
+            items.push(Item::Box {
+                width: measure.text_width(fragment),
+            });
+            meta.push(Some(BoxMeta {
+                text: fragment.to_string(),
+                kind: RunKind::Word,
+                verse,
+                heading_level: 0,
+                link: link_at(word_start + fragment_start, word_start + offset),
+                offset: 0,
+                style: 0,
+                scale_percent: 100,
+            }));
+            if offset < word.len() {
+                items.push(Item::Penalty {
+                    width: measure.hyphen_width(),
+                    penalty: HYPHEN_PENALTY,
+                    flagged: true,
+                });
+                meta.push(None);
+            }
+            fragment_start = offset;
+        }
+    }
+    finish_paragraph(&mut items);
+    meta.resize(items.len(), None);
+    let params = Params::new(line_width);
+    let Ok(broken) = break_lines(&items, &params) else {
+        return Vec::new();
+    };
+    let last_index = broken.lines.len() - 1;
+    broken
+        .lines
+        .iter()
+        .enumerate()
+        .map(|(line_no, line)| {
+            set_line(
+                &items,
+                &meta,
+                measure,
+                line.start,
+                line.end,
+                line_width,
+                !justify || line_no == last_index,
+            )
+        })
+        .collect()
+}
+
+/// Make scripture references inside verse headings tappable (ADR 0029):
+/// each heading — the consecutive heading runs of one level before one
+/// verse — is scanned for references; runs inside a reference get the
+/// link index of its OSIS target in the returned list. `context` is the
+/// module's book for bare "3,16" forms.
+pub fn link_heading_references(
+    lines: &mut [LineOut],
+    context: Option<gramma_reference::BookId>,
+) -> Vec<String> {
+    use gramma_reference::scan_references;
+    let mut refs: Vec<String> = Vec::new();
+    // Collect (line, run) positions per heading in reading order.
+    let mut groups: Vec<Vec<(usize, usize)>> = Vec::new();
+    let mut current_key: Option<(u16, u8)> = None;
+    for (li, line) in lines.iter().enumerate() {
+        let mut saw_heading = false;
+        for (ri, run) in line.runs.iter().enumerate() {
+            if run.heading_level == 0 || run.verse_number {
+                continue;
+            }
+            saw_heading = true;
+            let key = (run.verse, run.heading_level);
+            if current_key != Some(key) {
+                current_key = Some(key);
+                groups.push(Vec::new());
+            }
+            groups.last_mut().expect("group").push((li, ri));
+        }
+        if !saw_heading {
+            // A line without heading runs ends the heading.
+            current_key = None;
+        }
+    }
+    for group in groups {
+        // Heading text with one space between runs; remember each run's
+        // byte span so references map back to runs.
+        let mut text = String::new();
+        let mut spans: Vec<(usize, usize)> = Vec::new();
+        for &(li, ri) in &group {
+            if !text.is_empty() {
+                text.push(' ');
+            }
+            let start = text.len();
+            text.push_str(&lines[li].runs[ri].text);
+            spans.push((start, text.len()));
+        }
+        for found in scan_references(&text, context) {
+            let osis = gramma_document::interpret::osis_of(found.reference);
+            let index = refs.len() as u32;
+            refs.push(osis);
+            for (k, &(li, ri)) in group.iter().enumerate() {
+                let (s, e) = spans[k];
+                if s < found.end as usize && e > found.start as usize {
+                    lines[li].runs[ri].link = Some(index);
+                }
+            }
+        }
+    }
+    refs
+}

@@ -7,5 +7,3 @@ documents (`NNNN-title.md`), following the common ADR format:
 - **Context** — what problem or forces led to the decision
 - **Decision** — what we chose
 - **Consequences** — what becomes easier or harder as a result
-
-No decisions have been accepted yet; technology selection is in progress.

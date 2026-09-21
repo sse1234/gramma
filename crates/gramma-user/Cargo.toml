@@ -1,0 +1,13 @@
+[package]
+name = "gramma-user"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "The user store and its op-log sync (ADR 0003, 0014)"
+
+[dependencies]
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

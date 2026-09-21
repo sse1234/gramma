@@ -1,0 +1,14 @@
+[package]
+name = "gramma-osis"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "OSIS XML and SWORD module readers"
+
+[dependencies]
+gramma-reference = { path = "../gramma-reference" }
+flate2.workspace = true
+quick-xml.workspace = true
+thiserror.workspace = true
+zip.workspace = true

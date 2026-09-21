@@ -95,7 +95,9 @@ All Rust and Dart dependencies are under permissive licenses
 ## Repository layout
 
 ```text
-crates/gramma-core/   headless Rust domain core (all logic lives here)
+crates/               headless Rust domain core as layered crates (ADR 0030):
+                      reference → osis → document → typeset → library,
+                      user beside them, gramma-core the facade over all
 app/                  Flutter application for all platforms
 app/rust/             bridge crate exposing gramma-core via flutter_rust_bridge
 docs/adr/             architecture decision records — the project's memory
@@ -110,6 +112,7 @@ decision that shaped the design (see [docs/adr](docs/adr/)).
 
 ```bash
 cargo test --workspace          # core + bridge tests
+cargo test -p gramma-typeset    # one layer alone
 cargo build -p rust_lib_gramma  # bridge library, needed by Flutter host tests
 cd app && flutter test          # widget tests (load the bridge library above)
 cd app && flutter run           # run the app on a connected device/desktop
