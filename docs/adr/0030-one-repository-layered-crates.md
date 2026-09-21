@@ -4,8 +4,8 @@ Date: 2026-09-21
 
 ## Status
 
-Accepted — the Rust split is done; the Flutter split follows file by
-file.
+Accepted — the Rust split and the first Flutter split are done
+(2026-09-21); further Flutter files follow the same rule as they grow.
 
 ## Context
 
@@ -58,12 +58,25 @@ examples, and is the one crate the bridge depends on. External
 dependency versions are declared once in the workspace manifest.
 
 **The same rule for the Flutter package**, applied file by file rather
-than as a second package: the reader pane splits by responsibility
-(column plan and scroll anchoring, keyboard and focus, selection and
-popups) and the reader screen by model (desks, pane tree, import
-flows), each behind a narrow interface, with the widget tests as the
-safety net. A Dart package boundary is introduced only where a
-dependency direction needs enforcing that the file layout cannot.
+than as a second package, with the widget tests as the safety net. A
+Dart package boundary is introduced only where a dependency direction
+needs enforcing that the file layout cannot. The first pass (2026-09-21)
+took the two largest files apart by responsibility:
+
+| File | Holds | Interface |
+|---|---|---|
+| `column_scroller.dart` | column-mode scrolling: the controller, the plan, the anchor line, wheel and key paging, re-chunking with the anchor as origin | `layout`, `jumpToLine`, `step`, `onWheel`, `lastVisibleLine`; one `onScrolled` callback |
+| `reader_focus.dart` | keyboard ownership: which text view pages, stray keys, reclaiming dropped focus | `handle`, `claim`, static `handleStray`; `onStep` and `isCurrent` callbacks |
+| `reader_selection.dart` | live word selection, its bar, mark popups | a mixin requiring `spine`, `paneModule`, `wordLookup` |
+| `pane_header.dart` | the shared pane chrome and its option types | a stateless widget |
+| `desk_grid.dart` | the desk tiling: grips, snapping, drag-and-drop | `layout`, `structureEpoch`, `paneBuilder`, `onChanged` |
+| `desk_app_bar.dart` | the app bar's menus | callbacks only |
+| `import_flow.dart` | the import door: pick a file, route by type, report | `importFromPicker` with two reload callbacks |
+
+The reader pane went from 1,744 to about 1,000 lines and holds the
+module, layouts, position, and navigation; the reader screen went from
+1,290 to about 730 and holds the desks, the pane tree, and history. The
+extracted parts depend on the models, never on the screen or pane.
 
 ## Consequences
 

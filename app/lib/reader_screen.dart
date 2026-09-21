@@ -1,4 +1,3 @@
-import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import 'annotations.dart';
@@ -6,8 +5,10 @@ import 'book_pane.dart';
 import 'commentary_pane.dart';
 import 'devotional_pane.dart';
 import 'dictionary_pane.dart';
+import 'desk_app_bar.dart';
+import 'desk_grid.dart';
 import 'desks.dart';
-import 'document_import_dialog.dart';
+import 'import_flow.dart';
 import 'l10n.dart';
 import 'footnotes_pane.dart';
 import 'notes_pane.dart';
@@ -40,18 +41,11 @@ class ReaderScreen extends StatefulWidget {
 
 class _ReaderScreenState extends State<ReaderScreen>
     with WidgetsBindingObserver {
-  static const _gripThickness = 12.0;
-  static const _minPaneExtent = 140.0;
-  static const _gutter = 48.0;
-
   List<ModuleView> _modules = const [];
   late LayoutModel _layout;
   DeskRegistry _registry = DeskRegistry([DeskInfo(id: '', name: 'Desk 1')]);
   String _deskId = '';
   bool _initialized = false;
-
-  /// Pane id currently being dragged for rearrangement, if any.
-  String? _draggingPane;
 
   /// One-shot navigation commands per pane id.
   final Map<String, NavCommand> _commands = {};
@@ -409,16 +403,13 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   void _closePane(String id) {
     setState(() => _layout.removePane(id));
-    _snapPending = true;
+    _structureEpoch++;
     _save();
   }
 
-  /// Set when the tiling changed structurally; the next desk build snaps
-  /// all column boundaries to the grid.
-  bool _snapPending = false;
-
-  /// Last content width the desk was built at, to snap on window resize.
-  double? _deskWidth;
+  /// Bumped when the tiling changed structurally here (a pane added or
+  /// closed); the grid snaps its column boundaries on the next build.
+  int _structureEpoch = 0;
 
   PaneSpec? _addPane(PaneKind kind) {
     if (!_layout.hasFreeBadge) return null;
@@ -465,7 +456,7 @@ class _ReaderScreenState extends State<ReaderScreen>
       }
       _layout.ensureBadges();
     });
-    _snapPending = true;
+    _structureEpoch++;
     _save();
     return created;
   }
@@ -518,115 +509,11 @@ class _ReaderScreenState extends State<ReaderScreen>
     _save();
   }
 
-  Future<void> _importOsis() async {
-    final file = await openFile(
-      acceptedTypeGroups: const [
-        // iOS/macOS match on UTIs, the other platforms on extensions.
-        // SWORD commentary packages (ADR 0017) arrive as zip files.
-        XTypeGroup(
-          label: 'OSIS XML / SWORD / Plan / PDF / EPUB',
-          extensions: ['xml', 'osis', 'zip', 'json', 'pdf', 'epub'],
-          uniformTypeIdentifiers: [
-            'public.xml',
-            'public.text',
-            'public.zip-archive',
-            'public.json',
-            'com.adobe.pdf',
-            'org.idpf.epub-container',
-          ],
-        ),
-      ],
-    );
-    if (file == null || !mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
-    try {
-      // PDF and EPUB go through the document model (ADR 0029): read,
-      // confirm what was detected, then import.
-      final lower = file.path.toLowerCase();
-      if (lower.endsWith('.pdf') || lower.endsWith('.epub')) {
-        await _importDocument(file.path);
-        return;
-      }
-      // Reading plans arrive as JSON files (ADR 0025).
-      if (file.path.toLowerCase().endsWith('.json')) {
-        final plan = await importPlanFile(path: file.path);
-        setState(() => _plans = ReadingPlan.fromLibrary());
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(l10n.importedPlan(plan.name, plan.days.toInt())),
-          ),
-        );
-        return;
-      }
-      final imported = file.path.toLowerCase().endsWith('.zip')
-          ? await importSwordFile(path: file.path)
-          : await importOsisFile(path: file.path);
-      setState(() => _modules = modules());
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(switch (imported.kind) {
-            'commentary' => l10n.importedCommentary(
-              imported.title,
-              imported.verses.toInt(),
-            ),
-            'dictionary' => l10n.importedDictionary(
-              imported.title,
-              imported.verses.toInt(),
-            ),
-            'book' => l10n.importedBook(
-              imported.title,
-              imported.verses.toInt(),
-            ),
-            'devotional' => l10n.importedDevotional(
-              imported.title,
-              imported.verses.toInt(),
-            ),
-            _ => l10n.importedModule(imported.title, imported.verses.toInt()),
-          }),
-        ),
-      );
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(l10n.importFailed('$e'))));
-    }
-  }
-
-  Future<void> _importDocument(String path) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(l10n.importInspecting),
-        duration: const Duration(seconds: 30),
-      ),
-    );
-    final inspection = await inspectDocumentFile(path: path);
-    messenger.hideCurrentSnackBar();
-    if (!mounted) return;
-    final choice = await showDocumentImportDialog(context, inspection);
-    if (choice == null) return;
-    final imported = await importDocumentFile(
-      path: path,
-      kind: choice.kind,
-      code: choice.code,
-      title: choice.title,
-      subjectOsis: choice.subject,
-    );
-    if (!mounted) return;
-    setState(() => _modules = modules());
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(switch (imported.kind) {
-          'commentary' => l10n.importedCommentary(
-            imported.title,
-            imported.verses.toInt(),
-          ),
-          'book' => l10n.importedBook(imported.title, imported.verses.toInt()),
-          _ => l10n.importedModule(imported.title, imported.verses.toInt()),
-        }),
-      ),
-    );
-  }
+  Future<void> _import() => importFromPicker(
+    context,
+    onModulesChanged: () => setState(() => _modules = modules()),
+    onPlansChanged: () => setState(() => _plans = ReadingPlan.fromLibrary()),
+  );
 
   List<FollowOption> _followOptionsFor(PaneSpec spec) {
     return [
@@ -641,331 +528,29 @@ class _ReaderScreenState extends State<ReaderScreen>
     ];
   }
 
-  void _dragColumns(int left, double dx, double contentWidth) {
-    final columns = _layout.columns;
-    final sum = columns.fold(0.0, (a, c) => a + c.weight);
-    final minWeight = _minPaneExtent / contentWidth * sum;
-    final dw = dx / contentWidth * sum;
-    setState(() {
-      final a = columns[left];
-      final b = columns[left + 1];
-      final lower = minWeight - a.weight;
-      final upper = b.weight - minWeight;
-      // Too narrow for two minimum-width panes: nothing to resize.
-      if (lower > upper) return;
-      final applied = dw.clamp(lower, upper);
-      a.weight += applied;
-      b.weight -= applied;
-    });
-  }
-
-  /// Vertical tiling only makes sense at whole column-width multiples
-  /// (constant zoom): snap the divider there on release.
-  void _snapColumns(int left, double contentWidth) {
-    if (!_applySnap(left, contentWidth)) return;
-    setState(() {});
-    _save();
-  }
-
-  bool _applySnap(int left, double contentWidth) {
-    final columns = _layout.columns;
-    final sum = columns.fold(0.0, (a, c) => a + c.weight);
-    final leftWidth = columns[left].weight / sum * contentWidth;
-    final rightWidth = columns[left + 1].weight / sum * contentWidth;
-    final available = leftWidth + rightWidth - _minPaneExtent;
-    final columnWidth = SettingsScope.of(context).columnWidth;
-    final target = snapToColumns(leftWidth, columnWidth, _gutter, available);
-    final dw = (target - leftWidth) / contentWidth * sum;
-    if (dw.abs() < 1e-6) return false;
-    columns[left].weight += dw;
-    columns[left + 1].weight -= dw;
-    return true;
-  }
-
-  /// A structural tiling change (new pane, drag, close) or a window
-  /// resize lands on the column grid immediately — the same snap a
-  /// divider release applies — instead of waiting for a manual drag.
-  void _snapAllColumns(double contentWidth) {
-    if (_layout.columns.length < 2) return;
-    var moved = false;
-    for (var left = 0; left < _layout.columns.length - 1; left++) {
-      moved = _applySnap(left, contentWidth) || moved;
-    }
-    if (!moved) return;
-    setState(() {});
-    _save();
-  }
-
-  void _dragRows(PaneColumn column, int top, double dy, double contentHeight) {
-    final sum = column.panes.fold(0.0, (a, p) => a + p.weight);
-    final minWeight = _minPaneExtent / contentHeight * sum;
-    final dw = dy / contentHeight * sum;
-    setState(() {
-      final a = column.panes[top];
-      final b = column.panes[top + 1];
-      final lower = minWeight - a.weight;
-      final upper = b.weight - minWeight;
-      if (lower > upper) return;
-      final applied = dw.clamp(lower, upper);
-      a.weight += applied;
-      b.weight -= applied;
-    });
-  }
-
-  Widget _dragHandle(PaneSpec spec) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.grab,
-      child: Draggable<String>(
-        data: spec.id,
-        onDragStarted: () => setState(() => _draggingPane = spec.id),
-        onDragEnd: (_) => setState(() => _draggingPane = null),
-        feedback: Material(
-          elevation: 4,
-          borderRadius: BorderRadius.circular(6),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Icon(switch (spec.kind) {
-              PaneKind.footnotes => Icons.notes_outlined,
-              PaneKind.commentary => Icons.comment_outlined,
-              PaneKind.dictionary => Icons.translate_outlined,
-              PaneKind.book => Icons.auto_stories_outlined,
-              PaneKind.devotional => Icons.today_outlined,
-              PaneKind.notes => Icons.edit_note_outlined,
-              PaneKind.text => Icons.menu_book_outlined,
-            }, size: 20),
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Icon(
-            Icons.drag_indicator,
-            size: 18,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _dropIntoStack(PaneColumn column, int index, String id) {
-    setState(() => _layout.moveIntoStack(id, column, index));
-    _snapPending = true;
-    _save();
-  }
-
-  void _dropAsNewColumn(PaneColumn? after, String id) {
-    setState(() => _layout.moveToNewColumn(id, after: after));
-    _snapPending = true;
-    _save();
-  }
-
-  /// Drop zones shown while a pane is being dragged: vertical strips at
-  /// every column boundary (drop = new column there) and horizontal strips
-  /// at every stack boundary (drop = insert into that stack). Boundaries
-  /// where the drop would recreate the current layout (the dragged pane's
-  /// own position) are not offered.
-  List<Widget> _dropTargets(BoxConstraints constraints) {
-    final columns = _layout.columns;
-    final dragColumn = _layout.columnOf(_draggingPane ?? '');
-    final dragColumnIndex = dragColumn == null
-        ? -1
-        : columns.indexOf(dragColumn);
-    final dragAlone = dragColumn != null && dragColumn.panes.length == 1;
-    final dragPaneIndex =
-        dragColumn?.panes.indexWhere((p) => p.id == _draggingPane) ?? -1;
-    bool columnNoop(int k) =>
-        dragAlone && (k == dragColumnIndex || k == dragColumnIndex + 1);
-    bool stackNoop(int k, int j) =>
-        k == dragColumnIndex && (j == dragPaneIndex || j == dragPaneIndex + 1);
-    final contentWidth =
-        constraints.maxWidth - (columns.length - 1) * _gripThickness;
-    final sumW = columns.fold(0.0, (a, c) => a + c.weight);
-    final widths = [for (final c in columns) c.weight / sumW * contentWidth];
-    final targets = <Widget>[];
-    var x = 0.0;
-    for (var k = 0; k <= columns.length; k++) {
-      final centerX = k == 0
-          ? 0.0
-          : k == columns.length
-          ? constraints.maxWidth
-          : x - _gripThickness / 2;
-      if (!columnNoop(k)) {
-        targets.add(
-          Positioned(
-            left: (centerX - 28).clamp(0.0, constraints.maxWidth - 56),
-            width: 56,
-            top: 0,
-            height: constraints.maxHeight,
-            child: _DropZone(
-              key: Key('drop-column-$k'),
-              onAccept: (id) =>
-                  _dropAsNewColumn(k == 0 ? null : columns[k - 1], id),
-            ),
-          ),
-        );
-      }
-      if (k < columns.length) {
-        final columnLeft = x;
-        final width = widths[k];
-        final panes = columns[k].panes;
-        final contentHeight =
-            constraints.maxHeight - (panes.length - 1) * _gripThickness;
-        final sumH = panes.fold(0.0, (a, p) => a + p.weight);
-        var y = 0.0;
-        for (var j = 0; j <= panes.length; j++) {
-          final centerY = j == 0
-              ? 0.0
-              : j == panes.length
-              ? constraints.maxHeight
-              : y - _gripThickness / 2;
-          if (!stackNoop(k, j)) {
-            targets.add(
-              Positioned(
-                left: columnLeft + 64,
-                width: (width - 128).clamp(48.0, double.infinity),
-                top: (centerY - 30).clamp(0.0, constraints.maxHeight - 60),
-                height: 60,
-                child: _DropZone(
-                  key: Key('drop-stack-$k-$j'),
-                  onAccept: (id) => _dropIntoStack(columns[k], j, id),
-                ),
-              ),
-            );
-          }
-          if (j < panes.length) {
-            y += panes[j].weight / sumH * contentHeight + _gripThickness;
-          }
-        }
-        x += width + _gripThickness;
-      }
-    }
-    return targets;
-  }
-
   @override
   Widget build(BuildContext context) {
     if (!_initialized) return const SizedBox.shrink();
     final settings = SettingsScope.of(context);
     final reading = settings.readingMode;
-    final appBar = AppBar(
-      title: const Text('gramma'),
-      actions: [
-        PopupMenuButton<VoidCallback>(
-          key: const Key('tools-menu'),
-          tooltip: context.l10n.toolsTooltip,
-          icon: const Icon(Icons.auto_stories_outlined),
-          onSelected: (action) => action(),
-          itemBuilder: (context) => [
-            PopupMenuItem(
-              key: const Key('tool-search'),
-              value: _openSearch,
-              child: Text(context.l10n.searchTool),
-            ),
-            for (final (i, plan) in _plans.indexed)
-              PopupMenuItem(
-                key: Key('tool-plan-$i'),
-                value: () => _openReadingPlan(plan),
-                child: Text('${context.l10n.readingPlan} · ${plan.name}'),
-              ),
-            PopupMenuItem(
-              key: const Key('tool-export-labels'),
-              value: _exportLabels,
-              child: Text(context.l10n.exportLabels),
-            ),
-          ],
-        ),
-        PopupMenuButton<VoidCallback>(
-          key: const Key('desk-menu'),
-          tooltip: context.l10n.desksTooltip(
-            _registry.byId(_deskId)?.name ?? '',
-          ),
-          icon: const Icon(Icons.desk_outlined),
-          onSelected: (action) => action(),
-          itemBuilder: (context) => [
-            for (final desk in _registry.desks)
-              CheckedPopupMenuItem(
-                key: Key('desk-item-${desk.name}'),
-                checked: desk.id == _deskId,
-                value: () => _switchDesk(desk.id),
-                child: Text(desk.name),
-              ),
-            const PopupMenuDivider(),
-            PopupMenuItem(
-              key: const Key('desk-new'),
-              value: _newDesk,
-              child: Text(context.l10n.newDesk),
-            ),
-            PopupMenuItem(
-              key: const Key('desk-rename'),
-              value: _renameDesk,
-              child: Text(context.l10n.renameDeskMenu),
-            ),
-            if (_registry.desks.length > 1)
-              PopupMenuItem(
-                key: const Key('desk-delete'),
-                value: _deleteDesk,
-                child: Text(context.l10n.deleteDeskMenu),
-              ),
-          ],
-        ),
-        PopupMenuButton<PaneKind>(
-          key: const Key('add-view'),
-          tooltip: context.l10n.addViewTooltip,
-          icon: const Icon(Icons.vertical_split_outlined),
-          onSelected: _addPane,
-          itemBuilder: (context) => [
-            PopupMenuItem(
-              value: PaneKind.text,
-              child: Text(context.l10n.textView),
-            ),
-            PopupMenuItem(
-              value: PaneKind.footnotes,
-              child: Text(context.l10n.footnotesView),
-            ),
-            PopupMenuItem(
-              key: const Key('add-commentary'),
-              value: PaneKind.commentary,
-              child: Text(context.l10n.commentaryView),
-            ),
-            PopupMenuItem(
-              key: const Key('add-dictionary'),
-              value: PaneKind.dictionary,
-              child: Text(context.l10n.dictionaryView),
-            ),
-            PopupMenuItem(
-              key: const Key('add-book'),
-              value: PaneKind.book,
-              child: Text(context.l10n.bookView),
-            ),
-            PopupMenuItem(
-              key: const Key('add-devotional'),
-              value: PaneKind.devotional,
-              child: Text(context.l10n.devotionalView),
-            ),
-            PopupMenuItem(
-              key: const Key('add-notes'),
-              value: PaneKind.notes,
-              child: Text(context.l10n.notesTitle),
-            ),
-          ],
-        ),
-        IconButton(
-          key: const Key('open-settings'),
-          tooltip: context.l10n.settingsTooltip,
-          icon: const Icon(Icons.settings_outlined),
-          onPressed: () async {
-            await showSettings(context);
-            // Sync may have been (re)configured there.
-            _syncPull();
-          },
-        ),
-        IconButton(
-          key: const Key('import-osis'),
-          tooltip: context.l10n.importOsisTooltip,
-          icon: const Icon(Icons.library_add_outlined),
-          onPressed: _importOsis,
-        ),
-      ],
+    final appBar = DeskAppBar(
+      plans: _plans,
+      desks: _registry.desks,
+      currentDeskId: _deskId,
+      onSearch: _openSearch,
+      onOpenPlan: _openReadingPlan,
+      onExportLabels: _exportLabels,
+      onSwitchDesk: _switchDesk,
+      onNewDesk: _newDesk,
+      onRenameDesk: _renameDesk,
+      onDeleteDesk: _deleteDesk,
+      onAddPane: _addPane,
+      onSettings: () async {
+        await showSettings(context);
+        // Sync may have been (re)configured there.
+        _syncPull();
+      },
+      onImport: _import,
     );
     // SafeArea keeps the desk clear of the status bar, notch, and home
     // indicator. The app bar takes its own space (ADR 0028, amended):
@@ -990,7 +575,12 @@ class _ReaderScreenState extends State<ReaderScreen>
                   narrow ? 10 : 24,
                   0,
                 ),
-                child: _desk(),
+                child: DeskGrid(
+                  layout: _layout,
+                  structureEpoch: _structureEpoch,
+                  paneBuilder: _pane,
+                  onChanged: _save,
+                ),
               );
             },
           ),
@@ -999,83 +589,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     );
   }
 
-  Widget _desk() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = _layout.columns;
-        final contentWidth =
-            constraints.maxWidth - (columns.length - 1) * _gripThickness;
-        final resized =
-            _deskWidth != null && (_deskWidth! - contentWidth).abs() > 0.5;
-        _deskWidth = contentWidth;
-        if (_snapPending || resized) {
-          _snapPending = false;
-          if (columns.length > 1) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) _snapAllColumns(contentWidth);
-            });
-          }
-        }
-        final sum = columns.fold(0.0, (a, c) => a + c.weight);
-        return Stack(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var i = 0; i < columns.length; i++) ...[
-                  if (i > 0)
-                    _Grip(
-                      key: Key('column-grip-${i - 1}'),
-                      axis: Axis.horizontal,
-                      onDrag: (delta) =>
-                          _dragColumns(i - 1, delta, contentWidth),
-                      onEnd: () => _snapColumns(i - 1, contentWidth),
-                    ),
-                  SizedBox(
-                    width: columns[i].weight / sum * contentWidth,
-                    child: _columnWidget(columns[i]),
-                  ),
-                ],
-              ],
-            ),
-            if (_draggingPane != null) ..._dropTargets(constraints),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _columnWidget(PaneColumn column) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final panes = column.panes;
-        final contentHeight =
-            constraints.maxHeight - (panes.length - 1) * _gripThickness;
-        final sum = panes.fold(0.0, (a, p) => a + p.weight);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var j = 0; j < panes.length; j++) ...[
-              if (j > 0)
-                _Grip(
-                  key: Key('row-grip-${panes[j - 1].id}'),
-                  axis: Axis.vertical,
-                  onDrag: (delta) =>
-                      _dragRows(column, j - 1, delta, contentHeight),
-                  onEnd: _save,
-                ),
-              SizedBox(
-                height: panes[j].weight / sum * contentHeight,
-                child: _pane(panes[j], topRow: j == 0),
-              ),
-            ],
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _pane(PaneSpec spec, {bool topRow = false}) {
+  Widget _pane(PaneSpec spec, Widget dragHandle) {
     final settings = SettingsScope.of(context);
     final followedAnchor = _layout.byId(spec.follow)?.anchor;
     final closable = _layout.allPanes.length > 1;
@@ -1099,7 +613,7 @@ class _ReaderScreenState extends State<ReaderScreen>
           readingMode: settings.readingMode,
           onToggleMode: toggleMode,
           badge: badge,
-          dragHandle: _dragHandle(spec),
+          dragHandle: dragHandle,
           onAnchor: (osis) => _setAnchor(spec.id, osis),
           onAnchorEnd: (osis) => _setAnchorEnd(spec.id, osis),
           onJump: (osis) => _recordJump(spec.id, osis),
@@ -1127,7 +641,7 @@ class _ReaderScreenState extends State<ReaderScreen>
           readingMode: settings.readingMode,
           onToggleMode: toggleMode,
           badge: badge,
-          dragHandle: _dragHandle(spec),
+          dragHandle: dragHandle,
           onFollow: (follow) => _setFollow(spec.id, follow),
           onClose: closable ? () => _closePane(spec.id) : null,
         );
@@ -1145,7 +659,7 @@ class _ReaderScreenState extends State<ReaderScreen>
           onToggleMode: toggleMode,
           badge: badge,
           onOpenReference: (osis) => _openReference(spec, osis),
-          dragHandle: _dragHandle(spec),
+          dragHandle: dragHandle,
           onClose: closable ? () => _closePane(spec.id) : null,
         );
       case PaneKind.book:
@@ -1163,7 +677,7 @@ class _ReaderScreenState extends State<ReaderScreen>
           badge: badge,
           onOpenReference: (osis) => _openReference(spec, osis),
           onWordLookup: _lookupWord,
-          dragHandle: _dragHandle(spec),
+          dragHandle: dragHandle,
           onClose: closable ? () => _closePane(spec.id) : null,
         );
       case PaneKind.devotional:
@@ -1181,7 +695,7 @@ class _ReaderScreenState extends State<ReaderScreen>
           badge: badge,
           onOpenReference: (osis) => _openReference(spec, osis),
           onWordLookup: _lookupWord,
-          dragHandle: _dragHandle(spec),
+          dragHandle: dragHandle,
           onClose: closable ? () => _closePane(spec.id) : null,
         );
       case PaneKind.notes:
@@ -1191,7 +705,7 @@ class _ReaderScreenState extends State<ReaderScreen>
           onToggleMode: toggleMode,
           badge: badge,
           onOpenReference: (osis) => _openReference(spec, osis),
-          dragHandle: _dragHandle(spec),
+          dragHandle: dragHandle,
           onClose: closable ? () => _closePane(spec.id) : null,
         );
       case PaneKind.commentary:
@@ -1210,83 +724,10 @@ class _ReaderScreenState extends State<ReaderScreen>
           readingMode: settings.readingMode,
           onToggleMode: toggleMode,
           badge: badge,
-          dragHandle: _dragHandle(spec),
+          dragHandle: dragHandle,
           onFollow: (follow) => _setFollow(spec.id, follow),
           onClose: closable ? () => _closePane(spec.id) : null,
         );
     }
-  }
-}
-
-/// A draggable divider between tiles; horizontal axis resizes columns,
-/// vertical axis resizes stacked panes.
-class _Grip extends StatelessWidget {
-  const _Grip({
-    super.key,
-    required this.axis,
-    required this.onDrag,
-    required this.onEnd,
-  });
-
-  final Axis axis;
-  final ValueChanged<double> onDrag;
-  final VoidCallback onEnd;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final horizontal = axis == Axis.horizontal;
-    return MouseRegion(
-      cursor: horizontal
-          ? SystemMouseCursors.resizeColumn
-          : SystemMouseCursors.resizeRow,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onHorizontalDragUpdate: horizontal ? (d) => onDrag(d.delta.dx) : null,
-        onHorizontalDragEnd: horizontal ? (_) => onEnd() : null,
-        onVerticalDragUpdate: horizontal ? null : (d) => onDrag(d.delta.dy),
-        onVerticalDragEnd: horizontal ? null : (_) => onEnd(),
-        child: SizedBox(
-          width: horizontal ? 12 : null,
-          height: horizontal ? null : 12,
-          child: Center(
-            child: Container(
-              width: horizontal ? 2.5 : 36,
-              height: horizontal ? 36 : 2.5,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A rearrangement drop zone, highlighted while a drag hovers over it.
-class _DropZone extends StatelessWidget {
-  const _DropZone({super.key, required this.onAccept});
-
-  final ValueChanged<String> onAccept;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return DragTarget<String>(
-      onAcceptWithDetails: (details) => onAccept(details.data),
-      builder: (context, candidates, rejected) => Container(
-        decoration: BoxDecoration(
-          color: candidates.isEmpty
-              ? Colors.transparent
-              : scheme.primary.withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(8),
-          border: candidates.isEmpty
-              ? null
-              : Border.all(color: scheme.primary, width: 1.5),
-        ),
-      ),
-    );
   }
 }
