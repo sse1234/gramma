@@ -49,9 +49,7 @@ Color paneBadgeColor(int index, Brightness brightness) {
 /// spaced ggplot hues, softened toward the paper for grid backgrounds.
 Color bookCategoryColor(int category, Brightness brightness) {
   final h = 15 + (category % 9) * 40.0;
-  return brightness == Brightness.light
-      ? hcl(h, 42, 85)
-      : hcl(h, 34, 32);
+  return brightness == Brightness.light ? hcl(h, 42, 85) : hcl(h, 34, 32);
 }
 
 /// Text-marker washes (ADR 0023): eight evenly spaced HCL hues, light

@@ -4,7 +4,7 @@ import 'annotations.dart';
 import 'l10n.dart';
 import 'mark_popup.dart';
 import 'palette.dart';
-import 'reader_pane.dart';
+import 'pane_header.dart';
 import 'src/rust/api/references.dart';
 
 /// The notes overview (ADR 0023 follow-up): every annotation in the
@@ -73,7 +73,9 @@ class _NotesPaneState extends State<NotesPane> {
   }
 
   String _label(NoteMark mark) =>
-      formatReference(osis: '${mark.bookOsis}.${mark.chapter}.${mark.verseStart}') +
+      formatReference(
+        osis: '${mark.bookOsis}.${mark.chapter}.${mark.verseStart}',
+      ) +
       (mark.verseStart == mark.verseEnd ? '' : '–${mark.verseEnd}');
 
   void _edit(NoteMark mark) {
@@ -117,7 +119,8 @@ class _NotesPaneState extends State<NotesPane> {
                       child: Text(
                         context.l10n.noNotesYet,
                         style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant),
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -127,15 +130,14 @@ class _NotesPaneState extends State<NotesPane> {
                       // Phone-width panes: the reference owns the row;
                       // the module chip and edit button give way
                       // (long-press edits instead).
-                      final compact =
-                          constraints.maxWidth < compactWidth;
+                      final compact = constraints.maxWidth < compactWidth;
                       return ListView.builder(
                         itemCount: marks.length,
                         itemBuilder: (context, i) {
                           final mark = marks[i];
-                          final muted = theme.textTheme.labelSmall
-                              ?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant);
+                          final muted = theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          );
                           return ListTile(
                             key: Key('note-row-$i'),
                             dense: compact,
@@ -144,19 +146,24 @@ class _NotesPaneState extends State<NotesPane> {
                               height: 16,
                               decoration: BoxDecoration(
                                 color: markColor(
-                                    mark.colorIndex, theme.brightness),
+                                  mark.colorIndex,
+                                  theme.brightness,
+                                ),
                                 shape: BoxShape.circle,
                               ),
                             ),
                             title: compact
-                                ? Text(_label(mark),
-                                    overflow: TextOverflow.ellipsis)
+                                ? Text(
+                                    _label(mark),
+                                    overflow: TextOverflow.ellipsis,
+                                  )
                                 : Row(
                                     children: [
                                       Expanded(
-                                        child: Text(_label(mark),
-                                            overflow:
-                                                TextOverflow.ellipsis),
+                                        child: Text(
+                                          _label(mark),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ),
                                       Text(mark.module, style: muted),
                                     ],
@@ -165,7 +172,8 @@ class _NotesPaneState extends State<NotesPane> {
                                 ? Text(
                                     context.l10n.pureMark,
                                     style: const TextStyle(
-                                        fontStyle: FontStyle.italic),
+                                      fontStyle: FontStyle.italic,
+                                    ),
                                   )
                                 : Text(
                                     mark.text,
@@ -176,13 +184,16 @@ class _NotesPaneState extends State<NotesPane> {
                                 ? null
                                 : IconButton(
                                     key: Key('note-edit-$i'),
-                                    icon: const Icon(Icons.edit_outlined,
-                                        size: 18),
+                                    icon: const Icon(
+                                      Icons.edit_outlined,
+                                      size: 18,
+                                    ),
                                     visualDensity: VisualDensity.compact,
                                     onPressed: () => _edit(mark),
                                   ),
                             onTap: () => widget.onOpenReference(
-                                '${mark.bookOsis}.${mark.chapter}.${mark.verseStart}'),
+                              '${mark.bookOsis}.${mark.chapter}.${mark.verseStart}',
+                            ),
                             onLongPress: () => _edit(mark),
                           );
                         },

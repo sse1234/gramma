@@ -22,7 +22,10 @@ class ColumnSnapPhysics extends ScrollPhysics {
 
   @override
   ColumnSnapPhysics applyTo(ScrollPhysics? ancestor) => ColumnSnapPhysics(
-      stride: stride, advance: advance, parent: buildParent(ancestor));
+    stride: stride,
+    advance: advance,
+    parent: buildParent(ancestor),
+  );
 
   /// Whole columns a natural scroll of [delta] pixels turns, requiring
   /// [advance] of a column beyond each boundary; signed like [delta].
@@ -70,8 +73,11 @@ class ColumnSnapPhysics extends ScrollPhysics {
       position.minScrollExtent,
       position.maxScrollExtent,
     );
-    final crossed =
-        columnsCrossed(naturalEnd - position.pixels, stride, advance);
+    final crossed = columnsCrossed(
+      naturalEnd - position.pixels,
+      stride,
+      advance,
+    );
     final target = snapTarget(
       base + crossed * stride,
       stride,

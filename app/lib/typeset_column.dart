@@ -84,8 +84,7 @@ class TypesetColumn extends StatelessWidget {
 
   void _selectAt(Offset position, void Function(int, RunView) callback) {
     final hit = _rowAt(position.dy);
-    final run =
-        hit == null ? null : runInLine(hit.line, scale, position.dx);
+    final run = hit == null ? null : runInLine(hit.line, scale, position.dx);
     if (hit != null && run != null && !run.verseNumber && !run.noteMarker) {
       callback(hit.chapter, run);
     }
@@ -99,11 +98,12 @@ class TypesetColumn extends StatelessWidget {
     final weightEm = settings.fontWeightFor(theme.brightness);
     final family = settings.fontFamily;
     final label = rows
-        .map((r) => switch (r) {
-              HeadingRow(:final text) => text,
-              TextRow(:final line) =>
-                line.runs.map((run) => run.text).join(' '),
-            })
+        .map(
+          (r) => switch (r) {
+            HeadingRow(:final text) => text,
+            TextRow(:final line) => line.runs.map((run) => run.text).join(' '),
+          },
+        )
         .join(' ');
     return Semantics(
       label: label,
@@ -118,8 +118,8 @@ class TypesetColumn extends StatelessWidget {
                 (line: r.line, top: r.row * lineHeight),
             ],
             scale,
-            fontSize * (rows.whereType<TextRow>().firstOrNull?.numberScale ??
-                    0.65),
+            fontSize *
+                (rows.whereType<TextRow>().firstOrNull?.numberScale ?? 0.65),
             details.localPosition,
           );
           if (marker != null && onMarkerTap != null) {
@@ -168,7 +168,8 @@ class TypesetColumn extends StatelessWidget {
             paneModule: paneModule,
             selection: selection,
             selectionColor: scheme.primary.withValues(
-                alpha: theme.brightness == Brightness.light ? 0.22 : 0.34),
+              alpha: theme.brightness == Brightness.light ? 0.22 : 0.34,
+            ),
           ),
         ),
       ),
@@ -215,8 +216,12 @@ class _ColumnPainter extends CustomPainter {
       for (final (start, end) in coveredSpans(row.line, covers)) {
         canvas.drawRRect(
           RRect.fromRectAndRadius(
-            Rect.fromLTRB(start * scale - 2, y + fontSize * 0.08,
-                end * scale + 2, y + fontSize * 1.26),
+            Rect.fromLTRB(
+              start * scale - 2,
+              y + fontSize * 0.08,
+              end * scale + 2,
+              y + fontSize * 1.26,
+            ),
             const Radius.circular(3),
           ),
           Paint()..color = color,
@@ -257,30 +262,40 @@ class _ColumnPainter extends CustomPainter {
       final y = row.row * lineHeight;
       switch (row) {
         case HeadingRow(:final text):
-          paintRun(canvas, text, headingStyle, Offset(0, y + lineHeight * 0.3),
-              extraWeightEm: weightEm);
+          paintRun(
+            canvas,
+            text,
+            headingStyle,
+            Offset(0, y + lineHeight * 0.3),
+            extraWeightEm: weightEm,
+          );
         case TextRow(:final line, :final numberScale):
           final numberStyle = TextStyle(
             fontFamily: family,
             fontSize: fontSize * numberScale,
             color: numberColor,
           );
-          final markerStyle =
-              numberStyle.copyWith(fontStyle: FontStyle.italic);
-          final subSectionStyle =
-              textStyle.copyWith(fontStyle: FontStyle.italic);
+          final markerStyle = numberStyle.copyWith(fontStyle: FontStyle.italic);
+          final subSectionStyle = textStyle.copyWith(
+            fontStyle: FontStyle.italic,
+          );
           for (final run in line.runs) {
             final style = run.verseNumber
                 ? numberStyle
                 : run.noteMarker
-                    ? markerStyle
-                    : run.headingLevel == 2
-                        ? subSectionStyle
-                        : textStyle;
-            paintRun(canvas, run.text, style, Offset(run.x * scale, y),
-                extraWeightEm: run.headingLevel == 1
-                    ? weightEm + headingStrokeEm
-                    : weightEm);
+                ? markerStyle
+                : run.headingLevel == 2
+                ? subSectionStyle
+                : textStyle;
+            paintRun(
+              canvas,
+              run.text,
+              style,
+              Offset(run.x * scale, y),
+              extraWeightEm: run.headingLevel == 1
+                  ? weightEm + headingStrokeEm
+                  : weightEm,
+            );
           }
       }
     }

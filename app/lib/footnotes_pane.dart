@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'l10n.dart';
 import 'note_text.dart';
 import 'passage_preview.dart';
-import 'reader_pane.dart';
+import 'pane_header.dart';
 import 'settings.dart';
 import 'src/rust/api/library.dart';
 

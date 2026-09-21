@@ -1,32 +1,23 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
-import 'annotations.dart';
 import 'column_plan.dart';
-import 'mark_popup.dart';
-import 'palette.dart';
+import 'column_scroller.dart';
 import 'l10n.dart';
 import 'note_popup.dart';
 import 'column_snap_physics.dart';
-import 'pane_badge.dart';
 import 'passage_preview.dart';
+import 'pane_header.dart';
 import 'pane_model.dart';
+import 'reader_focus.dart';
+import 'reader_selection.dart';
 import 'reference_selector.dart';
 import 'settings.dart';
 import 'src/rust/api/library.dart';
-import 'src/rust/api/references.dart';
 import 'src/rust/api/typeset.dart';
 import 'typeset_chapter.dart';
 import 'typeset_column.dart';
-
-typedef FollowOption = ({
-  String id,
-  String label,
-  String badge,
-  int badgeIndex,
-});
 
 /// Verse shown at [line], walking forward past spacer lines (the empty
 /// rows before section headings carry no runs) to the next carrying line.
@@ -49,41 +40,10 @@ int? verseAtLineEnd(List<LineView> lines, int line) {
   return null;
 }
 
-/// A one-shot navigation command; a new epoch triggers the jump.
-typedef NavCommand = ({int epoch, String osis});
-
-/// One dropdown row of the desk history (most recent first).
-typedef HistoryItem = ({
-  int index,
-  String label,
-  String badge,
-  int badgeIndex,
-  bool current,
-});
-
 /// One text view (ADR 0008): the endless-scrolling reader of ADR 0006 with
 /// a header for choosing its module and its position link. Emits its
 /// reading position and follows a linked pane's position when set.
 class ReaderPane extends StatefulWidget {
-  /// The text view that last owned the keyboard.
-  static _ReaderPaneState? _lastActive;
-
-  /// Arrow keys that reach the screen unhandled — focus sitting on a
-  /// toolbar button, or nowhere after a menu closed — page the view
-  /// that last owned the keyboard (ADR 0028), and give it the keyboard
-  /// back. Keys typed into a text field are left to the field.
-  static KeyEventResult handleStrayKey(KeyEvent event) {
-    final pane = _lastActive;
-    if (pane == null || !pane.mounted) return KeyEventResult.ignored;
-    final focused = FocusManager.instance.primaryFocus?.context;
-    if (focused?.findAncestorWidgetOfExactType<EditableText>() != null) {
-      return KeyEventResult.ignored;
-    }
-    final result = pane._handleKey(event);
-    if (result == KeyEventResult.handled) pane._focus.requestFocus();
-    return result;
-  }
-
   const ReaderPane({
     super.key,
     required this.spec,
@@ -160,7 +120,8 @@ class ReaderPane extends StatefulWidget {
   State<ReaderPane> createState() => _ReaderPaneState();
 }
 
-class _ReaderPaneState extends State<ReaderPane> {
+class _ReaderPaneState extends State<ReaderPane>
+    with ReaderSelection<ReaderPane> {
   static const _cacheLimit = 80;
   static const _headingLines = 2;
   static const _gutter = 48.0;
@@ -171,11 +132,23 @@ class _ReaderPaneState extends State<ReaderPane> {
   int? _measure;
   String? _fontFamily;
 
-  /// Keyboard focus for arrow-key column paging.
-  final FocusNode _focus = FocusNode(debugLabel: 'reader-pane');
+  /// Arrow-key paging and keyboard ownership (ADR 0028).
+  late final ReaderFocus _focus = ReaderFocus(
+    onStep: (steps) => _columns.step(steps),
+    isCurrent: () => mounted && (ModalRoute.of(context)?.isCurrent ?? true),
+  );
 
-  /// How far the content paints below its own top while chrome shows
-  /// (ADR 0028): the floating header band plus the app bar's share.
+  /// Column mode: the horizontal scroll, the plan, and the anchor line.
+  late final ColumnScroller _columns = ColumnScroller(
+    onScrolled: _onColumnScrolled,
+  );
+
+  @override
+  List<ChapterRefView> get spine => _spine;
+  @override
+  String? get paneModule => widget.spec.module;
+  @override
+  WordLookup? get wordLookup => widget.onWordLookup;
 
   ModuleView? _active;
   List<ChapterRefView> _spine = const [];
@@ -187,7 +160,6 @@ class _ReaderPaneState extends State<ReaderPane> {
   final Map<int, ChapterLayoutView> _layouts = {};
   final Set<int> _loading = {};
 
-  int _anchorLine = 0;
   bool _suppressEmit = false;
 
   /// Whether this pane has announced its position at least once; the first
@@ -207,83 +179,18 @@ class _ReaderPaneState extends State<ReaderPane> {
   final ItemPositionsListener _vPositions = ItemPositionsListener.create();
   int _topChapter = 0;
 
-  ScrollController? _hController;
-  String? _hParams;
-
-  /// Line at which the current column plan was forced to start a column.
-  int _planOrigin = 0;
-  final List<ScrollController> _staleControllers = [];
-  ColumnPlan? _hPlan;
-  double _hStride = 0;
-  int _hColumns = 1;
-
-  /// Mouse-wheel paging: accumulated delta, the in-flight aligned target,
-  /// and the time of the last wheel event.
-  double _wheelAccum = 0;
-  double? _wheelTarget;
-  DateTime _lastWheel = DateTime.fromMillisecondsSinceEpoch(0);
-
-  /// Wheel travel that advances one column.
-  static const _wheelTick = 50.0;
-
   @override
   void initState() {
     super.initState();
-    _focus.addListener(_onFocusChange);
     _vPositions.itemPositions.addListener(_onVerticalPositions);
-    // The first text view owns the keyboard from the start: the very
-    // first arrow press pages, no focusing press needed.
-    if (widget.spec.badge == '1') {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && !_focus.hasFocus) _focus.requestFocus();
-      });
-    }
-  }
-
-  /// Focus gained makes this the keyboard's view. Focus lost to nowhere
-  /// — a closed menu, a rebuilt toolbar — is taken back after the frame,
-  /// so the next arrow press pages instead of being spent on focusing.
-  /// Focus on a real widget (a field, a button) is left alone.
-  void _onFocusChange() {
-    if (_focus.hasFocus) {
-      ReaderPane._lastActive = this;
-      return;
-    }
-    if (ReaderPane._lastActive != this) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || ReaderPane._lastActive != this) return;
-      final primary = FocusManager.instance.primaryFocus;
-      final route = ModalRoute.of(context);
-      if (primary is FocusScopeNode && (route == null || route.isCurrent)) {
-        _focus.requestFocus();
-      }
-    });
-  }
-
-  /// Arrow keys page; anything else passes.
-  KeyEventResult _handleKey(KeyEvent event) {
-    if (event is KeyUpEvent) return KeyEventResult.ignored;
-    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-      _step(1);
-      return KeyEventResult.handled;
-    }
-    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-      _step(-1);
-      return KeyEventResult.handled;
-    }
-    return KeyEventResult.ignored;
+    if (widget.spec.badge == '1') _focus.claimAfterFrame();
   }
 
   @override
   void dispose() {
-    if (ReaderPane._lastActive == this) ReaderPane._lastActive = null;
-    _focus.removeListener(_onFocusChange);
     _focus.dispose();
     _vPositions.itemPositions.removeListener(_onVerticalPositions);
-    _hController?.dispose();
-    for (final c in _staleControllers) {
-      c.dispose();
-    }
+    _columns.dispose();
     super.dispose();
   }
 
@@ -369,17 +276,9 @@ class _ReaderPaneState extends State<ReaderPane> {
   /// Last visible position: exact in column mode (last line of the last
   /// visible column), estimated in vertical mode.
   String? _anchorEndString() {
-    final plan = _hPlan;
-    if (plan != null && plan.totalLines > 0) {
-      final lastColumn = (plan.columnOfLine(_anchorLine) + _hColumns - 1).clamp(
-        0,
-        plan.columnCount - 1,
-      );
-      final lastLine =
-          (plan.firstLineOfColumn(lastColumn) +
-                  plan.linesInColumn(lastColumn) -
-                  1)
-              .clamp(0, plan.totalLines - 1);
+    final lastLine = _columns.lastVisibleLine;
+    if (lastLine != null) {
+      final plan = _columns.plan!;
       final chapter = plan.chapterOfLine(lastLine);
       final local = lastLine - plan.blockStart(chapter) - _headingLines;
       final verse = local >= 0 ? _verseAtLineEnd(chapter, local) : null;
@@ -485,10 +384,8 @@ class _ReaderPaneState extends State<ReaderPane> {
       _loading.clear();
       _lineCounts = null;
       _rowKinds = null;
-      _anchorLine = 0;
+      _columns.reset();
       _topChapter = 0;
-      _hParams = null;
-      _hPlan = null;
       _announced = false;
     });
     final active = _active;
@@ -527,7 +424,7 @@ class _ReaderPaneState extends State<ReaderPane> {
     final plan = _linePlan();
     if (index >= 0 && plan != null) {
       _topChapter = index;
-      _anchorLine = plan.blockStart(index);
+      _columns.anchorLine = plan.blockStart(index);
     }
   }
 
@@ -539,9 +436,7 @@ class _ReaderPaneState extends State<ReaderPane> {
       _loading.clear();
       _lineCounts = null;
       _rowKinds = null;
-      _hParams = null;
-      _hPlan = null;
-      _anchorLine = 0;
+      _columns.reset();
     });
     final active = _active;
     if (active == null) return;
@@ -554,7 +449,7 @@ class _ReaderPaneState extends State<ReaderPane> {
           _lineCounts = [for (final k in kinds) k.length];
           final plan = _linePlan();
           if (plan != null && keepChapter < _spine.length) {
-            _anchorLine = plan.blockStart(keepChapter);
+            _columns.anchorLine = plan.blockStart(keepChapter);
             _topChapter = keepChapter;
           }
         });
@@ -614,7 +509,7 @@ class _ReaderPaneState extends State<ReaderPane> {
     final top = topPosition.index;
     final plan = _linePlan();
     if (plan != null && top < _spine.length) {
-      _anchorLine = plan.blockStart(top);
+      _columns.anchorLine = plan.blockStart(top);
     }
     // Estimate the first visible text line of the top chapter from how far
     // it has scrolled past the viewport top.
@@ -640,17 +535,10 @@ class _ReaderPaneState extends State<ReaderPane> {
     _emitPosition();
   }
 
-  void _onHorizontalScroll() {
-    final controller = _hController;
-    final plan = _hPlan;
-    if (controller == null || plan == null || !controller.hasClients) return;
-    final column = (controller.offset / _hStride).floor().clamp(
-      0,
-      plan.columnCount - 1,
-    );
-    final line = plan.firstLineOfColumn(column);
-    if (line == _anchorLine) return;
-    _anchorLine = line;
+  /// The first visible column changed: find its chapter and verse.
+  void _onColumnScrolled() {
+    final plan = _columns.plan!;
+    final line = _columns.anchorLine;
     final top = plan.chapterOfLine(line.clamp(0, plan.totalLines - 1));
     final local = line - plan.blockStart(top) - _headingLines;
     final verse = local >= 0 ? _verseAtLine(top, local) : _verseAtLine(top, 0);
@@ -682,19 +570,12 @@ class _ReaderPaneState extends State<ReaderPane> {
 
   void _jumpToChapter(int index, {int? verse}) {
     final targetLine = verse == null ? null : _lineOfVerse(index, verse);
-    final plan = _hPlan;
-    if (plan != null && _hController != null && _hController!.hasClients) {
-      var line = plan.blockStart(index);
+    if (_columns.attached) {
+      var line = _columns.plan!.blockStart(index);
       if (targetLine != null) {
         line += _headingLines + targetLine;
       }
-      _anchorLine = line;
-      _hController!.jumpTo(
-        (plan.columnOfLine(line) * _hStride).clamp(
-          0.0,
-          _hController!.position.maxScrollExtent,
-        ),
-      );
+      _columns.jumpToLine(line);
     } else if (_vScroll.isAttached) {
       if (targetLine != null && _vViewportH > 0) {
         // Position the verse's line near the viewport top: negative
@@ -715,43 +596,12 @@ class _ReaderPaneState extends State<ReaderPane> {
     }
   }
 
-  /// A tapped inline note marker (ADR 0016): the footnote right where
-  /// the reader's eye is, with in-popup reference navigation.
-  /// Live selection (ADR 0023): the chapter index it belongs to, the
-  /// long-press anchor run, and the normalized range.
-  int? _selectionChapter;
-  RunView? _selectionAnchor;
-  VerseSelection? _selection;
-
-  void _selectStart(int chapterIndex, RunView run) {
-    setState(() {
-      _selectionChapter = chapterIndex;
-      _selectionAnchor = run;
-      _selection = VerseSelection.ofRun(run);
-    });
-  }
-
-  void _selectExtend(int chapterIndex, RunView run) {
-    final anchor = _selectionAnchor;
-    if (anchor == null || chapterIndex != _selectionChapter) return;
-    setState(() => _selection = VerseSelection.between(anchor, run));
-  }
-
-  void _clearSelection() {
-    if (_selection == null) return;
-    setState(() {
-      _selection = null;
-      _selectionAnchor = null;
-      _selectionChapter = null;
-    });
-  }
-
   /// A tap on a word: exits an active selection, otherwise opens the
   /// note popup of a mark covering the word, otherwise toggles reading
   /// mode like any plain tap.
   void _runTap(int chapterIndex, RunView run) {
-    if (_selection != null) {
-      _clearSelection();
+    if (selection != null) {
+      clearSelection();
       return;
     }
     if (chapterIndex >= _spine.length) return;
@@ -773,155 +623,24 @@ class _ReaderPaneState extends State<ReaderPane> {
       );
       return;
     }
-    final chapter = _spine[chapterIndex];
-    final covering = Annotations.forChapter(
-      chapter.bookOsis,
-      chapter.chapter,
-    ).where((m) => markCoversRun(m, run, widget.spec.module)).lastOrNull;
+    final covering = markCovering(chapterIndex, run);
     if (covering != null) {
-      _editMark(covering);
+      editMark(covering);
     } else {
       widget.onToggleMode();
     }
   }
 
   void _plainTap() {
-    if (_selection != null) {
-      _clearSelection();
+    if (selection != null) {
+      clearSelection();
     } else {
       widget.onToggleMode();
     }
   }
 
-  String _selectionLabel(int chapterIndex, VerseSelection sel) {
-    final chapter = _spine[chapterIndex];
-    final start = formatReference(
-      osis: '${chapter.bookOsis}.${chapter.chapter}.${sel.verseStart}',
-    );
-    return sel.verseStart == sel.verseEnd ? start : '$start–${sel.verseEnd}';
-  }
-
-  void _selectionDictionary() {
-    final sel = _selection;
-    final chapterIndex = _selectionChapter;
-    final word = sel?.word;
-    if (sel == null || chapterIndex == null || word == null) return;
-    final chapter = _spine[chapterIndex];
-    _clearSelection();
-    widget.onWordLookup?.call(
-      word,
-      module: widget.spec.module,
-      bookOsis: chapter.bookOsis,
-      chapter: chapter.chapter,
-      verse: sel.verseStart,
-    );
-  }
-
-  void _selectionMark() {
-    final sel = _selection;
-    final chapterIndex = _selectionChapter;
-    final module = widget.spec.module;
-    if (sel == null || chapterIndex == null || module == null) return;
-    final chapter = _spine[chapterIndex];
-    final draft = NoteMark(
-      id: Annotations.newId(),
-      module: module,
-      bookOsis: chapter.bookOsis,
-      chapter: chapter.chapter,
-      verseStart: sel.verseStart,
-      verseEnd: sel.verseEnd,
-      startOffset: sel.startOffset,
-      endOffset: sel.endOffset,
-      colorIndex: 0,
-      text: '',
-      created: DateTime.now().toUtc().toIso8601String(),
-    );
-    showMarkPopup(
-      context,
-      title: _selectionLabel(chapterIndex, sel),
-      draft: draft,
-      isNew: true,
-      onSave: (mark) {
-        Annotations.save(mark);
-        _clearSelection();
-        setState(() {});
-      },
-    );
-  }
-
-  void _editMark(NoteMark mark) {
-    showMarkPopup(
-      context,
-      title:
-          formatReference(osis: mark.osis.split('-').first) +
-          (mark.verseStart == mark.verseEnd ? '' : '–${mark.verseEnd}'),
-      draft: mark,
-      isNew: false,
-      onSave: (updated) {
-        Annotations.save(updated);
-        setState(() {});
-      },
-      onDelete: () {
-        Annotations.delete(mark.id);
-        setState(() {});
-      },
-    );
-  }
-
-  /// Marks of one chapter with their theme colors, for the painters.
-  List<(NoteMark, Color)> _paintMarks(int chapterIndex) {
-    if (chapterIndex >= _spine.length) return const [];
-    final chapter = _spine[chapterIndex];
-    final brightness = Theme.of(context).brightness;
-    return [
-      for (final m in Annotations.forChapter(chapter.bookOsis, chapter.chapter))
-        (m, markColor(m.colorIndex, brightness)),
-    ];
-  }
-
-  Widget _selectionBar(ThemeData theme) {
-    final sel = _selection!;
-    final chapterIndex = _selectionChapter!;
-    return Material(
-      key: const Key('selection-bar'),
-      elevation: 6,
-      color: theme.colorScheme.surfaceContainerHigh,
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: [
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                _selectionLabel(chapterIndex, sel),
-                key: const Key('selection-label'),
-                style: theme.textTheme.titleSmall,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            IconButton(
-              key: const Key('selection-dictionary'),
-              tooltip: context.l10n.dictionaryTitle,
-              icon: const Icon(Icons.translate_outlined, size: 20),
-              onPressed: sel.word == null ? null : _selectionDictionary,
-            ),
-            IconButton(
-              key: const Key('selection-mark'),
-              tooltip: context.l10n.markSelection,
-              icon: const Icon(Icons.brush_outlined, size: 20),
-              onPressed: _selectionMark,
-            ),
-            IconButton(
-              key: const Key('selection-close'),
-              icon: const Icon(Icons.close, size: 20),
-              onPressed: _clearSelection,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
+  /// A tapped inline note marker (ADR 0016): the footnote right where
+  /// the reader's eye is, with in-popup reference navigation.
   void _openNotePopup(int chapterIndex, int verse, String label) {
     final active = _active;
     if (active == null || chapterIndex >= _spine.length) return;
@@ -1083,8 +802,7 @@ class _ReaderPaneState extends State<ReaderPane> {
                         if (columns >= 2 && _linePlan() != null) {
                           reader = _horizontalReader(constraints, columns);
                         } else {
-                          _hPlan = null;
-                          _hParams = null;
+                          _columns.detach();
                           reader = _verticalReader();
                         }
                         // The selection bar floats over the content: adding
@@ -1093,12 +811,12 @@ class _ReaderPaneState extends State<ReaderPane> {
                         return Stack(
                           children: [
                             reader,
-                            if (_selection != null)
+                            if (selection != null)
                               Positioned(
                                 left: 0,
                                 right: 0,
                                 bottom: 0,
-                                child: _selectionBar(theme),
+                                child: selectionBar(theme),
                               ),
                           ],
                         );
@@ -1120,7 +838,9 @@ class _ReaderPaneState extends State<ReaderPane> {
     final plan = _linePlan();
     var initial = 0;
     if (plan != null && plan.totalLines > 0) {
-      initial = plan.chapterOfLine(_anchorLine.clamp(0, plan.totalLines - 1));
+      initial = plan.chapterOfLine(
+        _columns.anchorLine.clamp(0, plan.totalLines - 1),
+      );
     }
     return Center(
       child: ConstrainedBox(
@@ -1149,55 +869,39 @@ class _ReaderPaneState extends State<ReaderPane> {
     var linesPerColumn = (constraints.maxHeight / lineHeight).floor();
     if (linesPerColumn < 1) linesPerColumn = 1;
     final stride = columnWidth + _gutter;
-    final params = '$columns-$linesPerColumn-${columnWidth.round()}';
-    final changed = params != _hParams;
-    // A new column height re-chunks the lines: chunk so that the line the
-    // reader was looking at heads the first column again rather than
-    // landing somewhere inside one (ADR 0028 as amended).
-    if (changed) _planOrigin = _anchorLine;
-    final plan = _linePlan(
+    final plan = _columns.layout(
+      columns: columns,
       linesPerColumn: linesPerColumn,
-      origin: _planOrigin,
-    )!;
-    if (changed) {
-      final old = _hController;
-      if (old != null) {
-        old.removeListener(_onHorizontalScroll);
-        _staleControllers.add(old);
-      }
-      _hController = ScrollController(
-        initialScrollOffset: plan.columnOfLine(_anchorLine) * stride,
-      )..addListener(_onHorizontalScroll);
-      _hParams = params;
-    }
-    _hPlan = plan;
-    _hStride = stride;
-    _hColumns = columns;
+      columnWidth: columnWidth,
+      stride: stride,
+      buildPlan: ({required linesPerColumn, required origin}) =>
+          _linePlan(linesPerColumn: linesPerColumn, origin: origin)!,
+    );
     final scale = columnWidth / (_measure! * _unitsPerEm());
     return Focus(
-      focusNode: _focus,
+      focusNode: _focus.node,
       autofocus: widget.spec.badge == '1',
-      onKeyEvent: (node, event) => _handleKey(event),
+      onKeyEvent: (node, event) => _focus.handle(event),
       child: Listener(
         key: const ValueKey('columns-active'),
-        onPointerDown: (_) => _focus.requestFocus(),
+        onPointerDown: (_) => _focus.claim(),
         onPointerSignal: (event) {
           // Acting in a view — click, drag, or wheel — makes it the
           // keyboard's target; hovering alone does not.
-          _focus.requestFocus();
+          _focus.claim();
           // Discrete mouse wheels page by whole columns (trackpads scroll
           // through the pan-zoom gesture path and the snap physics instead).
           if (event is PointerScrollEvent &&
               event.scrollDelta.dy != 0 &&
-              _hController!.hasClients) {
-            _onWheel(event.scrollDelta.dy);
+              _columns.attached) {
+            _columns.onWheel(event.scrollDelta.dy);
           }
         },
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: sidePadding),
           child: ListView.builder(
-            key: Key('horizontal-reader-$params'),
-            controller: _hController,
+            key: Key('horizontal-reader-${_columns.params}'),
+            controller: _columns.controller,
             scrollDirection: Axis.horizontal,
             physics: ColumnSnapPhysics(stride: stride, advance: _columnAdvance),
             itemExtent: stride,
@@ -1210,57 +914,6 @@ class _ReaderPaneState extends State<ReaderPane> {
         ),
       ),
     );
-  }
-
-  void _onWheel(double delta) {
-    final now = DateTime.now();
-    if (now.difference(_lastWheel) > const Duration(milliseconds: 600)) {
-      _wheelAccum = 0;
-      _wheelTarget = null;
-    }
-    _lastWheel = now;
-    _wheelAccum += delta;
-    if (_wheelAccum.abs() < _wheelTick) return;
-    // One column per wheel motion, however large the accelerated delta:
-    // a notch is a discrete step, not a distance.
-    final steps = _wheelAccum.sign.toInt();
-    _wheelAccum = 0;
-    _step(steps);
-  }
-
-  /// Page by [steps] whole columns; wheel ticks and arrow keys share the
-  /// chained target so rapid input queues cleanly.
-  void _step(int steps) {
-    final controller = _hController;
-    if (controller == null || !controller.hasClients) return;
-    if (DateTime.now().difference(_lastWheel) >
-        const Duration(milliseconds: 600)) {
-      _wheelTarget = null;
-    }
-    final position = controller.position;
-    final base =
-        _wheelTarget ??
-        ColumnSnapPhysics.snapTarget(
-          position.pixels,
-          _hStride,
-          position.minScrollExtent,
-          position.maxScrollExtent,
-        );
-    final target = ColumnSnapPhysics.snapTarget(
-      base + steps * _hStride,
-      _hStride,
-      position.minScrollExtent,
-      position.maxScrollExtent,
-    );
-    _wheelTarget = target;
-    _lastWheel = DateTime.now();
-    if ((target - position.pixels).abs() > 0.5) {
-      controller.animateTo(
-        target,
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeOutCubic,
-      );
-    }
   }
 
   double _unitsPerEm() {
@@ -1306,23 +959,23 @@ class _ReaderPaneState extends State<ReaderPane> {
       fontSize: fontSize,
       lineHeight: lineHeight,
       onMarkerTap: (chapter, run) {
-        if (_selection != null) {
-          _clearSelection();
+        if (selection != null) {
+          clearSelection();
         } else {
           _openNotePopup(chapter, run.verse, run.text);
         }
       },
       onPlainTap: _plainTap,
       onRunTap: _runTap,
-      onSelectStart: _selectStart,
-      onSelectExtend: _selectExtend,
+      onSelectStart: selectStart,
+      onSelectExtend: selectExtend,
       onSelectEnd: () {},
       marksByChapter: {
         for (final row in rows.whereType<TextRow>())
-          row.chapter: _paintMarks(row.chapter),
+          row.chapter: paintMarks(row.chapter),
       },
       paneModule: widget.spec.module,
-      selection: _selection == null ? null : (_selectionChapter!, _selection!),
+      selection: selection == null ? null : (selectionChapter!, selection!),
     );
   }
 
@@ -1360,20 +1013,20 @@ class _ReaderPaneState extends State<ReaderPane> {
               layout: layout,
               lineHeightEm: _lineSpacing,
               onMarkerTap: (run) {
-                if (_selection != null) {
-                  _clearSelection();
+                if (selection != null) {
+                  clearSelection();
                 } else {
                   _openNotePopup(index, run.verse, run.text);
                 }
               },
               onPlainTap: _plainTap,
               onRunTap: (run) => _runTap(index, run),
-              onSelectStart: (run) => _selectStart(index, run),
-              onSelectExtend: (run) => _selectExtend(index, run),
+              onSelectStart: (run) => selectStart(index, run),
+              onSelectExtend: (run) => selectExtend(index, run),
               onSelectEnd: () {},
-              marks: _paintMarks(index),
+              marks: paintMarks(index),
               paneModule: widget.spec.module,
-              selection: _selectionChapter == index ? _selection : null,
+              selection: selectionChapter == index ? selection : null,
             )
           else
             LayoutBuilder(
@@ -1384,361 +1037,6 @@ class _ReaderPaneState extends State<ReaderPane> {
             ),
         ],
       ),
-    );
-  }
-}
-
-typedef ModuleOption = ({String code, String title, bool strongs});
-
-/// The small chrome badge of a Strong's-tagged text (ADR 0020).
-class StrongsBadge extends StatelessWidget {
-  const StrongsBadge({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: context.l10n.strongsTagged,
-      child: Icon(
-        Icons.tag,
-        size: 14,
-        color: Theme.of(context).colorScheme.primary,
-      ),
-    );
-  }
-}
-
-/// A word lookup request (ADR 0019/0020): the stripped word, and — when
-/// coming from a Bible text — the verse it was pressed in.
-typedef WordLookup = void Function(
-  String word, {
-  String? module,
-  String? bookOsis,
-  int? chapter,
-  int? verse,
-});
-
-/// Shared pane chrome: badge, module and position-link selectors, the
-/// navigation cluster, and close/drag controls. Wide panes show everything
-/// in one row; panes too narrow for that (phones) collapse the module,
-/// history, link, and close controls into an overflow menu so nothing runs
-/// off the screen edge.
-class PaneHeader extends StatelessWidget {
-  const PaneHeader({
-    super.key,
-    required this.title,
-    this.badge,
-    this.moduleCode,
-    this.modules = const [],
-    this.onModule,
-    this.position,
-    this.canGoBack = false,
-    this.canGoForward = false,
-    this.onBack,
-    this.onForward,
-    this.historyItems = const [],
-    this.onHistorySelect,
-    required this.followValue,
-    required this.followOptions,
-    required this.onFollow,
-    this.dragHandle,
-    this.onClose,
-  });
-
-  /// The pane width below which the chrome collapses to its compact form.
-  static const compactBelow = 460.0;
-
-  final String? title;
-  final Widget? badge;
-
-  /// Loaded module and the available alternatives (text panes only).
-  final String? moduleCode;
-  final List<ModuleOption> modules;
-  final ValueChanged<String>? onModule;
-
-  /// Position chip (the reference-selector trigger) for text panes.
-  final Widget? position;
-
-  /// Desk-global navigation (sender panes only; onBack == null hides it).
-  final bool canGoBack;
-  final bool canGoForward;
-  final VoidCallback? onBack;
-  final VoidCallback? onForward;
-  final List<HistoryItem> historyItems;
-  final ValueChanged<int>? onHistorySelect;
-
-  final Widget? dragHandle;
-  final String? followValue;
-  final List<FollowOption> followOptions;
-
-  /// Null hides the link selector entirely (views without a position
-  /// link, e.g. the dictionary).
-  final ValueChanged<String?>? onFollow;
-  final VoidCallback? onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return LayoutBuilder(
-      builder: (context, constraints) => constraints.maxWidth < compactBelow
-          ? _compact(context, theme)
-          : _wide(context, theme),
-    );
-  }
-
-  Widget _wide(BuildContext context, ThemeData theme) {
-    return Row(
-      children: [
-        if (badge != null) ...[badge!, const SizedBox(width: 8)],
-        Expanded(
-          child: onModule != null
-              ? DropdownButton<String>(
-                  key: const Key('module-select'),
-                  isExpanded: true,
-                  underline: const SizedBox.shrink(),
-                  value: moduleCode,
-                  items: [
-                    for (final m in modules)
-                      DropdownMenuItem(
-                        value: m.code,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                m.title,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            if (m.strongs) ...[
-                              const SizedBox(width: 4),
-                              const StrongsBadge(),
-                            ],
-                          ],
-                        ),
-                      ),
-                  ],
-                  onChanged: (code) {
-                    if (code != null) onModule!(code);
-                  },
-                )
-              : Text(title ?? '', style: theme.textTheme.titleMedium),
-        ),
-
-        if (position != null) ...[
-          const SizedBox(width: 8),
-          Flexible(child: position!),
-        ],
-        if (onBack != null) ...[
-          const SizedBox(width: 4),
-          _backForward(context),
-          _historyButton(context, theme),
-        ],
-        if (onFollow != null) ...[
-          const SizedBox(width: 8),
-          DropdownButton<String>(
-            key: const Key('link-select'),
-            underline: const SizedBox.shrink(),
-            value: followValue,
-            hint: Text(context.l10n.unlinked),
-            items: [
-              DropdownMenuItem<String>(child: Text(context.l10n.unlinked)),
-              for (final option in followOptions)
-                DropdownMenuItem(value: option.id, child: _linkRow(option)),
-            ],
-            onChanged: onFollow,
-          ),
-        ],
-        if (onClose != null)
-          IconButton(
-            key: const Key('close-pane'),
-            icon: const Icon(Icons.close, size: 18),
-            tooltip: context.l10n.closeView,
-            onPressed: onClose,
-          ),
-        ?dragHandle,
-      ],
-    );
-  }
-
-  Widget _compact(BuildContext context, ThemeData theme) {
-    return Row(
-      children: [
-        if (badge != null) ...[badge!, const SizedBox(width: 6)],
-        Expanded(
-          child:
-              position ??
-              Text(
-                title ?? '',
-                style: theme.textTheme.titleMedium,
-                overflow: TextOverflow.ellipsis,
-              ),
-        ),
-        // The module chooser hides in the overflow menu here, so the
-        // tagged badge is the only visible hint (ADR 0020).
-        if (modules.any((m) => m.code == moduleCode && m.strongs))
-          const StrongsBadge(key: Key('strongs-badge')),
-        if (onBack != null) _backForward(context),
-        _overflowMenu(context),
-        ?dragHandle,
-      ],
-    );
-  }
-
-  Widget _backForward(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          key: const Key('nav-back'),
-          tooltip: context.l10n.back,
-          visualDensity: VisualDensity.compact,
-          iconSize: 16,
-          icon: const Icon(Icons.arrow_back),
-          onPressed: canGoBack ? onBack : null,
-        ),
-        IconButton(
-          key: const Key('nav-forward'),
-          tooltip: context.l10n.forward,
-          visualDensity: VisualDensity.compact,
-          iconSize: 16,
-          icon: const Icon(Icons.arrow_forward),
-          onPressed: canGoForward ? onForward : null,
-        ),
-      ],
-    );
-  }
-
-  Widget _historyButton(BuildContext context, ThemeData theme) {
-    return PopupMenuButton<int>(
-      key: const Key('nav-history'),
-      tooltip: context.l10n.history,
-      enabled: historyItems.isNotEmpty,
-      icon: Icon(
-        Icons.history,
-        size: 16,
-        color: historyItems.isEmpty
-            ? theme.disabledColor
-            : theme.colorScheme.onSurfaceVariant,
-      ),
-      onSelected: onHistorySelect,
-      itemBuilder: (context) => [
-        for (final item in historyItems) _historyRow(item),
-      ],
-    );
-  }
-
-  PopupMenuItem<int> _historyRow(HistoryItem item) {
-    return PopupMenuItem(
-      value: item.index,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          PaneBadge(
-            badge: item.badge,
-            badgeIndex: item.badgeIndex,
-            small: true,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            item.label,
-            style: item.current
-                ? const TextStyle(fontWeight: FontWeight.w700)
-                : null,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _linkRow(FollowOption option) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        PaneBadge(
-          badge: option.badge,
-          badgeIndex: option.badgeIndex,
-          small: true,
-        ),
-        const SizedBox(width: 6),
-        Text(option.label),
-      ],
-    );
-  }
-
-  /// Everything that has no room in the compact row, as one menu whose
-  /// items carry their own action.
-  Widget _overflowMenu(BuildContext context) {
-    final entries = <PopupMenuEntry<VoidCallback>>[];
-    if (onModule != null) {
-      for (final m in modules) {
-        entries.add(
-          CheckedPopupMenuItem(
-            key: Key('menu-module-${m.code}'),
-            checked: m.code == moduleCode,
-            value: () => onModule!(m.code),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(child: Text(m.title, overflow: TextOverflow.ellipsis)),
-                if (m.strongs) ...[
-                  const SizedBox(width: 4),
-                  const StrongsBadge(),
-                ],
-              ],
-            ),
-          ),
-        );
-      }
-    }
-    if (onHistorySelect != null && historyItems.isNotEmpty) {
-      if (entries.isNotEmpty) entries.add(const PopupMenuDivider());
-      for (final item in historyItems.take(6)) {
-        entries.add(
-          PopupMenuItem(
-            value: () => onHistorySelect!(item.index),
-            child: _historyRow(item).child!,
-          ),
-        );
-      }
-    }
-    final follow = onFollow;
-    if (follow != null) {
-      if (entries.isNotEmpty) entries.add(const PopupMenuDivider());
-      entries.add(
-        CheckedPopupMenuItem(
-          key: const Key('menu-unlinked'),
-          checked: followValue == null,
-          value: () => follow(null),
-          child: Text(context.l10n.unlinked),
-        ),
-      );
-      for (final option in followOptions) {
-        entries.add(
-          CheckedPopupMenuItem(
-            key: Key('menu-link-${option.badge}'),
-            checked: followValue == option.id,
-            value: () => follow(option.id),
-            child: _linkRow(option),
-          ),
-        );
-      }
-    }
-    if (onClose != null) {
-      entries.add(const PopupMenuDivider());
-      entries.add(
-        PopupMenuItem(
-          key: const Key('menu-close'),
-          value: onClose,
-          child: Text(context.l10n.closeView),
-        ),
-      );
-    }
-    return PopupMenuButton<VoidCallback>(
-      key: const Key('pane-menu'),
-      tooltip: context.l10n.viewMenuTooltip,
-      icon: const Icon(Icons.more_vert, size: 18),
-      onSelected: (action) => action(),
-      itemBuilder: (context) => entries,
     );
   }
 }

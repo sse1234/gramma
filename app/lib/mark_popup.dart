@@ -47,8 +47,9 @@ class _MarkDialog extends StatefulWidget {
 }
 
 class _MarkDialogState extends State<_MarkDialog> {
-  late final TextEditingController _text =
-      TextEditingController(text: widget.draft.text);
+  late final TextEditingController _text = TextEditingController(
+    text: widget.draft.text,
+  );
   late int _color = widget.draft.colorIndex;
 
   @override
@@ -133,19 +134,21 @@ class _MarkDialogState extends State<_MarkDialog> {
                     key: const Key('mark-save'),
                     onPressed: () {
                       Navigator.of(context).pop();
-                      widget.onSave(NoteMark(
-                        id: widget.draft.id,
-                        module: widget.draft.module,
-                        bookOsis: widget.draft.bookOsis,
-                        chapter: widget.draft.chapter,
-                        verseStart: widget.draft.verseStart,
-                        verseEnd: widget.draft.verseEnd,
-                        startOffset: widget.draft.startOffset,
-                        endOffset: widget.draft.endOffset,
-                        colorIndex: _color,
-                        text: _text.text.trim(),
-                        created: widget.draft.created,
-                      ));
+                      widget.onSave(
+                        NoteMark(
+                          id: widget.draft.id,
+                          module: widget.draft.module,
+                          bookOsis: widget.draft.bookOsis,
+                          chapter: widget.draft.chapter,
+                          verseStart: widget.draft.verseStart,
+                          verseEnd: widget.draft.verseEnd,
+                          startOffset: widget.draft.startOffset,
+                          endOffset: widget.draft.endOffset,
+                          colorIndex: _color,
+                          text: _text.text.trim(),
+                          created: widget.draft.created,
+                        ),
+                      );
                     },
                     child: Text(context.l10n.save),
                   ),

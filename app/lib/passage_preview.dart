@@ -6,7 +6,8 @@ import 'src/rust/api/library.dart';
 
 /// The parsed shape of a preview target: "Book.Ch[.V][-…[.V2]]".
 ({String book, int chapter, int? verse, int? endVerse}) parsePreviewOsis(
-    String osis) {
+  String osis,
+) {
   final parts = osis.split('-').first.split('.');
   final book = parts[0];
   final chapter = parts.length >= 2 ? int.tryParse(parts[1]) ?? 1 : 1;
@@ -57,10 +58,11 @@ class PassageList extends StatelessWidget {
     final startIndex = target.verse == null
         ? 0
         : verses
-            .indexWhere((v) => v.verse >= target.verse! - 1)
-            .clamp(0, verses.length);
-    final visible =
-        verses.isEmpty ? const <VerseView>[] : verses.sublist(startIndex);
+              .indexWhere((v) => v.verse >= target.verse! - 1)
+              .clamp(0, verses.length);
+    final visible = verses.isEmpty
+        ? const <VerseView>[]
+        : verses.sublist(startIndex);
     final numberStyle = theme.textTheme.labelSmall?.copyWith(
       color: theme.colorScheme.primary,
       fontFamily: family,
@@ -88,7 +90,8 @@ class PassageList extends StatelessWidget {
     // Target verses carry a color wash, never added weight — the same
     // visual language as user marks (ADR 0023).
     final wash = theme.colorScheme.primary.withValues(
-        alpha: theme.brightness == Brightness.light ? 0.16 : 0.28);
+      alpha: theme.brightness == Brightness.light ? 0.16 : 0.28,
+    );
     return ListView.builder(
       shrinkWrap: true,
       itemCount: visible.length,
@@ -98,15 +101,17 @@ class PassageList extends StatelessWidget {
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 3),
           child: Text.rich(
-            TextSpan(children: [
-              TextSpan(text: '${v.verse}  ', style: numberStyle),
-              TextSpan(
-                text: v.text,
-                style: strong
-                    ? textStyle?.copyWith(backgroundColor: wash)
-                    : textStyle,
-              ),
-            ]),
+            TextSpan(
+              children: [
+                TextSpan(text: '${v.verse}  ', style: numberStyle),
+                TextSpan(
+                  text: v.text,
+                  style: strong
+                      ? textStyle?.copyWith(backgroundColor: wash)
+                      : textStyle,
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -161,7 +166,9 @@ Future<void> showPassagePreview(
                   ],
                 ),
                 const SizedBox(height: 8),
-                Flexible(child: PassageList(osis: osis, moduleCode: moduleCode)),
+                Flexible(
+                  child: PassageList(osis: osis, moduleCode: moduleCode),
+                ),
               ],
             ),
           ),

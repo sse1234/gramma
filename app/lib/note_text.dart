@@ -26,33 +26,35 @@ List<TextSpan> noteSpans(
   var cursor = 0;
   for (final ref in refs) {
     if (ref.start > cursor) {
-      spans.add(TextSpan(
-        text: utf8.decode(bytes.sublist(cursor, ref.start)),
-        style: textStyle,
-      ));
+      spans.add(
+        TextSpan(
+          text: utf8.decode(bytes.sublist(cursor, ref.start)),
+          style: textStyle,
+        ),
+      );
     }
     final recognizer = TapGestureRecognizer()..onTap = () => onRef(ref.osis);
     recognizers.add(recognizer);
-    spans.add(TextSpan(
-      text: utf8.decode(bytes.sublist(ref.start, ref.end)),
-      style: refStyle,
-      recognizer: recognizer,
-    ));
+    spans.add(
+      TextSpan(
+        text: utf8.decode(bytes.sublist(ref.start, ref.end)),
+        style: refStyle,
+        recognizer: recognizer,
+      ),
+    );
     cursor = ref.end;
   }
   if (cursor < bytes.length) {
-    spans.add(TextSpan(
-      text: utf8.decode(bytes.sublist(cursor)),
-      style: textStyle,
-    ));
+    spans.add(
+      TextSpan(text: utf8.decode(bytes.sublist(cursor)), style: textStyle),
+    );
   }
   return spans;
 }
 
 /// The link style for references inside note text.
-TextStyle? refStyleFor(ThemeData theme, TextStyle? base) =>
-    base?.copyWith(
-      color: theme.colorScheme.primary,
-      decoration: TextDecoration.underline,
-      decorationColor: theme.colorScheme.primary.withValues(alpha: 0.5),
-    );
+TextStyle? refStyleFor(ThemeData theme, TextStyle? base) => base?.copyWith(
+  color: theme.colorScheme.primary,
+  decoration: TextDecoration.underline,
+  decorationColor: theme.colorScheme.primary.withValues(alpha: 0.5),
+);

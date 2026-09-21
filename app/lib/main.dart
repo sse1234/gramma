@@ -28,8 +28,9 @@ Future<void> main() async {
   openUserStore(path: '${support.path}/user.db');
   final prefs = await SharedPreferences.getInstance();
   final settings = SettingsController(prefs);
-  final font = await rootBundle
-      .load(SettingsController.fontAssets[settings.fontFamily]!);
+  final font = await rootBundle.load(
+    SettingsController.fontAssets[settings.fontFamily]!,
+  );
   initTypesetting(fontData: font.buffer.asUint8List());
   // Re-grant the sandboxed sync-folder access (ADR 0027) before anything
   // reads the sync configuration.
@@ -69,10 +70,17 @@ class GrammaApp extends StatelessWidget {
         supportedLocales: AppLocalizations.supportedLocales,
         locale: settings.localeOverride,
         themeMode: settings.themeMode,
-        theme: grammaTheme(Brightness.light, settings.contrast,
-            tone: settings.tone),
-        darkTheme: grammaTheme(Brightness.dark, settings.contrast,
-            trueBlack: settings.trueBlackDark, tone: settings.tone),
+        theme: grammaTheme(
+          Brightness.light,
+          settings.contrast,
+          tone: settings.tone,
+        ),
+        darkTheme: grammaTheme(
+          Brightness.dark,
+          settings.contrast,
+          trueBlack: settings.trueBlackDark,
+          tone: settings.tone,
+        ),
         builder: (context, child) => SettingsScope(
           controller: settings,
           // Any pointer-down outside the focused text field dismisses

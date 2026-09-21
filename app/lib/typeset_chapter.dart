@@ -85,7 +85,11 @@ class TypesetChapter extends StatelessWidget {
                 return;
               }
               final run = runAtOffset(
-                  layout.lines, scale, lineHeight, details.localPosition);
+                layout.lines,
+                scale,
+                lineHeight,
+                details.localPosition,
+              );
               if (run != null &&
                   !run.verseNumber &&
                   !run.noteMarker &&
@@ -98,8 +102,12 @@ class TypesetChapter extends StatelessWidget {
             onLongPressStart: onSelectStart == null
                 ? null
                 : (details) {
-                    final run = runAtOffset(layout.lines, scale, lineHeight,
-                        details.localPosition);
+                    final run = runAtOffset(
+                      layout.lines,
+                      scale,
+                      lineHeight,
+                      details.localPosition,
+                    );
                     if (run != null && !run.verseNumber && !run.noteMarker) {
                       onSelectStart!(run);
                     }
@@ -107,17 +115,22 @@ class TypesetChapter extends StatelessWidget {
             onLongPressMoveUpdate: onSelectExtend == null
                 ? null
                 : (details) {
-                    final run = runAtOffset(layout.lines, scale, lineHeight,
-                        details.localPosition);
+                    final run = runAtOffset(
+                      layout.lines,
+                      scale,
+                      lineHeight,
+                      details.localPosition,
+                    );
                     if (run != null && !run.verseNumber && !run.noteMarker) {
                       onSelectExtend!(run);
                     }
                   },
-            onLongPressEnd:
-                onSelectEnd == null ? null : (_) => onSelectEnd!(),
+            onLongPressEnd: onSelectEnd == null ? null : (_) => onSelectEnd!(),
             child: CustomPaint(
-              size:
-                  Size(constraints.maxWidth, layout.lines.length * lineHeight),
+              size: Size(
+                constraints.maxWidth,
+                layout.lines.length * lineHeight,
+              ),
               painter: _ChapterPainter(
                 layout: layout,
                 scale: scale,
@@ -131,7 +144,8 @@ class TypesetChapter extends StatelessWidget {
                 paneModule: paneModule,
                 selection: selection,
                 selectionColor: scheme.primary.withValues(
-                    alpha: theme.brightness == Brightness.light ? 0.22 : 0.34),
+                  alpha: theme.brightness == Brightness.light ? 0.22 : 0.34,
+                ),
               ),
             ),
           ),
@@ -181,8 +195,12 @@ class _ChapterPainter extends CustomPainter {
       for (final (start, end) in coveredSpans(line, covers)) {
         canvas.drawRRect(
           RRect.fromRectAndRadius(
-            Rect.fromLTRB(start * scale - 2, y + fontSize * 0.08,
-                end * scale + 2, y + fontSize * 1.26),
+            Rect.fromLTRB(
+              start * scale - 2,
+              y + fontSize * 0.08,
+              end * scale + 2,
+              y + fontSize * 1.26,
+            ),
             const Radius.circular(3),
           ),
           Paint()..color = color,
@@ -224,15 +242,20 @@ class _ChapterPainter extends CustomPainter {
         final style = run.verseNumber
             ? numberStyle
             : run.noteMarker
-                ? markerStyle
-                : run.headingLevel == 2
-                    ? subSectionStyle
-                    : textStyle;
+            ? markerStyle
+            : run.headingLevel == 2
+            ? subSectionStyle
+            : textStyle;
         // Tops align, so the smaller verse numbers sit raised.
-        paintRun(canvas, run.text, style, Offset(run.x * scale, y),
-            extraWeightEm: run.headingLevel == 1
-                ? weightEm + headingStrokeEm
-                : weightEm);
+        paintRun(
+          canvas,
+          run.text,
+          style,
+          Offset(run.x * scale, y),
+          extraWeightEm: run.headingLevel == 1
+              ? weightEm + headingStrokeEm
+              : weightEm,
+        );
       }
     }
   }

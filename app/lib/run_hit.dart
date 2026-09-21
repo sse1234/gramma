@@ -42,9 +42,13 @@ RunView? markerNear(
   double scale,
   double markerHeight,
   Offset position,
-) =>
-    haloNear(lines, scale, markerHeight, position,
-        where: (run) => run.noteMarker);
+) => haloNear(
+  lines,
+  scale,
+  markerHeight,
+  position,
+  where: (run) => run.noteMarker,
+);
 
 /// The small run (marker, label) whose halo contains [position], nearest
 /// first. [lines] pairs each line with its top edge in pixels;
@@ -74,7 +78,10 @@ RunView? haloNear(
           position.dy > bottom) {
         continue;
       }
-      final center = Offset(run.x * scale + w / 2, entry.top + markerHeight / 2);
+      final center = Offset(
+        run.x * scale + w / 2,
+        entry.top + markerHeight / 2,
+      );
       final distance =
           (position.dx - center.dx).abs() + (position.dy - center.dy).abs();
       if (distance < bestDistance) {
@@ -97,6 +104,8 @@ String? lookupWord(RunView run) {
 /// [lookupWord] on a bare string.
 String? lookupWordText(String text) {
   final word = text.replaceAll(
-      RegExp(r'^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$', unicode: true), '');
+    RegExp(r'^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$', unicode: true),
+    '',
+  );
   return word.isEmpty ? null : word;
 }

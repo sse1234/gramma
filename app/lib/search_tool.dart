@@ -7,6 +7,7 @@ import 'l10n.dart';
 import 'settings.dart';
 import 'src/rust/api/library.dart';
 import 'src/rust/api/references.dart';
+
 import 'package:share_plus/share_plus.dart';
 
 import 'src/rust/api/user.dart';
@@ -130,8 +131,11 @@ class _SearchDialogState extends State<_SearchDialog> {
     if (module == null || query.isEmpty || _busy) return;
     setState(() => _busy = true);
     try {
-      final hits =
-          await searchVerses(moduleCode: module, query: query, limit: 25);
+      final hits = await searchVerses(
+        moduleCode: module,
+        query: query,
+        limit: 25,
+      );
       if (!mounted) return;
       setState(() {
         _hits = hits;
@@ -149,9 +153,8 @@ class _SearchDialogState extends State<_SearchDialog> {
   }
 
   void _labelSnack() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.l10n.labelRecorded)),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(context.l10n.labelRecorded)));
   }
 
   @override
@@ -159,10 +162,13 @@ class _SearchDialogState extends State<_SearchDialog> {
     final theme = Theme.of(context);
     final settings = SettingsScope.of(context);
     final family = settings.fontFamily;
-    final refStyle = theme.textTheme.labelMedium
-        ?.copyWith(color: theme.colorScheme.primary);
-    final textStyle = theme.textTheme.bodyMedium
-        ?.copyWith(fontFamily: family, height: 1.3);
+    final refStyle = theme.textTheme.labelMedium?.copyWith(
+      color: theme.colorScheme.primary,
+    );
+    final textStyle = theme.textTheme.bodyMedium?.copyWith(
+      fontFamily: family,
+      height: 1.3,
+    );
     return Dialog(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520, maxHeight: 620),
@@ -186,8 +192,7 @@ class _SearchDialogState extends State<_SearchDialog> {
                       value: _module,
                       items: [
                         for (final m in widget.modules)
-                          DropdownMenuItem(
-                              value: m.code, child: Text(m.code)),
+                          DropdownMenuItem(value: m.code, child: Text(m.code)),
                       ],
                       onChanged: (code) {
                         if (code == null) return;
@@ -222,82 +227,81 @@ class _SearchDialogState extends State<_SearchDialog> {
                 child: !_searched
                     ? const SizedBox.shrink()
                     : _hits.isEmpty
-                        ? Center(
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(
+                            context.l10n.noDictionaryResults,
+                            key: const Key('search-empty'),
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        key: const Key('search-results'),
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        shrinkWrap: true,
+                        itemCount: _hits.length + 1,
+                        itemBuilder: (context, index) {
+                          if (index == _hits.length) {
+                            return _noGoodHitRow(theme);
+                          }
+                          final hit = _hits[index];
+                          final osis =
+                              '${hit.bookOsis}.${hit.chapter}.${hit.verse}';
+                          return InkWell(
+                            key: Key('search-hit-$index'),
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              widget.onOpen(osis);
+                            },
                             child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Text(
-                                context.l10n.noDictionaryResults,
-                                key: const Key('search-empty'),
-                                style: theme.textTheme.bodyMedium,
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Text.rich(
+                                      TextSpan(
+                                        children: [
+                                          TextSpan(
+                                            text:
+                                                '${formatReference(osis: osis)}  ',
+                                            style: refStyle,
+                                          ),
+                                          TextSpan(
+                                            text: hit.text,
+                                            style: textStyle,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    key: Key('search-good-$index'),
+                                    tooltip: context.l10n.goodHit,
+                                    visualDensity: VisualDensity.compact,
+                                    iconSize: 16,
+                                    icon: const Icon(Icons.thumb_up_outlined),
+                                    onPressed: () {
+                                      recordSearchLabel(
+                                        query: _query.text.trim(),
+                                        module: _module!,
+                                        label: 'good_hit',
+                                        osis: osis,
+                                        rank: index,
+                                        score: hit.score,
+                                      );
+                                      _labelSnack();
+                                    },
+                                  ),
+                                ],
                               ),
                             ),
-                          )
-                        : ListView.builder(
-                            key: const Key('search-results'),
-                            keyboardDismissBehavior:
-                                ScrollViewKeyboardDismissBehavior.onDrag,
-                            shrinkWrap: true,
-                            itemCount: _hits.length + 1,
-                            itemBuilder: (context, index) {
-                              if (index == _hits.length) {
-                                return _noGoodHitRow(theme);
-                              }
-                              final hit = _hits[index];
-                              final osis =
-                                  '${hit.bookOsis}.${hit.chapter}.${hit.verse}';
-                              return InkWell(
-                                key: Key('search-hit-$index'),
-                                onTap: () {
-                                  Navigator.of(context).pop();
-                                  widget.onOpen(osis);
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 4),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: Text.rich(
-                                          TextSpan(children: [
-                                            TextSpan(
-                                              text:
-                                                  '${formatReference(osis: osis)}  ',
-                                              style: refStyle,
-                                            ),
-                                            TextSpan(
-                                                text: hit.text,
-                                                style: textStyle),
-                                          ]),
-                                        ),
-                                      ),
-                                      IconButton(
-                                        key: Key('search-good-$index'),
-                                        tooltip: context.l10n.goodHit,
-                                        visualDensity:
-                                            VisualDensity.compact,
-                                        iconSize: 16,
-                                        icon: const Icon(
-                                            Icons.thumb_up_outlined),
-                                        onPressed: () {
-                                          recordSearchLabel(
-                                            query: _query.text.trim(),
-                                            module: _module!,
-                                            label: 'good_hit',
-                                            osis: osis,
-                                            rank: index,
-                                            score: hit.score,
-                                          );
-                                          _labelSnack();
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
+                          );
+                        },
+                      ),
               ),
             ],
           ),
@@ -327,8 +331,9 @@ class _SearchDialogState extends State<_SearchDialog> {
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(
           context.l10n.noGoodHit,
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: theme.colorScheme.error),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.error,
+          ),
           textAlign: TextAlign.center,
         ),
       ),

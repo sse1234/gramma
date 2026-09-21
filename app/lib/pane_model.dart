@@ -4,7 +4,15 @@ import 'dart:convert';
 /// footnotes and commentary views (ADR 0017) are receivers only; the
 /// dictionary view (ADR 0019) receives looked-up words; book and
 /// devotional views (ADR 0021) read their own module by section or day.
-enum PaneKind { text, footnotes, commentary, dictionary, book, devotional, notes }
+enum PaneKind {
+  text,
+  footnotes,
+  commentary,
+  dictionary,
+  book,
+  devotional,
+  notes,
+}
 
 /// Weights are user-dragged and persisted; anything non-finite or
 /// non-positive (from a corrupted store or a historical resize bug) resets
@@ -63,19 +71,20 @@ class PaneSpec {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'kind': kind.name,
-        'module': module,
-        'follow': follow,
-        'anchor': anchor,
-        'anchorEnd': anchorEnd,
-        'weight': weight,
-        'badge': badge,
-      };
+    'id': id,
+    'kind': kind.name,
+    'module': module,
+    'follow': follow,
+    'anchor': anchor,
+    'anchorEnd': anchorEnd,
+    'weight': weight,
+    'badge': badge,
+  };
 
   static PaneSpec? fromJson(Map<String, dynamic> json) {
-    final kind =
-        PaneKind.values.where((k) => k.name == json['kind']).firstOrNull;
+    final kind = PaneKind.values
+        .where((k) => k.name == json['kind'])
+        .firstOrNull;
     if (kind == null) return null;
     return PaneSpec(
       id: json['id'] as String?,
@@ -170,18 +179,17 @@ class LayoutModel {
   }
 
   void _pruneHistory() {
-    final current =
-        historyCursor >= 0 && historyCursor < history.length
-            ? history[historyCursor]
-            : null;
+    final current = historyCursor >= 0 && historyCursor < history.length
+        ? history[historyCursor]
+        : null;
     history.removeWhere((e) => byId(e.paneId) == null);
-    historyCursor =
-        current == null ? history.length - 1 : history.indexOf(current);
+    historyCursor = current == null
+        ? history.length - 1
+        : history.indexOf(current);
     if (historyCursor < 0) historyCursor = history.length - 1;
   }
 
-  Iterable<PaneSpec> get allPanes =>
-      columns.expand((column) => column.panes);
+  Iterable<PaneSpec> get allPanes => columns.expand((column) => column.panes);
 
   PaneSpec? byId(String? id) =>
       id == null ? null : allPanes.where((p) => p.id == id).firstOrNull;
@@ -285,17 +293,17 @@ class LayoutModel {
   }
 
   String encode() => jsonEncode({
-        'v': 2,
-        'columns': [
-          for (final column in columns)
-            {
-              'weight': column.weight,
-              'panes': [for (final p in column.panes) p.toJson()],
-            },
-        ],
-        'history': [for (final e in history) e.toJson()],
-        'cursor': historyCursor,
-      });
+    'v': 2,
+    'columns': [
+      for (final column in columns)
+        {
+          'weight': column.weight,
+          'panes': [for (final p in column.panes) p.toJson()],
+        },
+    ],
+    'history': [for (final e in history) e.toJson()],
+    'cursor': historyCursor,
+  });
 
   /// Decodes a layout object (current and v1 formats); returns null for
   /// anything unreadable so the caller can fall back to a default layout.
@@ -312,10 +320,12 @@ class LayoutModel {
                 .map((p) => PaneSpec.fromJson(p as Map<String, dynamic>))
                 .toList();
             if (panes.any((p) => p == null) || panes.isEmpty) return null;
-            columns.add(PaneColumn(
-              panes: panes.cast<PaneSpec>(),
-              weight: _sanitizeWeight(map['weight'] as num?),
-            ));
+            columns.add(
+              PaneColumn(
+                panes: panes.cast<PaneSpec>(),
+                weight: _sanitizeWeight(map['weight'] as num?),
+              ),
+            );
           }
           if (columns.isEmpty) return null;
           final model = LayoutModel(columns);
@@ -328,10 +338,12 @@ class LayoutModel {
               if (raw is Map<String, dynamic> &&
                   raw['pane'] is String &&
                   raw['osis'] is String) {
-                model.history.add(HistoryEntry(
-                  paneId: raw['pane'] as String,
-                  osis: raw['osis'] as String,
-                ));
+                model.history.add(
+                  HistoryEntry(
+                    paneId: raw['pane'] as String,
+                    osis: raw['osis'] as String,
+                  ),
+                );
               }
             }
             final cursor = data['cursor'];
@@ -350,11 +362,13 @@ class LayoutModel {
                 .where((k) => k.name == p['kind'])
                 .firstOrNull;
             if (kind == null) return null;
-            panes.add(PaneSpec(
-              kind: kind,
-              module: p['module'] as String?,
-              anchor: p['anchor'] as String?,
-            ));
+            panes.add(
+              PaneSpec(
+                kind: kind,
+                module: p['module'] as String?,
+                anchor: p['anchor'] as String?,
+              ),
+            );
           }
           for (var i = 0; i < raw.length; i++) {
             final follow = raw[i]['follow'] as int?;
@@ -362,8 +376,9 @@ class LayoutModel {
               panes[i].follow = panes[follow].id;
             }
           }
-          return LayoutModel(
-              [for (final p in panes) PaneColumn(panes: [p])]);
+          return LayoutModel([
+            for (final p in panes) PaneColumn(panes: [p]),
+          ]);
         default:
           return null;
       }
@@ -397,3 +412,16 @@ double snapToColumns(
   }
   return best;
 }
+
+/// A one-shot navigation command; a new epoch triggers the jump.
+typedef NavCommand = ({int epoch, String osis});
+
+/// A word lookup request (ADR 0019/0020): the stripped word, and — when
+/// coming from a Bible text — the verse it was pressed in.
+typedef WordLookup = void Function(
+  String word, {
+  String? module,
+  String? bookOsis,
+  int? chapter,
+  int? verse,
+});

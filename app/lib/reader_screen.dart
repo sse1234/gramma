@@ -19,6 +19,8 @@ import 'search_tool.dart';
 import 'sync_transport.dart';
 import 'pane_badge.dart';
 import 'pane_model.dart';
+import 'pane_header.dart';
+import 'reader_focus.dart';
 import 'reader_pane.dart';
 import 'settings.dart';
 import 'settings_screen.dart';
@@ -974,7 +976,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     return Focus(
       skipTraversal: true,
       includeSemantics: false,
-      onKeyEvent: (node, event) => ReaderPane.handleStrayKey(event),
+      onKeyEvent: (node, event) => ReaderFocus.handleStray(event),
       child: Scaffold(
         appBar: reading ? null : appBar,
         body: SafeArea(

@@ -16,15 +16,14 @@ class DeskRegistry {
 
   final List<DeskInfo> desks;
 
-  DeskInfo? byId(String? id) =>
-      desks.where((d) => d.id == id).firstOrNull;
+  DeskInfo? byId(String? id) => desks.where((d) => d.id == id).firstOrNull;
 
   String encode() => jsonEncode({
-        'v': 1,
-        'desks': [
-          for (final d in desks) {'id': d.id, 'name': d.name},
-        ],
-      });
+    'v': 1,
+    'desks': [
+      for (final d in desks) {'id': d.id, 'name': d.name},
+    ],
+  });
 
   static DeskRegistry? decode(String json) {
     try {

@@ -23,11 +23,13 @@ Future<SelectorResult?> showReferenceSelector(
   final books = <_Book>[];
   for (final chapter in spine) {
     if (books.isEmpty || books.last.osis != chapter.bookOsis) {
-      books.add(_Book(
-        osis: chapter.bookOsis,
-        abbrev: chapter.bookAbbrev,
-        category: chapter.bookCategory,
-      ));
+      books.add(
+        _Book(
+          osis: chapter.bookOsis,
+          abbrev: chapter.bookAbbrev,
+          category: chapter.bookCategory,
+        ),
+      );
     }
     books.last.chapters.add(chapter);
   }
@@ -74,8 +76,8 @@ class _SelectorFlowState extends State<_SelectorFlow> {
     final title = book == null
         ? 'Book'
         : chapter == null
-            ? book.abbrev
-            : '${book.abbrev} ${chapter.chapter}';
+        ? book.abbrev
+        : '${book.abbrev} ${chapter.chapter}';
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -96,9 +98,7 @@ class _SelectorFlowState extends State<_SelectorFlow> {
                     }
                   }),
                 ),
-              Expanded(
-                child: Text(title, style: theme.textTheme.titleMedium),
-              ),
+              Expanded(child: Text(title, style: theme.textTheme.titleMedium)),
               IconButton(
                 icon: const Icon(Icons.close),
                 onPressed: () => Navigator.of(context).pop(),
@@ -134,12 +134,14 @@ class _SelectorFlowState extends State<_SelectorFlow> {
       return LayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.maxWidth;
-          final capacity =
-              ((width + spacing) / (tileWidth + spacing)).floor().clamp(1, 66);
+          final capacity = ((width + spacing) / (tileWidth + spacing))
+              .floor()
+              .clamp(1, 66);
           final shiftedCapacity =
-              ((width - shift + spacing) / (tileWidth + spacing))
-                  .floor()
-                  .clamp(1, 66);
+              ((width - shift + spacing) / (tileWidth + spacing)).floor().clamp(
+                1,
+                66,
+              );
           return ListView(
             shrinkWrap: true,
             children: [
@@ -150,11 +152,9 @@ class _SelectorFlowState extends State<_SelectorFlow> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       for (final (rowIndex, row) in chunkRows(
-                              group,
-                              groupIndex.isOdd
-                                  ? shiftedCapacity
-                                  : capacity)
-                          .indexed)
+                        group,
+                        groupIndex.isOdd ? shiftedCapacity : capacity,
+                      ).indexed)
                         Padding(
                           padding: EdgeInsets.only(
                             top: rowIndex > 0 ? spacing : 0,
@@ -166,7 +166,8 @@ class _SelectorFlowState extends State<_SelectorFlow> {
                               for (final (i, b) in row.indexed)
                                 Padding(
                                   padding: EdgeInsets.only(
-                                      left: i > 0 ? spacing : 0),
+                                    left: i > 0 ? spacing : 0,
+                                  ),
                                   child: SizedBox(
                                     width: tileWidth,
                                     height: 40,
@@ -174,9 +175,10 @@ class _SelectorFlowState extends State<_SelectorFlow> {
                                       key: Key('sel-book-${b.osis}'),
                                       label: b.abbrev,
                                       background: bookCategoryColor(
-                                          b.category, brightness),
-                                      onTap: () =>
-                                          setState(() => _book = b),
+                                        b.category,
+                                        brightness,
+                                      ),
+                                      onTap: () => setState(() => _book = b),
                                     ),
                                   ),
                                 ),
@@ -209,9 +211,9 @@ class _SelectorFlowState extends State<_SelectorFlow> {
           key: Key('sel-v-$v'),
           label: '$v',
           background: theme.colorScheme.surfaceContainerHighest,
-          onTap: () => Navigator.of(context).pop(
-            (book: book.osis, chapter: chapter.chapter, verse: v),
-          ),
+          onTap: () =>
+              Navigator.of(context)
+                  .pop((book: book.osis, chapter: chapter.chapter, verse: v)),
         ),
     ]);
   }

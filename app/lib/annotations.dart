@@ -54,19 +54,19 @@ class NoteMark {
       : '$bookOsis.$chapter.$verseStart-$bookOsis.$chapter.$verseEnd';
 
   Map<String, dynamic> toJson() => {
-        'v': 1,
-        'id': id,
-        'module': module,
-        'book': bookOsis,
-        'chapter': chapter,
-        'verseStart': verseStart,
-        'verseEnd': verseEnd,
-        'startOffset': startOffset,
-        'endOffset': endOffset,
-        'color': colorIndex,
-        'text': text,
-        'created': created,
-      };
+    'v': 1,
+    'id': id,
+    'module': module,
+    'book': bookOsis,
+    'chapter': chapter,
+    'verseStart': verseStart,
+    'verseEnd': verseEnd,
+    'startOffset': startOffset,
+    'endOffset': endOffset,
+    'color': colorIndex,
+    'text': text,
+    'created': created,
+  };
 
   static NoteMark? fromJson(String raw) {
     try {
@@ -98,10 +98,14 @@ bool markCoversRun(NoteMark mark, RunView run, String? paneModule) {
   if (run.verse < mark.verseStart || run.verse > mark.verseEnd) return false;
   if (mark.module != paneModule) return true;
   final runStart = run.offset;
-  final runEnd = run.offset +
-      utf8.encode(run.text.endsWith('-')
-              ? run.text.substring(0, run.text.length - 1)
-              : run.text)
+  final runEnd =
+      run.offset +
+      utf8
+          .encode(
+            run.text.endsWith('-')
+                ? run.text.substring(0, run.text.length - 1)
+                : run.text,
+          )
           .length;
   if (run.verse == mark.verseStart && runEnd <= mark.startOffset) return false;
   if (run.verse == mark.verseEnd && runStart >= mark.endOffset) return false;
@@ -136,9 +140,9 @@ class Annotations {
   /// Marks touching one chapter, in any module (rendering decides the
   /// precision per pane).
   static List<NoteMark> forChapter(String bookOsis, int chapter) => [
-        for (final m in all())
-          if (m.bookOsis == bookOsis && m.chapter == chapter) m
-      ];
+    for (final m in all())
+      if (m.bookOsis == bookOsis && m.chapter == chapter) m,
+  ];
 
   static void save(NoteMark mark) {
     userSet(key: 'note/${mark.id}', value: jsonEncode(mark.toJson()));
@@ -185,19 +189,21 @@ class VerseSelection {
   static int _endOf(RunView r) =>
       r.offset +
       utf8
-          .encode(r.text.endsWith('-')
-              ? r.text.substring(0, r.text.length - 1)
-              : r.text)
+          .encode(
+            r.text.endsWith('-')
+                ? r.text.substring(0, r.text.length - 1)
+                : r.text,
+          )
           .length;
 
   /// The single-word selection of the long-press anchor.
   factory VerseSelection.ofRun(RunView run) => VerseSelection(
-        verseStart: run.verse,
-        verseEnd: run.verse,
-        startOffset: run.offset,
-        endOffset: _endOf(run),
-        word: lookupWordText(run.text),
-      );
+    verseStart: run.verse,
+    verseEnd: run.verse,
+    startOffset: run.offset,
+    endOffset: _endOf(run),
+    word: lookupWordText(run.text),
+  );
 
   /// A selection spanning from one run to another (either order).
   factory VerseSelection.between(RunView a, RunView b) {

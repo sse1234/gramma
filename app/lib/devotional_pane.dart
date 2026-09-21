@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'l10n.dart';
 import 'passage_preview.dart';
-import 'reader_pane.dart';
+import 'pane_header.dart';
+import 'pane_model.dart';
 import 'run_hit.dart';
 import 'settings.dart';
 import 'src/rust/api/library.dart';
@@ -97,23 +98,25 @@ class _DevotionalPaneState extends State<DevotionalPane> {
     if (_layouts.containsKey(key) || _pending.contains(key)) return;
     _pending.add(key);
     layoutDevotionalDay(
-      moduleCode: module,
-      month: month,
-      day: day,
-      measureEms: ems,
-    ).then((layouts) {
-      if (!mounted) return;
-      setState(() {
-        _pending.remove(key);
-        _layouts[key] = layouts;
-      });
-    }).catchError((_) {
-      if (!mounted) return;
-      setState(() {
-        _pending.remove(key);
-        _layouts[key] = const [];
-      });
-    });
+          moduleCode: module,
+          month: month,
+          day: day,
+          measureEms: ems,
+        )
+        .then((layouts) {
+          if (!mounted) return;
+          setState(() {
+            _pending.remove(key);
+            _layouts[key] = layouts;
+          });
+        })
+        .catchError((_) {
+          if (!mounted) return;
+          setState(() {
+            _pending.remove(key);
+            _layouts[key] = const [];
+          });
+        });
   }
 
   @override
@@ -167,8 +170,9 @@ class _DevotionalPaneState extends State<DevotionalPane> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final effWidth =
-            width < settings.columnWidth ? width : settings.columnWidth;
+        final effWidth = width < settings.columnWidth
+            ? width
+            : settings.columnWidth;
         final fontSize =
             effWidth / settings.measureEms * settings.commentaryScale;
         if (width <= 0 || fontSize <= 0) return const SizedBox.shrink();
@@ -220,37 +224,36 @@ class _DevotionalPaneState extends State<DevotionalPane> {
               child: entries == null
                   ? const SizedBox.shrink()
                   : entries.isEmpty
-                      ? Center(
-                          child: Text(
-                            context.l10n.noDictionaryResults,
-                            key: const Key('devo-empty'),
-                            style: theme.textTheme.bodyMedium,
+                  ? Center(
+                      child: Text(
+                        context.l10n.noDictionaryResults,
+                        key: const Key('devo-empty'),
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    )
+                  : ListView(
+                      key: const Key('devo-list'),
+                      children: [
+                        for (final entry in entries)
+                          Padding(
+                            key: Key('devo-entry-${entry.sort}'),
+                            padding: const EdgeInsets.only(top: 4, bottom: 12),
+                            child: TypesetProse(
+                              layout: ProseLayout.ofDict(entry),
+                              fontSize: fontSize,
+                              lineHeightEm: settings.lineSpacing,
+                              onLinkTap: _openPreview,
+                              onPlainTap: widget.onToggleMode,
+                              onWordLongPress: (run) {
+                                final word = lookupWord(run);
+                                if (word != null) {
+                                  widget.onWordLookup?.call(word);
+                                }
+                              },
+                            ),
                           ),
-                        )
-                      : ListView(
-                          key: const Key('devo-list'),
-                          children: [
-                            for (final entry in entries)
-                              Padding(
-                                key: Key('devo-entry-${entry.sort}'),
-                                padding:
-                                    const EdgeInsets.only(top: 4, bottom: 12),
-                                child: TypesetProse(
-                                  layout: ProseLayout.ofDict(entry),
-                                  fontSize: fontSize,
-                                  lineHeightEm: settings.lineSpacing,
-                                  onLinkTap: _openPreview,
-                                  onPlainTap: widget.onToggleMode,
-                                  onWordLongPress: (run) {
-                                    final word = lookupWord(run);
-                                    if (word != null) {
-                                      widget.onWordLookup?.call(word);
-                                    }
-                                  },
-                                ),
-                              ),
-                          ],
-                        ),
+                      ],
+                    ),
             ),
           ],
         );

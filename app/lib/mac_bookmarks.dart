@@ -13,11 +13,14 @@ const _channel = MethodChannel('gramma/bookmarks');
 /// resolved at startup. The iCloud container needs none (its
 /// entitlement grants access), so choosing it clears the bookmark.
 Future<void> rememberMacSyncFolder(
-    SettingsController settings, String path) async {
+  SettingsController settings,
+  String path,
+) async {
   if (!Platform.isMacOS) return;
   try {
     settings.setMacSyncBookmark(
-        await _channel.invokeMethod<String>('create', path));
+      await _channel.invokeMethod<String>('create', path),
+    );
   } catch (_) {
     settings.setMacSyncBookmark(null);
   }
@@ -36,8 +39,10 @@ Future<void> restoreMacSyncAccess(SettingsController settings) async {
   final stored = settings.macSyncBookmark;
   if (stored == null) return;
   try {
-    final reply =
-        await _channel.invokeMethod<Map<Object?, Object?>>('resolve', stored);
+    final reply = await _channel.invokeMethod<Map<Object?, Object?>>(
+      'resolve',
+      stored,
+    );
     final path = reply?['path'] as String?;
     if (path == null) return;
     final fresh = reply?['bookmark'] as String?;

@@ -10,7 +10,7 @@ import 'dropbox_sync.dart';
 import 'l10n.dart';
 import 'icloud.dart';
 import 'mac_bookmarks.dart';
-import 'reader_pane.dart' show StrongsBadge;
+import 'pane_header.dart' show StrongsBadge;
 import 'settings.dart';
 import 'sync_transport.dart';
 import 'src/rust/api/library.dart';

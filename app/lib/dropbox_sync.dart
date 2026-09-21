@@ -31,13 +31,12 @@ class DropboxAuth {
     const chars =
         'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
     final random = Random.secure();
-    return List.generate(64, (_) => chars[random.nextInt(chars.length)])
-        .join();
+    return List.generate(64, (_) => chars[random.nextInt(chars.length)]).join();
   }
 
-  String get challenge => base64UrlEncode(
-        sha256.convert(ascii.encode(verifier)).bytes,
-      ).replaceAll('=', '');
+  String get challenge =>
+      base64UrlEncode(sha256.convert(ascii.encode(verifier)).bytes)
+          .replaceAll('=', '');
 
   /// The URL the user opens; Dropbox shows a code to paste back.
   Uri authorizeUrl(String appKey) =>
@@ -58,15 +57,17 @@ class DropboxAuth {
     http.Client? client,
   }) async {
     final c = client ?? http.Client();
-    final res = await c.post(
-      Uri.parse('https://api.dropboxapi.com/oauth2/token'),
-      body: {
-        'code': code.trim(),
-        'grant_type': 'authorization_code',
-        'code_verifier': verifier,
-        'client_id': appKey,
-      },
-    ).timeout(const Duration(seconds: 30));
+    final res = await c
+        .post(
+          Uri.parse('https://api.dropboxapi.com/oauth2/token'),
+          body: {
+            'code': code.trim(),
+            'grant_type': 'authorization_code',
+            'code_verifier': verifier,
+            'client_id': appKey,
+          },
+        )
+        .timeout(const Duration(seconds: 30));
     if (res.statusCode != 200) {
       throw Exception('Dropbox rejected the code (${res.statusCode})');
     }
@@ -87,8 +88,8 @@ class DropboxSync {
     required this.ownLog,
     required SharedPreferences prefs,
     http.Client? client,
-  })  : _prefs = prefs, // ignore: prefer_initializing_formals
-        _client = client ?? http.Client();
+  }) : _prefs = prefs, // ignore: prefer_initializing_formals
+       _client = client ?? http.Client();
 
   final String appKey;
   final String refreshToken;
@@ -124,22 +125,23 @@ class DropboxSync {
     if (token != null && DateTime.now().isBefore(_accessExpiry)) {
       return token;
     }
-    final res = await _client.post(
-      Uri.parse('https://api.dropboxapi.com/oauth2/token'),
-      body: {
-        'grant_type': 'refresh_token',
-        'refresh_token': refreshToken,
-        'client_id': appKey,
-      },
-    ).timeout(const Duration(seconds: 30));
+    final res = await _client
+        .post(
+          Uri.parse('https://api.dropboxapi.com/oauth2/token'),
+          body: {
+            'grant_type': 'refresh_token',
+            'refresh_token': refreshToken,
+            'client_id': appKey,
+          },
+        )
+        .timeout(const Duration(seconds: 30));
     if (res.statusCode != 200) {
       throw Exception('Dropbox token refresh failed (${res.statusCode})');
     }
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     _accessToken = data['access_token'] as String;
     final expiresIn = (data['expires_in'] as num?)?.toInt() ?? 3600;
-    _accessExpiry =
-        DateTime.now().add(Duration(seconds: expiresIn - 120));
+    _accessExpiry = DateTime.now().add(Duration(seconds: expiresIn - 120));
     return _accessToken!;
   }
 
@@ -151,12 +153,14 @@ class DropboxSync {
     var url = Uri.parse('https://api.dropboxapi.com/2/files/list_folder');
     while (true) {
       final res = await _client
-          .post(url,
-              headers: {
-                'Authorization': 'Bearer $token',
-                'Content-Type': 'application/json',
-              },
-              body: body)
+          .post(
+            url,
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: body,
+          )
           .timeout(const Duration(seconds: 30));
       if (res.statusCode == 409) return {}; // folder not created yet
       if (res.statusCode != 200) {
@@ -171,20 +175,23 @@ class DropboxSync {
       }
       if (data['has_more'] != true) return entries;
       url = Uri.parse(
-          'https://api.dropboxapi.com/2/files/list_folder/continue');
+        'https://api.dropboxapi.com/2/files/list_folder/continue',
+      );
       body = jsonEncode({'cursor': data['cursor']});
     }
   }
 
   Future<List<int>> _download(String name) async {
     final token = await _access();
-    final res = await _client.post(
-      Uri.parse('https://content.dropboxapi.com/2/files/download'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Dropbox-API-Arg': jsonEncode({'path': '$_remoteRoot/$name'}),
-      },
-    ).timeout(const Duration(seconds: 60));
+    final res = await _client
+        .post(
+          Uri.parse('https://content.dropboxapi.com/2/files/download'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Dropbox-API-Arg': jsonEncode({'path': '$_remoteRoot/$name'}),
+          },
+        )
+        .timeout(const Duration(seconds: 60));
     if (res.statusCode != 200) {
       throw Exception('Dropbox download failed (${res.statusCode})');
     }
@@ -193,19 +200,21 @@ class DropboxSync {
 
   Future<void> _upload(String name, List<int> bytes) async {
     final token = await _access();
-    final res = await _client.post(
-      Uri.parse('https://content.dropboxapi.com/2/files/upload'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/octet-stream',
-        'Dropbox-API-Arg': jsonEncode({
-          'path': '$_remoteRoot/$name',
-          'mode': 'overwrite',
-          'mute': true,
-        }),
-      },
-      body: bytes,
-    ).timeout(const Duration(seconds: 60));
+    final res = await _client
+        .post(
+          Uri.parse('https://content.dropboxapi.com/2/files/upload'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/octet-stream',
+            'Dropbox-API-Arg': jsonEncode({
+              'path': '$_remoteRoot/$name',
+              'mode': 'overwrite',
+              'mute': true,
+            }),
+          },
+          body: bytes,
+        )
+        .timeout(const Duration(seconds: 60));
     if (res.statusCode != 200) {
       throw Exception('Dropbox upload failed (${res.statusCode})');
     }

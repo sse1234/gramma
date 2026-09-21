@@ -64,9 +64,11 @@ class ReadingPlan {
 /// every year, and day 60 (29 February) simply has no date in common
 /// years.
 int planDayFor(DateTime date) {
-  return DateTime(2024, date.month, date.day)
-          .difference(DateTime(2024, 1, 1))
-          .inDays +
+  return DateTime(
+        2024,
+        date.month,
+        date.day,
+      ).difference(DateTime(2024, 1, 1)).inDays +
       1;
 }
 
@@ -109,8 +111,7 @@ class _PlanDialogState extends State<_PlanDialog> {
   int get _today => planDayFor(DateTime.now());
 
   void _shift(int delta) {
-    setState(
-        () => _day = (_day + delta).clamp(1, widget.plan.days.length));
+    setState(() => _day = (_day + delta).clamp(1, widget.plan.days.length));
   }
 
   @override
@@ -122,8 +123,9 @@ class _PlanDialogState extends State<_PlanDialog> {
         children: [
           Expanded(
             child: Text(
-                context.l10n.planDay(widget.plan.name, _day),
-                key: const Key('plan-title')),
+              context.l10n.planDay(widget.plan.name, _day),
+              key: const Key('plan-title'),
+            ),
           ),
           IconButton(
             key: const Key('plan-prev'),
@@ -135,8 +137,7 @@ class _PlanDialogState extends State<_PlanDialog> {
             key: const Key('plan-next'),
             icon: const Icon(Icons.chevron_right),
             visualDensity: VisualDensity.compact,
-            onPressed:
-                _day < widget.plan.days.length ? () => _shift(1) : null,
+            onPressed: _day < widget.plan.days.length ? () => _shift(1) : null,
           ),
         ],
       ),
@@ -147,17 +148,17 @@ class _PlanDialogState extends State<_PlanDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              _day == _today
-                  ? context.l10n.todaysReadings
-                  : widget.plan.source,
+              _day == _today ? context.l10n.todaysReadings : widget.plan.source,
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
             for (var i = 0; i < refs.length; i++)
               ListTile(
                 key: Key('plan-ref-$i'),
-                leading: Icon(Icons.menu_book_outlined,
-                    color: theme.colorScheme.primary),
+                leading: Icon(
+                  Icons.menu_book_outlined,
+                  color: theme.colorScheme.primary,
+                ),
                 title: Text(refs[i].label),
                 onTap: () {
                   Navigator.of(context).pop();

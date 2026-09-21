@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'l10n.dart';
 import 'passage_preview.dart';
-import 'reader_pane.dart';
+import 'pane_header.dart';
 import 'run_hit.dart';
 import 'settings.dart';
 import 'src/rust/api/library.dart';
@@ -162,14 +162,15 @@ class _DictionaryPaneState extends State<DictionaryPane> {
     _pending.add(sort);
     layoutDictEntry(moduleCode: module, sort: sort, measureEms: ems)
         .then((layout) {
-      if (!mounted) return;
-      setState(() {
-        _pending.remove(sort);
-        if (layout != null) _layouts[sort] = layout;
-      });
-    }).catchError((_) {
-      if (mounted) setState(() => _pending.remove(sort));
-    });
+          if (!mounted) return;
+          setState(() {
+            _pending.remove(sort);
+            if (layout != null) _layouts[sort] = layout;
+          });
+        })
+        .catchError((_) {
+          if (mounted) setState(() => _pending.remove(sort));
+        });
   }
 
   @override
@@ -236,8 +237,9 @@ class _DictionaryPaneState extends State<DictionaryPane> {
             IconButton(
               key: const Key('dict-next'),
               icon: const Icon(Icons.chevron_right, size: 20),
-              onPressed:
-                  _cursor < _history.length - 1 ? () => _goHistory(1) : null,
+              onPressed: _cursor < _history.length - 1
+                  ? () => _goHistory(1)
+                  : null,
             ),
           ],
         ),
@@ -246,15 +248,14 @@ class _DictionaryPaneState extends State<DictionaryPane> {
           child: strong != null
               ? _concordanceView(theme, strong)
               : sort != null
-                  ? _entryView(theme, module, sort)
-                  : query != null
-                      ? _resultsView(theme, module, query)
-                      : GestureDetector(
-                          behavior: HitTestBehavior.translucent,
-                          onTap: widget.onToggleMode,
-                          child:
-                              _hint(theme, context.l10n.searchDictionaryHint),
-                        ),
+              ? _entryView(theme, module, sort)
+              : query != null
+              ? _resultsView(theme, module, query)
+              : GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: widget.onToggleMode,
+                  child: _hint(theme, context.l10n.searchDictionaryHint),
+                ),
         ),
       ],
     );
@@ -287,8 +288,9 @@ class _DictionaryPaneState extends State<DictionaryPane> {
           contentPadding: const EdgeInsets.symmetric(horizontal: 4),
           leading: Text(
             hit.displayKey,
-            style: theme.textTheme.labelMedium
-                ?.copyWith(color: theme.colorScheme.primary),
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.primary,
+            ),
           ),
           title: Text(hit.headword, style: TextStyle(fontFamily: family)),
           subtitle: hit.pron.isEmpty ? null : Text(hit.pron),
@@ -325,14 +327,19 @@ class _DictionaryPaneState extends State<DictionaryPane> {
       );
     }
     final family = SettingsScope.of(context).fontFamily;
-    final refStyle = theme.textTheme.labelMedium
-        ?.copyWith(color: theme.colorScheme.primary);
-    final textStyle = theme.textTheme.bodyMedium
-        ?.copyWith(fontFamily: family, height: 1.3);
+    final refStyle = theme.textTheme.labelMedium?.copyWith(
+      color: theme.colorScheme.primary,
+    );
+    final textStyle = theme.textTheme.bodyMedium?.copyWith(
+      fontFamily: family,
+      height: 1.3,
+    );
     // The linked words carry a wash, not weight (ADR 0023).
     final strongStyle = textStyle?.copyWith(
-        backgroundColor: theme.colorScheme.primary.withValues(
-            alpha: theme.brightness == Brightness.light ? 0.16 : 0.28));
+      backgroundColor: theme.colorScheme.primary.withValues(
+        alpha: theme.brightness == Brightness.light ? 0.16 : 0.28,
+      ),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -347,37 +354,41 @@ class _DictionaryPaneState extends State<DictionaryPane> {
         Expanded(
           child: ListView.builder(
             key: const Key('concordance-list'),
-            keyboardDismissBehavior:
-                ScrollViewKeyboardDismissBehavior.onDrag,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             itemCount: result.hits.length,
             itemBuilder: (context, index) {
               final hit = result.hits[index];
               final osis = '${hit.bookOsis}.${hit.chapter}.${hit.verse}';
               final bytes = utf8.encode(hit.text);
-              String slice(int a, int b) =>
-                  utf8.decode(bytes.sublist(a.clamp(0, bytes.length),
-                      b.clamp(0, bytes.length)));
+              String slice(int a, int b) => utf8.decode(
+                bytes.sublist(
+                  a.clamp(0, bytes.length),
+                  b.clamp(0, bytes.length),
+                ),
+              );
               return InkWell(
                 key: Key('occ-$index'),
                 onTap: () => _openPreview(osis),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Text.rich(
-                    TextSpan(children: [
-                      TextSpan(
-                        text: '${formatReference(osis: osis)}  ',
-                        style: refStyle,
-                      ),
-                      TextSpan(
-                          text: slice(0, hit.start), style: textStyle),
-                      TextSpan(
-                        text: slice(hit.start, hit.end),
-                        style: strongStyle,
-                      ),
-                      TextSpan(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '${formatReference(osis: osis)}  ',
+                          style: refStyle,
+                        ),
+                        TextSpan(text: slice(0, hit.start), style: textStyle),
+                        TextSpan(
+                          text: slice(hit.start, hit.end),
+                          style: strongStyle,
+                        ),
+                        TextSpan(
                           text: slice(hit.end, bytes.length),
-                          style: textStyle),
-                    ]),
+                          style: textStyle,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -395,8 +406,9 @@ class _DictionaryPaneState extends State<DictionaryPane> {
         final width = constraints.maxWidth;
         // The Bible text's glyph size, exactly as in the commentary view
         // (ADR 0018): parity by construction, free measure.
-        final effWidth =
-            width < settings.columnWidth ? width : settings.columnWidth;
+        final effWidth = width < settings.columnWidth
+            ? width
+            : settings.columnWidth;
         final fontSize =
             effWidth / settings.measureEms * settings.commentaryScale;
         if (width <= 0 || fontSize <= 0) return const SizedBox.shrink();
@@ -421,8 +433,7 @@ class _DictionaryPaneState extends State<DictionaryPane> {
         }
         return SingleChildScrollView(
           key: Key('dict-entry-${entry.sort}'),
-          keyboardDismissBehavior:
-              ScrollViewKeyboardDismissBehavior.onDrag,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           child: Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 12),
             child: TypesetProse(
@@ -435,8 +446,7 @@ class _DictionaryPaneState extends State<DictionaryPane> {
                 final word = lookupWord(run);
                 if (word != null) widget.onAnchor('q:$word');
               },
-              onLabelTap: () =>
-                  widget.onAnchor('c:${entry.displayKey}'),
+              onLabelTap: () => widget.onAnchor('c:${entry.displayKey}'),
             ),
           ),
         );
