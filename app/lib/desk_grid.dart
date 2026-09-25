@@ -78,24 +78,41 @@ class _DeskGridState extends State<DeskGrid> {
   /// Vertical tiling only makes sense at whole column-width multiples
   /// (constant zoom): snap the divider there on release.
   void _snapColumns(int left, double contentWidth) {
-    if (!_applySnap(left, contentWidth)) return;
+    if (!_applySnap(left, contentWidth, fromDrag: true)) return;
     setState(() {});
     widget.onChanged();
   }
 
-  bool _applySnap(int left, double contentWidth) {
+  bool _applySnap(
+    int left,
+    double contentWidth, {
+    bool fromDrag = false,
+    bool keepEven = false,
+  }) {
     final columns = _layout.columns;
     final sum = columns.fold(0.0, (a, c) => a + c.weight);
     final leftWidth = columns[left].weight / sum * contentWidth;
     final rightWidth = columns[left + 1].weight / sum * contentWidth;
     final available = leftWidth + rightWidth - DeskGrid.minPaneExtent;
     final columnWidth = SettingsScope.of(context).columnWidth;
-    final target = snapToColumns(
+    final onGrid = snapToColumns(
       leftWidth,
       columnWidth,
       DeskGrid.gutter,
       available,
     );
+    // A divider released nearer the middle than a whole number of text
+    // columns splits the pair evenly — a desk split down the middle is
+    // wanted even when a text view then carries margins around its
+    // columns. A window resize keeps an even split that exists; a
+    // structural change (a new or moved pane) takes the grid.
+    final even = (leftWidth + rightWidth) / 2;
+    final isEven = (even - leftWidth).abs() < 1;
+    final target =
+        (fromDrag && (even - leftWidth).abs() < (onGrid - leftWidth).abs()) ||
+            (keepEven && isEven)
+        ? even
+        : onGrid;
     final dw = (target - leftWidth) / contentWidth * sum;
     if (dw.abs() < 1e-6) return false;
     columns[left].weight += dw;
@@ -106,11 +123,11 @@ class _DeskGridState extends State<DeskGrid> {
   /// A structural tiling change (new pane, drag, close) or a window
   /// resize lands on the column grid immediately — the same snap a
   /// divider release applies — instead of waiting for a manual drag.
-  void _snapAllColumns(double contentWidth) {
+  void _snapAllColumns(double contentWidth, {required bool keepEven}) {
     if (_layout.columns.length < 2) return;
     var moved = false;
     for (var left = 0; left < _layout.columns.length - 1; left++) {
-      moved = _applySnap(left, contentWidth) || moved;
+      moved = _applySnap(left, contentWidth, keepEven: keepEven) || moved;
     }
     if (!moved) return;
     setState(() {});
@@ -156,11 +173,18 @@ class _DeskGridState extends State<DeskGrid> {
             }, size: 20),
           ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
+        // A taller grab area (the icon alone was hard to catch on touch
+        // screens): the header row has no width to spare, so the target
+        // grows in height only; transparent color keeps the box hittable.
+        child: Container(
+          key: Key('drag-handle-${spec.id}'),
+          width: 26,
+          height: 44,
+          color: Colors.transparent,
+          alignment: Alignment.center,
           child: Icon(
             Icons.drag_indicator,
-            size: 18,
+            size: 20,
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
@@ -274,10 +298,13 @@ class _DeskGridState extends State<DeskGrid> {
             _deskWidth != null && (_deskWidth! - contentWidth).abs() > 0.5;
         _deskWidth = contentWidth;
         if (_snapPending || resized) {
+          final structural = _snapPending;
           _snapPending = false;
           if (columns.length > 1) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) _snapAllColumns(contentWidth);
+              if (mounted) {
+                _snapAllColumns(contentWidth, keepEven: !structural);
+              }
             });
           }
         }

@@ -1,5 +1,8 @@
 import 'package:flutter/painting.dart';
 
+import 'settings.dart';
+import 'src/rust/api/typeset.dart';
+
 /// Laid-out painters keyed by text and the style facets the painters use.
 /// A chapter entering the viewport paints ~1500 runs in one frame; most
 /// are words already shaped before, so the cache turns that frame from
@@ -62,8 +65,37 @@ TextPainter _layoutPainter(String text, TextStyle style, double strokeEm) {
 /// painted advances must match the engine's regular-face measurements,
 /// and a variable font (Literata) instantiates a genuinely wider real
 /// semibold, gluing heading words together. Added on top of the user's
-/// weight setting.
+/// weight setting (prose views; Bible text views take the element
+/// styles below).
 const double headingStrokeEm = 0.02;
+
+/// The paint style of one Bible-text run and the element setting it
+/// follows, if any (ADR 0031). Weight comes by stroke (see above) and
+/// italics are a slant of the same advances, so no setting moves a
+/// line break.
+(TextStyle, ElementStyle?) runStyle(
+  RunView run,
+  TextStyle textStyle,
+  TextStyle numberStyle,
+  Map<TextElement, ElementStyle> styles,
+) {
+  final element = run.verseNumber
+      ? TextElement.verseNumber
+      : run.noteMarker
+      ? TextElement.noteMarker
+      : run.headingLevel == 1
+      ? TextElement.sectionHeading
+      : run.headingLevel == 2
+      ? TextElement.passageLine
+      : null;
+  if (element == null) return (textStyle, null);
+  final style = styles[element]!;
+  final base = run.verseNumber || run.noteMarker ? numberStyle : textStyle;
+  return (
+    style.italic ? base.copyWith(fontStyle: FontStyle.italic) : base,
+    style,
+  );
+}
 
 /// Paints one text run at [offset]. [extraWeightEm] adds stroke weight in
 /// ems of the font size — the user's per-brightness font weight setting,

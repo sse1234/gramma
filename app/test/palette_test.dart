@@ -25,8 +25,11 @@ void main() {
     ];
     for (var i = 0; i < colors.length; i++) {
       for (var j = i + 1; j < colors.length; j++) {
-        expect(_dist(colors[i], colors[j]), greaterThan(8),
-            reason: 'badges $i and $j too similar');
+        expect(
+          _dist(colors[i], colors[j]),
+          greaterThan(8),
+          reason: 'badges $i and $j too similar',
+        );
       }
     }
   });

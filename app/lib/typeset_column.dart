@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'annotations.dart';
@@ -97,6 +98,7 @@ class TypesetColumn extends StatelessWidget {
     final settings = SettingsScope.of(context);
     final weightEm = settings.fontWeightFor(theme.brightness);
     final family = settings.fontFamily;
+    final styles = {for (final e in TextElement.values) e: settings.styleOf(e)};
     final label = rows
         .map(
           (r) => switch (r) {
@@ -164,6 +166,7 @@ class TypesetColumn extends StatelessWidget {
             numberColor: scheme.primary,
             weightEm: weightEm,
             family: family,
+            styles: styles,
             marksByChapter: marksByChapter,
             paneModule: paneModule,
             selection: selection,
@@ -187,6 +190,7 @@ class _ColumnPainter extends CustomPainter {
     required this.numberColor,
     required this.weightEm,
     required this.family,
+    required this.styles,
     required this.marksByChapter,
     required this.paneModule,
     required this.selection,
@@ -205,6 +209,9 @@ class _ColumnPainter extends CustomPainter {
 
   /// The reading typeface (user setting).
   final String family;
+
+  /// Presence of the text's elements (user settings, ADR 0031).
+  final Map<TextElement, ElementStyle> styles;
 
   final Map<int, List<(NoteMark, Color)>> marksByChapter;
   final String? paneModule;
@@ -252,10 +259,11 @@ class _ColumnPainter extends CustomPainter {
       fontSize: fontSize,
       color: textColor,
     );
+    final chapter = styles[TextElement.chapterHeading]!;
     final headingStyle = TextStyle(
       fontFamily: family,
-      fontSize: fontSize * 1.2,
-      fontWeight: FontWeight.w600,
+      fontSize: fontSize * chapter.scale,
+      fontStyle: chapter.italic ? FontStyle.italic : FontStyle.normal,
       color: textColor,
     );
     for (final row in rows) {
@@ -267,7 +275,7 @@ class _ColumnPainter extends CustomPainter {
             text,
             headingStyle,
             Offset(0, y + lineHeight * 0.3),
-            extraWeightEm: weightEm,
+            extraWeightEm: weightEm + chapter.weightEm,
           );
         case TextRow(:final line, :final numberScale):
           final numberStyle = TextStyle(
@@ -275,26 +283,19 @@ class _ColumnPainter extends CustomPainter {
             fontSize: fontSize * numberScale,
             color: numberColor,
           );
-          final markerStyle = numberStyle.copyWith(fontStyle: FontStyle.italic);
-          final subSectionStyle = textStyle.copyWith(
-            fontStyle: FontStyle.italic,
-          );
           for (final run in line.runs) {
-            final style = run.verseNumber
-                ? numberStyle
-                : run.noteMarker
-                ? markerStyle
-                : run.headingLevel == 2
-                ? subSectionStyle
-                : textStyle;
+            final (style, element) = runStyle(
+              run,
+              textStyle,
+              numberStyle,
+              styles,
+            );
             paintRun(
               canvas,
               run.text,
               style,
               Offset(run.x * scale, y),
-              extraWeightEm: run.headingLevel == 1
-                  ? weightEm + headingStrokeEm
-                  : weightEm,
+              extraWeightEm: weightEm + (element?.weightEm ?? 0),
             );
           }
       }
@@ -309,6 +310,7 @@ class _ColumnPainter extends CustomPainter {
         old.textColor != textColor ||
         old.numberColor != numberColor ||
         old.weightEm != weightEm ||
-        old.family != family;
+        old.family != family ||
+        !mapEquals(old.styles, styles);
   }
 }

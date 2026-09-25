@@ -15,8 +15,11 @@ void main() {
 
   test('garbage decodes to null, never a crash', () {
     expect(DeskRegistry.decode(''), isNull);
-    expect(DeskRegistry.decode('{"desks": []}'), isNull,
-        reason: 'an empty desk list is unusable');
+    expect(
+      DeskRegistry.decode('{"desks": []}'),
+      isNull,
+      reason: 'an empty desk list is unusable',
+    );
     expect(DeskRegistry.decode('{"desks": [{"id": 1}]}'), isNull);
     expect(DeskRegistry.decode('[1,2]'), isNull);
   });
@@ -26,8 +29,11 @@ void main() {
       DeskInfo(id: 'a', name: 'Desk 1'),
       DeskInfo(id: 'b', name: 'Desk 3'),
     ]);
-    expect(registry.nextName('Desk'), 'Desk 4',
-        reason: 'skips past any existing Desk n');
+    expect(
+      registry.nextName('Desk'),
+      'Desk 4',
+      reason: 'skips past any existing Desk n',
+    );
   });
 
   test('desk ids are unique', () {

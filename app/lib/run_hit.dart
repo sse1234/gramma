@@ -13,6 +13,11 @@ import 'src/rust/api/typeset.dart';
 /// Halo around a note marker, as a multiple of its glyph box per side.
 const markerPad = 1.5;
 
+/// The halo never shrinks below this many logical pixels per side: a
+/// marker at the column's edge (its outer half of the halo lies outside
+/// the view) must still offer a finger-sized target on the inner side.
+const markerMinHalo = 22.0;
+
 /// The run whose exact box contains [dx] on [line], or null.
 RunView? runInLine(LineView line, double scale, double dx) {
   for (final run in line.runs) {
@@ -68,10 +73,16 @@ RunView? haloNear(
     for (final run in entry.line.runs) {
       if (!where(run)) continue;
       final w = run.width * scale;
-      final left = run.x * scale - markerPad * w;
-      final right = run.x * scale + w + markerPad * w;
-      final top = entry.top - markerPad * markerHeight;
-      final bottom = entry.top + markerHeight + markerPad * markerHeight;
+      final padX = markerPad * w < markerMinHalo
+          ? markerMinHalo
+          : markerPad * w;
+      final padY = markerPad * markerHeight < markerMinHalo
+          ? markerMinHalo
+          : markerPad * markerHeight;
+      final left = run.x * scale - padX;
+      final right = run.x * scale + w + padX;
+      final top = entry.top - padY;
+      final bottom = entry.top + markerHeight + padY;
       if (position.dx < left ||
           position.dx > right ||
           position.dy < top ||

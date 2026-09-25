@@ -4,6 +4,29 @@ All notable changes to gramma. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 are the app's `pubspec.yaml` version, tags are `v<version>`.
 
+## [Unreleased]
+
+### Added
+- Text styles (ADR 0031): the weight and slant of chapter and section
+  headings, parallel-passage lines, verse numbers, and footnote markers,
+  and the size of chapter headings, are settings; line breaks never
+  move. The settings screen is split into tabs.
+- A divider released near the middle splits the desk evenly, even when
+  a text view then carries margins around its columns.
+
+### Fixed
+- Imported Bible texts: parallel-passage lines with verse lists or
+  cross-chapter ranges ("Kol 2; 2Kor 11,1-4.13-15") are headings, not
+  text glued to the previous verse, and their references are links;
+  verse lists ("11,1-4.13-15") resolve as one reference.
+- The vertical reader's chapter heading has the same presence as the
+  column reader's.
+- Footnote markers at a column's edge have a finger-sized target.
+- The view drag handle is finger-sized on touch screens.
+
+### Changed
+- Line spacing adjusts in steps of 0.05.
+
 ## [1.1.1] - 2026-09-19
 
 ### Added

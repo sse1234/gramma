@@ -682,12 +682,20 @@ fn heading_like(inlines: &[Inline]) -> Option<(u8, String)> {
     if refs.is_empty() {
         return None;
     }
-    let covered: usize = refs.iter().map(|r| (r.end - r.start) as usize).sum();
-    let letters = text
+    // References plus nothing but the punctuation of a reference list:
+    // separators, verse lists ("11,1-4.13-15"), and cross-chapter ranges
+    // ("1,18 – 2,7") whose tail the scanner does not model.
+    let mut residue = String::new();
+    let mut at = 0usize;
+    for r in &refs {
+        residue.push_str(&text[at..r.start as usize]);
+        at = r.end as usize;
+    }
+    residue.push_str(&text[at..]);
+    let only_list_punctuation = residue
         .chars()
-        .filter(|c| !c.is_whitespace() && *c != ';' && *c != ',')
-        .count();
-    (covered * 10 >= text.len() * 8 && letters > 0).then_some((2, text))
+        .all(|c| c.is_whitespace() || c.is_ascii_digit() || ";,.-–:".contains(c));
+    only_list_punctuation.then_some((2, text))
 }
 
 /// Length of `verse_text` plus the not-yet-appended `pending` text, as

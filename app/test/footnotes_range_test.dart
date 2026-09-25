@@ -3,14 +3,14 @@ import 'package:gramma/footnotes_pane.dart';
 import 'package:gramma/src/rust/api/library.dart';
 
 ChapterRefView _c(String book, int chapter) => ChapterRefView(
-      bookOsis: book,
-      chapter: chapter,
-      heading: '$book $chapter',
-      textLength: 100,
-      maxVerse: 30,
-      bookAbbrev: book,
-      bookCategory: 0,
-    );
+  bookOsis: book,
+  chapter: chapter,
+  heading: '$book $chapter',
+  textLength: 100,
+  maxVerse: 30,
+  bookAbbrev: book,
+  bookCategory: 0,
+);
 
 void main() {
   final spine = [_c('Gen', 1), _c('Gen', 2), _c('Gen', 3), _c('Exod', 1)];
@@ -29,17 +29,16 @@ void main() {
     expect(visibleChapterIndexes(spine, 'Nope.1.1', null), isEmpty);
   });
 
-  test('footnote labels: letters alone while unambiguous, else with verse',
-      () {
+  test('footnote labels: letters alone while unambiguous, else with verse', () {
     ChapterRefView chapter(int n) => ChapterRefView(
-          bookOsis: 'Gen',
-          chapter: n,
-          heading: 'Gen $n',
-          textLength: 0,
-          maxVerse: 30,
-          bookAbbrev: '1Mo',
-          bookCategory: 0,
-        );
+      bookOsis: 'Gen',
+      chapter: n,
+      heading: 'Gen $n',
+      textLength: 0,
+      maxVerse: 30,
+      bookAbbrev: '1Mo',
+      bookCategory: 0,
+    );
     NoteView note(int verse, String label) =>
         NoteView(verse: verse, label: label, text: '', refs: const []);
     final one = [

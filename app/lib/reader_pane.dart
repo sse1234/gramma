@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
+import 'chapter_heading.dart';
 import 'column_plan.dart';
 import 'column_scroller.dart';
 import 'l10n.dart';
@@ -988,7 +989,6 @@ class _ReaderPaneState extends State<ReaderPane>
   }
 
   Widget _chapterItem(BuildContext context, int index) {
-    final theme = Theme.of(context);
     final entry = _spine[index];
     final layout = _layouts[index];
     if (layout == null) {
@@ -1000,12 +1000,16 @@ class _ReaderPaneState extends State<ReaderPane>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 12),
-            child: Text(
-              entry.heading,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontFamily: SettingsScope.of(context).fontFamily,
-              ),
+            padding: const EdgeInsets.only(top: 8, bottom: 4),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final fontSize = constraints.maxWidth / _measure!;
+                return ChapterHeading(
+                  text: entry.heading,
+                  fontSize: fontSize,
+                  lineHeight: fontSize * _lineSpacing,
+                );
+              },
             ),
           ),
           if (layout != null)

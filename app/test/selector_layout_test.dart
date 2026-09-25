@@ -13,7 +13,10 @@ void main() {
   });
 
   test('remainders form a last partial row', () {
-    expect(chunkRows(List.generate(12, (i) => i), 5).map((r) => r.length),
-        [5, 5, 2]);
+    expect(chunkRows(List.generate(12, (i) => i), 5).map((r) => r.length), [
+      5,
+      5,
+      2,
+    ]);
   });
 }

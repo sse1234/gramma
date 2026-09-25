@@ -11,7 +11,9 @@ void main() {
     );
     final model = LayoutModel([
       PaneColumn(panes: [text, notes], weight: 2),
-      PaneColumn(panes: [PaneSpec(kind: PaneKind.text, module: 'GerNeUe')]),
+      PaneColumn(
+        panes: [PaneSpec(kind: PaneKind.text, module: 'GerNeUe')],
+      ),
     ]);
     final decoded = LayoutModel.decode(model.encode())!;
     expect(decoded.columns.length, 2);
@@ -19,15 +21,13 @@ void main() {
     expect(decoded.columns[0].panes.length, 2);
     expect(decoded.columns[0].panes[1].kind, PaneKind.footnotes);
     expect(decoded.columns[0].panes[1].weight, 0.5);
-    expect(
-      decoded.columns[0].panes[1].follow,
-      decoded.columns[0].panes[0].id,
-    );
+    expect(decoded.columns[0].panes[1].follow, decoded.columns[0].panes[0].id);
     expect(decoded.columns[1].panes[0].module, 'GerNeUe');
   });
 
   test('v1 layouts migrate: one column per pane, index links become ids', () {
-    const v1 = '{"v":1,"panes":['
+    const v1 =
+        '{"v":1,"panes":['
         '{"kind":"text","module":"luth1912","follow":null,"anchor":"Gen.1"},'
         '{"kind":"footnotes","module":null,"follow":0,"anchor":null}]}';
     final model = LayoutModel.decode(v1)!;
@@ -77,10 +77,16 @@ void main() {
     expect(snapToColumns(430, colW, gutter, 2000), 400);
     expect(snapToColumns(700, colW, gutter, 2000), 848);
     expect(snapToColumns(900, colW, gutter, 2000), 848);
-    expect(snapToColumns(100, colW, gutter, 2000), 400,
-        reason: 'never below one column');
-    expect(snapToColumns(1900, colW, gutter, 1000), 848,
-        reason: 'never beyond the available space');
+    expect(
+      snapToColumns(100, colW, gutter, 2000),
+      400,
+      reason: 'never below one column',
+    );
+    expect(
+      snapToColumns(1900, colW, gutter, 1000),
+      848,
+      reason: 'never beyond the available space',
+    );
   });
   _moveTests();
   _historyTests();
@@ -134,10 +140,16 @@ void _moveTests() {
     final f = _Fixture();
     f.model.moveIntoStack(f.c.id, f.model.columns[0], 1);
     expect(f.model.columns.length, 1, reason: 'emptied column removed');
-    expect(f.model.columns[0].panes.map((p) => p.id).toList(),
-        [f.a.id, f.c.id, f.b.id]);
-    expect(f.model.byId(f.b.id)!.follow, f.a.id,
-        reason: 'links survive rearrangement');
+    expect(f.model.columns[0].panes.map((p) => p.id).toList(), [
+      f.a.id,
+      f.c.id,
+      f.b.id,
+    ]);
+    expect(
+      f.model.byId(f.b.id)!.follow,
+      f.a.id,
+      reason: 'links survive rearrangement',
+    );
   });
 
   test('a pane can leave a stack to become a new column', () {
@@ -158,8 +170,10 @@ void _moveTests() {
   test('reordering within the same stack adjusts for removal', () {
     final f = _Fixture();
     f.model.moveIntoStack(f.a.id, f.model.columns[0], 2);
-    expect(f.model.columns[0].panes.map((p) => p.id).toList(),
-        [f.b.id, f.a.id]);
+    expect(f.model.columns[0].panes.map((p) => p.id).toList(), [
+      f.b.id,
+      f.a.id,
+    ]);
   });
 
   test('moving a sole pane to a new column beside itself is harmless', () {
@@ -175,8 +189,7 @@ void _historyTests() {
     final f = _Fixture();
     f.a.anchor = 'Gen.1.1';
     f.model.recordNavigation(f.a.id, 'Gen.3.1');
-    expect(f.model.history.map((e) => e.osis).toList(),
-        ['Gen.1.1', 'Gen.3.1']);
+    expect(f.model.history.map((e) => e.osis).toList(), ['Gen.1.1', 'Gen.3.1']);
     expect(f.model.historyCursor, 1);
     expect(f.model.canGoBack, isTrue);
     expect(f.model.canGoForward, isFalse);
@@ -206,8 +219,10 @@ void _historyTests() {
     f.model.goBack();
     f.a.anchor = 'Gen.1.1';
     f.model.recordNavigation(f.a.id, 'Exod.1.1');
-    expect(f.model.history.map((e) => e.osis).toList(),
-        ['Gen.1.1', 'Exod.1.1']);
+    expect(f.model.history.map((e) => e.osis).toList(), [
+      'Gen.1.1',
+      'Exod.1.1',
+    ]);
     expect(f.model.canGoForward, isFalse);
   });
 
@@ -221,8 +236,11 @@ void _historyTests() {
     expect(decoded.history.length, 4);
     expect(decoded.historyCursor, 3);
     decoded.removePane(decoded.byId(f.c.id)!.id);
-    expect(decoded.history.length, 2,
-        reason: 'entries of removed panes are pruned');
+    expect(
+      decoded.history.length,
+      2,
+      reason: 'entries of removed panes are pruned',
+    );
     expect(decoded.historyCursor, 1);
   });
 
@@ -232,8 +250,11 @@ void _historyTests() {
     f.model.recordNavigation(f.a.id, 'Gen.3.1');
     f.a.anchor = 'Gen.3.1';
     f.model.recordNavigation(f.a.id, 'Gen.5.1');
-    expect(f.model.history.map((e) => e.osis).toList(),
-        ['Gen.1.1', 'Gen.3.1', 'Gen.5.1']);
+    expect(f.model.history.map((e) => e.osis).toList(), [
+      'Gen.1.1',
+      'Gen.3.1',
+      'Gen.5.1',
+    ]);
   });
 
   test('jumping into history places the cursor there', () {
@@ -268,14 +289,22 @@ void _historyTests() {
     final model = LayoutModel([
       PaneColumn(panes: [PaneSpec(kind: PaneKind.text)], weight: -0.4),
       PaneColumn(
-          panes: [PaneSpec(kind: PaneKind.text, weight: 0.0)], weight: 2),
+        panes: [PaneSpec(kind: PaneKind.text, weight: 0.0)],
+        weight: 2,
+      ),
     ]);
     final decoded = LayoutModel.decode(model.encode())!;
-    expect(decoded.columns[0].weight, 1.0,
-        reason: 'negative column weights reset so the pane stays reachable');
+    expect(
+      decoded.columns[0].weight,
+      1.0,
+      reason: 'negative column weights reset so the pane stays reachable',
+    );
     expect(decoded.columns[0].panes[0].weight, 1.0);
     expect(decoded.columns[1].weight, 2.0, reason: 'valid weights survive');
-    expect(decoded.columns[1].panes[0].weight, 1.0,
-        reason: 'zero pane weights reset');
+    expect(
+      decoded.columns[1].panes[0].weight,
+      1.0,
+      reason: 'zero pane weights reset',
+    );
   });
 }

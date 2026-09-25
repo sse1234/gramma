@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'annotations.dart';
@@ -61,6 +62,7 @@ class TypesetChapter extends StatelessWidget {
     final settings = SettingsScope.of(context);
     final weightEm = settings.fontWeightFor(theme.brightness);
     final family = settings.fontFamily;
+    final styles = {for (final e in TextElement.values) e: settings.styleOf(e)};
     return LayoutBuilder(
       builder: (context, constraints) {
         final scale = constraints.maxWidth / layout.measureUnits;
@@ -140,6 +142,7 @@ class TypesetChapter extends StatelessWidget {
                 numberColor: scheme.primary,
                 weightEm: weightEm,
                 family: family,
+                styles: styles,
                 marks: marks,
                 paneModule: paneModule,
                 selection: selection,
@@ -165,6 +168,7 @@ class _ChapterPainter extends CustomPainter {
     required this.numberColor,
     required this.weightEm,
     required this.family,
+    required this.styles,
     required this.marks,
     required this.paneModule,
     required this.selection,
@@ -183,6 +187,9 @@ class _ChapterPainter extends CustomPainter {
 
   /// The reading typeface (user setting).
   final String family;
+
+  /// Presence of the text's elements (user settings, ADR 0031).
+  final Map<TextElement, ElementStyle> styles;
 
   final List<(NoteMark, Color)> marks;
   final String? paneModule;
@@ -229,8 +236,6 @@ class _ChapterPainter extends CustomPainter {
       fontSize: fontSize * layout.numberScale,
       color: numberColor,
     );
-    final markerStyle = numberStyle.copyWith(fontStyle: FontStyle.italic);
-    final subSectionStyle = textStyle.copyWith(fontStyle: FontStyle.italic);
     // Washes first, text second — in one pass a line's wash would
     // conceal the previous line's descenders.
     for (var i = 0; i < layout.lines.length; i++) {
@@ -239,22 +244,14 @@ class _ChapterPainter extends CustomPainter {
     for (var i = 0; i < layout.lines.length; i++) {
       final y = i * lineHeight;
       for (final run in layout.lines[i].runs) {
-        final style = run.verseNumber
-            ? numberStyle
-            : run.noteMarker
-            ? markerStyle
-            : run.headingLevel == 2
-            ? subSectionStyle
-            : textStyle;
+        final (style, element) = runStyle(run, textStyle, numberStyle, styles);
         // Tops align, so the smaller verse numbers sit raised.
         paintRun(
           canvas,
           run.text,
           style,
           Offset(run.x * scale, y),
-          extraWeightEm: run.headingLevel == 1
-              ? weightEm + headingStrokeEm
-              : weightEm,
+          extraWeightEm: weightEm + (element?.weightEm ?? 0),
         );
       }
     }
@@ -268,6 +265,7 @@ class _ChapterPainter extends CustomPainter {
         old.numberColor != numberColor ||
         old.weightEm != weightEm ||
         old.family != family ||
+        !mapEquals(old.styles, styles) ||
         !identical(old.marks, marks) ||
         old.selection != selection;
   }

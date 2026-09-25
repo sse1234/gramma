@@ -425,6 +425,43 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get sectionStyles => 'Textstile';
+
+  @override
+  String get sectionAbout => 'Über';
+
+  @override
+  String get stylesSubtitle =>
+      'Die Präsenz der Textelemente. Größen im Text bleiben fest, damit kein Zeilenumbruch wandert.';
+
+  @override
+  String get elementChapterHeading => 'Kapitelüberschrift';
+
+  @override
+  String get elementSectionHeading => 'Abschnittsüberschrift';
+
+  @override
+  String get elementPassageLine => 'Parallelstellen';
+
+  @override
+  String get elementVerseNumber => 'Versnummern';
+
+  @override
+  String get elementNoteMarker => 'Fußnotenzeichen';
+
+  @override
+  String get styleSize => 'Größe';
+
+  @override
+  String get styleWeight => 'Gewicht';
+
+  @override
+  String get styleItalic => 'Kursiv';
+
+  @override
+  String get styleReset => 'Auf Standard zurücksetzen';
+
+  @override
   String get sectionSync => 'Synchronisierung';
 
   @override

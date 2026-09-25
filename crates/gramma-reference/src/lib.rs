@@ -255,6 +255,40 @@ fn parse_chapter_verse(s: &str) -> Option<(u16, Option<u16>, Option<u16>, usize)
                 len += dash_len + elen;
             }
         }
+        // A verse list in German print style ("11,1-4.13-15", "104,5.14-17"):
+        // the reference spans from the first verse to the last listed.
+        loop {
+            let rest = &s[len..];
+            let Some(tail) = rest.strip_prefix('.') else {
+                break;
+            };
+            let Some((next, nlen)) = digits(tail) else {
+                break;
+            };
+            if next <= end.unwrap_or(v) {
+                break;
+            }
+            let mut item_len = 1 + nlen;
+            let mut last = next;
+            let after = &tail[nlen..];
+            if (after.starts_with('-') || after.starts_with('–'))
+                && let dash_len = after.chars().next().unwrap().len_utf8()
+                && let Some((e, elen)) = digits(&after[dash_len..])
+                && e > next
+            {
+                last = e;
+                item_len += dash_len + elen;
+            }
+            if tail[item_len - 1..]
+                .chars()
+                .nth(1)
+                .is_some_and(|c| c.is_alphanumeric())
+            {
+                break;
+            }
+            end = Some(last);
+            len += item_len;
+        }
     }
     if s[len..].chars().next().is_some_and(|c| c.is_alphanumeric()) {
         return None;
@@ -338,6 +372,48 @@ pub fn parse_reference_prefix(input: &str) -> Option<(Reference, usize)> {
                     }
                     _ => parser.rest = save_range,
                 }
+            }
+            // A verse list in German print style ("11,1-4.13-15"): the
+            // reference spans from the first verse to the last listed.
+            while let Some(tail) = parser.rest.strip_prefix('.') {
+                let mut list = Parser { rest: tail };
+                let Ok(Some(next)) = list.parse_number() else {
+                    break;
+                };
+                let end_so_far = match result {
+                    Reference::VerseRange { end_verse, .. } => end_verse,
+                    _ => verse,
+                };
+                if next <= end_so_far {
+                    break;
+                }
+                let mut last = next;
+                if let Some(d) = list.rest.chars().next()
+                    && matches!(d, '-' | '–')
+                {
+                    let mut range = Parser {
+                        rest: list.rest[d.len_utf8()..].trim_start(),
+                    };
+                    if let Ok(Some(e)) = range.parse_number()
+                        && e > next
+                    {
+                        last = e;
+                        list.rest = range.rest;
+                    }
+                }
+                if list
+                    .rest
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_alphanumeric())
+                {
+                    break;
+                }
+                result = Reference::VerseRange {
+                    start,
+                    end_verse: last,
+                };
+                parser.rest = list.rest;
             }
             consumed = total - parser.rest.len();
         }

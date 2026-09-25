@@ -830,6 +830,78 @@ abstract class AppLocalizations {
   /// **'Version {version}'**
   String versionLine(String version);
 
+  /// No description provided for @sectionStyles.
+  ///
+  /// In en, this message translates to:
+  /// **'Text styles'**
+  String get sectionStyles;
+
+  /// No description provided for @sectionAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get sectionAbout;
+
+  /// No description provided for @stylesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'The presence of the text\'s elements. Sizes inside the text stay fixed, so no line break ever moves.'**
+  String get stylesSubtitle;
+
+  /// No description provided for @elementChapterHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Chapter heading'**
+  String get elementChapterHeading;
+
+  /// No description provided for @elementSectionHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Section heading'**
+  String get elementSectionHeading;
+
+  /// No description provided for @elementPassageLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Parallel passages'**
+  String get elementPassageLine;
+
+  /// No description provided for @elementVerseNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Verse numbers'**
+  String get elementVerseNumber;
+
+  /// No description provided for @elementNoteMarker.
+  ///
+  /// In en, this message translates to:
+  /// **'Footnote markers'**
+  String get elementNoteMarker;
+
+  /// No description provided for @styleSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Size'**
+  String get styleSize;
+
+  /// No description provided for @styleWeight.
+  ///
+  /// In en, this message translates to:
+  /// **'Weight'**
+  String get styleWeight;
+
+  /// No description provided for @styleItalic.
+  ///
+  /// In en, this message translates to:
+  /// **'Italic'**
+  String get styleItalic;
+
+  /// No description provided for @styleReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to defaults'**
+  String get styleReset;
+
   /// No description provided for @sectionSync.
   ///
   /// In en, this message translates to:

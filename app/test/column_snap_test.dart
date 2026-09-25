@@ -15,10 +15,7 @@ void main() {
     // max extent between grid points: fall back to the last aligned column.
     const max = 3 * stride + 48;
     expect(ColumnSnapPhysics.snapTarget(max, stride, 0, max), 3 * stride);
-    expect(
-      ColumnSnapPhysics.snapTarget(max + 500, stride, 0, max),
-      3 * stride,
-    );
+    expect(ColumnSnapPhysics.snapTarget(max + 500, stride, 0, max), 3 * stride);
   });
 
   test('clamps to the start', () {

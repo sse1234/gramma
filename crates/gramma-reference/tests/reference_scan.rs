@@ -1,4 +1,4 @@
-use gramma_reference::{book_by_osis, scan_references};
+use gramma_reference::{ReferenceContext, book_by_osis, scan_references, scan_references_in};
 
 fn scan<'a>(text: &'a str, context: &str) -> Vec<(&'a str, String)> {
     scan_references(text, book_by_osis(context))
@@ -145,4 +145,28 @@ fn verse_and_chapter_shorthand_resolve_in_context() {
         },
     );
     assert!(none.is_empty());
+}
+
+#[test]
+fn german_verse_lists_extend_the_reference_to_the_last_verse() {
+    // Parallel-passage lines list verses with dots: one reference spanning
+    // the first to the last listed verse, so the whole text is covered.
+    let text = "Kol 2; 2Kor 11,1-4.13-15";
+    let refs = scan_references_in(text, ReferenceContext::default());
+    let spans: Vec<&str> = refs
+        .iter()
+        .map(|r| &text[r.start as usize..r.end as usize])
+        .collect();
+    assert_eq!(spans, ["Kol 2", "2Kor 11,1-4.13-15"]);
+    assert_eq!(refs[1].reference.display_concise(), "2Ko 11,1-15");
+    let text = "Hi 38,8-11; Ps 104,5.14-17";
+    let refs = scan_references_in(text, ReferenceContext::default());
+    assert_eq!(refs[1].reference.display_concise(), "Ps 104,5-17");
+    // A sentence-ending period after a reference is not a list.
+    let text = "Joh 3,16. Denn";
+    let refs = scan_references_in(text, ReferenceContext::default());
+    assert_eq!(
+        &text[refs[0].start as usize..refs[0].end as usize],
+        "Joh 3,16"
+    );
 }

@@ -38,6 +38,53 @@ Color toneInk(ToneTheme tone, Brightness brightness) {
       : hcl(tone.hue, tone.chromaDark.clamp(0, 6), 62);
 }
 
+/// The text's elements whose presence the reader may set (ADR 0031).
+enum TextElement {
+  /// The chapter title row ("2. Mose 3").
+  chapterHeading,
+
+  /// A section title inside the text (level 1).
+  sectionHeading,
+
+  /// A line of parallel passages under a section title (level 2).
+  passageLine,
+
+  /// Verse numbers.
+  verseNumber,
+
+  /// Footnote markers.
+  noteMarker,
+}
+
+/// Presence of one element: a size factor (chapter headings only — the
+/// other elements sit inside typeset lines, whose breaks their size
+/// would move), extra stroke weight in ems over the reading weight, and
+/// an italic slant.
+class ElementStyle {
+  const ElementStyle({this.scale = 1, this.weightEm = 0, this.italic = false});
+
+  final double scale;
+  final double weightEm;
+  final bool italic;
+
+  ElementStyle copyWith({double? scale, double? weightEm, bool? italic}) =>
+      ElementStyle(
+        scale: scale ?? this.scale,
+        weightEm: weightEm ?? this.weightEm,
+        italic: italic ?? this.italic,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is ElementStyle &&
+      other.scale == scale &&
+      other.weightEm == weightEm &&
+      other.italic == italic;
+
+  @override
+  int get hashCode => Object.hash(scale, weightEm, italic);
+}
+
 /// User settings, persisted locally.
 ///
 /// The measure (line width in ems) is deliberately hard to change: it
@@ -72,6 +119,21 @@ class SettingsController extends ChangeNotifier {
       _fontFamily = family;
     }
     _localeCode = _prefs.getString('locale');
+    for (final element in TextElement.values) {
+      final base = defaultElementStyles[element]!;
+      final key = 'style.${element.name}';
+      _elementStyles[element] = ElementStyle(
+        scale: (_prefs.getDouble('$key.scale') ?? base.scale).clamp(
+          minElementScale,
+          maxElementScale,
+        ),
+        weightEm: (_prefs.getDouble('$key.weight') ?? base.weightEm).clamp(
+          0.0,
+          maxElementWeight,
+        ),
+        italic: _prefs.getBool('$key.italic') ?? base.italic,
+      );
+    }
     _themeMode = switch (_prefs.getString('themeMode')) {
       'light' => ThemeMode.light,
       'dark' => ThemeMode.dark,
@@ -167,6 +229,51 @@ class SettingsController extends ChangeNotifier {
     if (!fontAssets.containsKey(family)) return;
     _fontFamily = family;
     _prefs.setString('fontFamily', family);
+    notifyListeners();
+  }
+
+  /// The elements' presence as designed: the chapter title a size larger
+  /// and heaviest, section titles a shade heavier than text, parallel
+  /// passages and note markers in italics (ADR 0029, 0031).
+  static const defaultElementStyles = {
+    TextElement.chapterHeading: ElementStyle(scale: 1.25, weightEm: 0.03),
+    TextElement.sectionHeading: ElementStyle(weightEm: 0.02),
+    TextElement.passageLine: ElementStyle(italic: true),
+    TextElement.verseNumber: ElementStyle(),
+    TextElement.noteMarker: ElementStyle(italic: true),
+  };
+  static const minElementScale = 0.9;
+  static const maxElementScale = 1.8;
+  static const maxElementWeight = 0.08;
+
+  final Map<TextElement, ElementStyle> _elementStyles = {};
+
+  ElementStyle styleOf(TextElement element) =>
+      _elementStyles[element] ?? defaultElementStyles[element]!;
+
+  void setElementStyle(TextElement element, ElementStyle style) {
+    final key = 'style.${element.name}';
+    final clamped = ElementStyle(
+      scale: style.scale.clamp(minElementScale, maxElementScale),
+      weightEm: style.weightEm.clamp(0.0, maxElementWeight),
+      italic: style.italic,
+    );
+    _elementStyles[element] = clamped;
+    _prefs.setDouble('$key.scale', clamped.scale);
+    _prefs.setDouble('$key.weight', clamped.weightEm);
+    _prefs.setBool('$key.italic', clamped.italic);
+    notifyListeners();
+  }
+
+  /// Back to the designed presence for every element.
+  void resetElementStyles() {
+    for (final element in TextElement.values) {
+      _elementStyles[element] = defaultElementStyles[element]!;
+      final key = 'style.${element.name}';
+      _prefs.remove('$key.scale');
+      _prefs.remove('$key.weight');
+      _prefs.remove('$key.italic');
+    }
     notifyListeners();
   }
 

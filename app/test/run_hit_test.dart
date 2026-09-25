@@ -63,16 +63,21 @@ void main() {
   });
 
   test('markers carry a 1.5x halo on every side', () {
-    // Marker box: x 110..122 (w 12), glyph height 10, line top 0.
+    // Marker box: x 110..122 (w 12), glyph height 10, line top 0. The
+    // 1.5x halo (18 horizontal, 15 vertical) is below the finger-sized
+    // minimum of 22 per side, which wins: 88..144 and -22..32.
     final stack = [(line: line, top: 0.0)];
-    // 1.5 * 12 = 18 horizontal halo: 92..140.
-    expect(markerNear(stack, 1.0, 10, const Offset(93, 5)), isNotNull);
-    expect(markerNear(stack, 1.0, 10, const Offset(139, 5)), isNotNull);
-    expect(markerNear(stack, 1.0, 10, const Offset(90, 5)), isNull);
-    // 1.5 * 10 = 15 vertical halo: -15..25.
-    expect(markerNear(stack, 1.0, 10, const Offset(115, -14)), isNotNull);
-    expect(markerNear(stack, 1.0, 10, const Offset(115, 24)), isNotNull);
-    expect(markerNear(stack, 1.0, 10, const Offset(115, 27)), isNull);
+    expect(markerNear(stack, 1.0, 10, const Offset(89, 5)), isNotNull);
+    expect(markerNear(stack, 1.0, 10, const Offset(143, 5)), isNotNull);
+    expect(markerNear(stack, 1.0, 10, const Offset(87, 5)), isNull);
+    expect(markerNear(stack, 1.0, 10, const Offset(115, -21)), isNotNull);
+    expect(markerNear(stack, 1.0, 10, const Offset(115, 31)), isNotNull);
+    expect(markerNear(stack, 1.0, 10, const Offset(115, 33)), isNull);
+    // A large marker keeps its proportional halo: w 40 -> 60 per side.
+    final big = LineView(imageLines: 0, runs: [_run(200, 40, marker: true)]);
+    final bigStack = [(line: big, top: 0.0)];
+    expect(markerNear(bigStack, 1.0, 10, const Offset(141, 5)), isNotNull);
+    expect(markerNear(bigStack, 1.0, 10, const Offset(139, 5)), isNull);
   });
 
   test('the halo reaches across neighboring lines; nearest marker wins', () {

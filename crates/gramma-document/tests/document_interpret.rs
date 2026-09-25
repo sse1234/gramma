@@ -51,6 +51,10 @@ fn bible() -> Document {
                 },
             )]),
             p(vec![Inline::text("Ps 104,2; Jes 45,7; 2Kor 4,6")]),
+            // A parallel-passage line whose tail the scanner does not
+            // model (a cross-chapter range) is still a reference line,
+            // never verse text.
+            p(vec![Inline::text("Hebr 1,1-4; Eph 1,18 – 2,7")]),
             p(vec![
                 Inline::VerseNumber(2),
                 Inline::text("Die Erde aber war "),
@@ -171,12 +175,13 @@ fn a_bible_is_detected_and_converted() {
             (1, 1, "Die Urzeit"),
             (1, 2, "Der erste Tag"),
             (1, 2, "Der Anfang"),
-            (1, 2, "Ps 104,2; Jes 45,7; 2Kor 4,6")
+            (1, 2, "Ps 104,2; Jes 45,7; 2Kor 4,6"),
+            (1, 2, "Hebr 1,1-4; Eph 1,18 – 2,7")
         ]
     );
     assert_eq!(
         osis.headings.iter().map(|h| h.level).collect::<Vec<_>>(),
-        vec![1, 1, 1, 2]
+        vec![1, 1, 1, 2, 2]
     );
 
     // The marked note anchors at its word; the located one at its verse's end.

@@ -37,6 +37,15 @@ Widget _harness(SettingsController controller) {
   );
 }
 
+/// Opens one part of the settings (they are tabbed, ADR 0031).
+Future<void> _openTab(WidgetTester tester, String id) async {
+  // The tab row scrolls: a far tab is brought into view first.
+  await tester.ensureVisible(find.byKey(Key('settings-tab-$id')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(Key('settings-tab-$id')));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   test('measure changes require explicit confirmation', () async {
     final controller = await _controller();
@@ -200,6 +209,7 @@ void main() {
     final controller = await _controller();
     controller.setLocaleCode('de');
     await tester.pumpWidget(_harness(controller));
+    await _openTab(tester, 'typesetting');
     expect(find.text('Einstellungen'), findsOneWidget);
     expect(find.text('Erscheinungsbild'), findsOneWidget);
     expect(find.text('Zeilenbreite'), findsOneWidget);
@@ -220,6 +230,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     final controller = await _controller();
     await tester.pumpWidget(_harness(controller));
+    await _openTab(tester, 'appearance');
     await tester.tap(find.text('Dark'));
     await tester.pumpAndSettle();
     expect(controller.themeMode, ThemeMode.dark);
@@ -236,6 +247,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     final controller = await _controller();
     await tester.pumpWidget(_harness(controller));
+    await _openTab(tester, 'typesetting');
     expect(find.byKey(const Key('measure-slider')), findsNothing);
 
     await tester.tap(find.byKey(const Key('change-measure')));
@@ -258,6 +270,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     final controller = await _controller();
     await tester.pumpWidget(_harness(controller));
+    await _openTab(tester, 'appearance');
     final slider = find.byKey(const Key('contrast-slider'));
     await tester.drag(slider, const Offset(-200, 0));
     await tester.pumpAndSettle();
@@ -320,7 +333,6 @@ void main() {
     final controller = await _controller();
     await tester.pumpWidget(_harness(controller));
     final slider = find.byKey(const Key('advance-slider'));
-    await tester.scrollUntilVisible(slider, 200);
     // Dragging left (toward "light") must lower the required advance.
     await tester.drag(slider, const Offset(-300, 0));
     await tester.pumpAndSettle();
@@ -353,8 +365,8 @@ void main() {
     );
     final controller = await _controller();
     await tester.pumpWidget(_harness(controller));
+    await _openTab(tester, 'about');
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.byKey(const Key('app-version')), 300);
     expect(
       tester.widget<Text>(find.byKey(const Key('app-version'))).data,
       startsWith('Version 1.1.0 (6)'),

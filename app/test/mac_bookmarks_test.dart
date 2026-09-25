@@ -24,8 +24,8 @@ void main() {
     final library = Platform.isMacOS
         ? '${base}librust_lib_gramma.dylib'
         : Platform.isWindows
-            ? '${base}rust_lib_gramma.dll'
-            : '${base}librust_lib_gramma.so';
+        ? '${base}rust_lib_gramma.dll'
+        : '${base}librust_lib_gramma.so';
     await RustLib.init(externalLibrary: ExternalLibrary.open(library));
   });
 
@@ -35,15 +35,15 @@ void main() {
     calls.clear();
     reply = null;
     TestWidgetsFlutterBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(
-            const MethodChannel('gramma/bookmarks'), (call) async {
-      calls.add(call);
-      return reply;
-    });
+        .setMockMethodCallHandler(const MethodChannel('gramma/bookmarks'), (
+          call,
+        ) async {
+          calls.add(call);
+          return reply;
+        });
   });
 
-  test('choosing a folder stores the bookmark; forgetting clears it',
-      () async {
+  test('choosing a folder stores the bookmark; forgetting clears it', () async {
     final settings = SettingsController(prefs);
     reply = base64Encode(utf8.encode('grant'));
     await rememberMacSyncFolder(settings, '/Users/x/Sync');
@@ -55,23 +55,26 @@ void main() {
     expect(settings.macSyncBookmark, isNull);
   }, skip: !Platform.isMacOS ? 'exercises the macOS platform channel' : null);
 
-  test('startup resolve follows a moved folder and refreshes staleness',
-      () async {
-    final dir = Directory.systemTemp.createTempSync('gramma-bm');
-    addTearDown(() => dir.deleteSync(recursive: true));
-    final oldDir = Directory('${dir.path}/old')..createSync();
-    final newDir = Directory('${dir.path}/new')..createSync();
-    openUserStore(path: '${dir.path}/user.db');
-    configureSync(dir: oldDir.path);
+  test(
+    'startup resolve follows a moved folder and refreshes staleness',
+    () async {
+      final dir = Directory.systemTemp.createTempSync('gramma-bm');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final oldDir = Directory('${dir.path}/old')..createSync();
+      final newDir = Directory('${dir.path}/new')..createSync();
+      openUserStore(path: '${dir.path}/user.db');
+      configureSync(dir: oldDir.path);
 
-    final settings = SettingsController(prefs);
-    settings.setMacSyncBookmark('stored');
-    reply = {'path': newDir.path, 'bookmark': 'fresh'};
-    await restoreMacSyncAccess(settings);
-    expect(calls.single.method, 'resolve');
-    expect(syncDir(), newDir.path, reason: 'sync follows the moved folder');
-    expect(settings.macSyncBookmark, 'fresh');
-  }, skip: !Platform.isMacOS ? 'exercises the macOS platform channel' : null);
+      final settings = SettingsController(prefs);
+      settings.setMacSyncBookmark('stored');
+      reply = {'path': newDir.path, 'bookmark': 'fresh'};
+      await restoreMacSyncAccess(settings);
+      expect(calls.single.method, 'resolve');
+      expect(syncDir(), newDir.path, reason: 'sync follows the moved folder');
+      expect(settings.macSyncBookmark, 'fresh');
+    },
+    skip: !Platform.isMacOS ? 'exercises the macOS platform channel' : null,
+  );
 
   test('a failing resolve leaves the configuration untouched', () async {
     final dir = Directory.systemTemp.createTempSync('gramma-bm');
