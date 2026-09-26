@@ -4,7 +4,7 @@ All notable changes to gramma. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 are the app's `pubspec.yaml` version, tags are `v<version>`.
 
-## [Unreleased]
+## [1.1.2] - 2026-09-26
 
 ### Changed
 - Presentation is the reader's (ADR 0032): "Text size" is the glyph
@@ -32,8 +32,6 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
   column reader's.
 - Footnote markers at a column's edge have a finger-sized target.
 - The view drag handle is finger-sized on touch screens.
-
-### Changed
 - Line spacing adjusts in steps of 0.05.
 
 ## [1.1.1] - 2026-09-19
