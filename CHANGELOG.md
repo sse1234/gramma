@@ -4,6 +4,16 @@ All notable changes to gramma. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 are the app's `pubspec.yaml` version, tags are `v<version>`.
 
+## [1.1.3] - 2026-09-26
+
+### Fixed
+- Multi-column views no longer leave a stub column behind the reading
+  position after a jump and a menu toggle: the lines before the anchor
+  chunk backward from it, so every column is full and only the module's
+  first column may be short.
+- The single-column reader's chapter heading no longer overlaps the
+  first line of text.
+
 ## [1.1.2] - 2026-09-26
 
 ### Changed

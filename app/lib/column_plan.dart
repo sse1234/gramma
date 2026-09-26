@@ -13,10 +13,12 @@
 /// [keptContentRows] content rows beneath breaks the column early and
 /// heads the next one instead. A group already at its column's top stays.
 ///
-/// An [origin] line forces a column boundary: the column that would
-/// contain it ends there, so a re-chunk (a new column height after the
-/// chrome toggles, ADR 0028) keeps the reader's first visible line at the
-/// top of a column instead of moving it back into the middle of one.
+/// An [origin] line forces a column boundary, so a re-chunk (a new column
+/// height after the chrome toggles, ADR 0028) keeps the reader's first
+/// visible line at the top of a column. The lines after it chunk forward
+/// as usual; the lines before it chunk backward from it, so every column
+/// stays full and the one short column lands at the very start of the
+/// module — never as a stub in the middle of the text.
 class ColumnPlan {
   ColumnPlan({
     required List<int> textLines,
@@ -110,46 +112,79 @@ class ColumnPlan {
   }
 
   List<int> _computeStarts() {
+    if (totalLines == 0) return const [];
+    final origin = this.origin;
+    if (origin == null || origin <= 0 || origin >= totalLines) {
+      return _chunkForward(0, totalLines);
+    }
+    return [..._chunkBackward(origin), ..._chunkForward(origin, totalLines)];
+  }
+
+  bool get _aware =>
+      rowKinds != null && rowKinds!.length == _blockStarts.length;
+
+  /// Columns from [from] up to [to], each as full as the heading rule
+  /// allows.
+  List<int> _chunkForward(int from, int to) {
     final starts = <int>[];
-    if (totalLines == 0) return starts;
-    final aware = rowKinds != null && rowKinds!.length == _blockStarts.length;
-    var s = 0;
-    while (s < totalLines) {
+    var s = from;
+    while (s < to) {
       starts.add(s);
       var e = s + linesPerColumn;
-      if (e > totalLines) e = totalLines;
-      final origin = this.origin;
-      if (origin != null && s < origin && origin < e) e = origin;
-      if (aware) {
-        var changed = true;
-        while (changed) {
-          changed = false;
-          var i = s + 1;
-          while (i < e) {
-            if (_kind(i) == 1 && _kind(i - 1) != 1) {
-              final g = i;
-              var gEnd = g;
-              while (gEnd < totalLines && _kind(gEnd) == 1) {
-                gEnd++;
-              }
-              var content = 0;
-              for (var j = gEnd; j < e; j++) {
-                if (_kind(j) == 0) content++;
-              }
-              if (gEnd > e || content < keptContentRows) {
-                e = g;
-                changed = true;
-                break;
-              }
-              i = gEnd;
-            } else {
-              i++;
-            }
-          }
-        }
-      }
+      if (e > to) e = to;
+      if (_aware) e = _keepHeadings(s, e);
       s = e;
     }
     return starts;
+  }
+
+  /// Columns ending at [to], laid from the end backward: each takes the
+  /// [linesPerColumn] lines before it and the remainder forms the first
+  /// column. The heading rule does not apply here — with the column's
+  /// end fixed, pushing a heading down could only produce a stub column,
+  /// and these lines lie behind the reader.
+  List<int> _chunkBackward(int to) {
+    final starts = <int>[];
+    var e = to;
+    while (e > 0) {
+      var s = e - linesPerColumn;
+      if (s < 0) s = 0;
+      starts.add(s);
+      e = s;
+    }
+    return starts.reversed.toList();
+  }
+
+  /// The end of a column starting at [s] and meant to end at [e], pulled
+  /// back to the first heading group that would sit at the foot with
+  /// fewer than [keptContentRows] content rows beneath it.
+  int _keepHeadings(int s, int e) {
+    var changed = true;
+    while (changed) {
+      changed = false;
+      var i = s + 1;
+      while (i < e) {
+        if (_kind(i) == 1 && _kind(i - 1) != 1) {
+          final g = i;
+          var gEnd = g;
+          while (gEnd < totalLines && _kind(gEnd) == 1) {
+            gEnd++;
+          }
+          var content = 0;
+          for (var j = gEnd; j < e; j++) {
+            if (_kind(j) == 0) content++;
+          }
+          if (gEnd > e || content < keptContentRows) {
+            e = g;
+            changed = true;
+            break;
+          }
+          i = gEnd;
+        } else {
+          i++;
+        }
+      }
+    }
+    return e;
   }
 }

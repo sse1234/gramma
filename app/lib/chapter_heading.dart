@@ -20,7 +20,8 @@ class ChapterHeading extends StatelessWidget {
   /// The body text size the heading scales from.
   final double fontSize;
 
-  /// The body line height; the heading takes one and a half.
+  /// The body line height; the heading takes two, like the two heading
+  /// rows of the column reader, so a larger face never reaches the text.
   final double lineHeight;
 
   @override
@@ -29,7 +30,7 @@ class ChapterHeading extends StatelessWidget {
     final settings = SettingsScope.of(context);
     final style = settings.styleOf(TextElement.chapterHeading);
     return CustomPaint(
-      size: Size(double.infinity, lineHeight * 1.5),
+      size: Size(double.infinity, lineHeight * 2),
       painter: _HeadingPainter(
         text: text,
         style: TextStyle(

@@ -168,10 +168,11 @@ void main() {
     expect(p.linesInColumn(1), 2);
   });
 
-  test('an origin line starts a column, earlier columns unchanged', () {
+  test('an origin line starts a column; the short column is the first', () {
     // 20 lines, 6 per column: plain chunks are 0, 6, 12, 18. With the
-    // origin at line 9 the column holding it ends early so line 9 heads a
-    // column: 0, 6, 9, 15.
+    // origin at line 9 the lines before it chunk backward from it, so
+    // the columns are 0..3, 3..9, 9..15, 15..20 — full everywhere but at
+    // the very start, never a stub in the middle of the text.
     final p = ColumnPlan(
       textLines: const [20],
       headingLines: 0,
@@ -180,9 +181,10 @@ void main() {
     );
     expect(p.columnCount, 4);
     expect(p.firstLineOfColumn(0), 0);
-    expect(p.firstLineOfColumn(1), 6);
+    expect(p.linesInColumn(0), 3);
+    expect(p.firstLineOfColumn(1), 3);
+    expect(p.linesInColumn(1), 6);
     expect(p.firstLineOfColumn(2), 9);
-    expect(p.linesInColumn(1), 3);
     expect(p.columnOfLine(9), 2);
     expect(p.firstLineOfColumn(3), 15);
   });
@@ -207,11 +209,15 @@ void main() {
     }
   });
 
-  test('an origin keeps a heading with its text', () {
-    // Rows: content except a heading at row 7; origin 9. The column [6, 9)
-    // would leave the heading at 7 with one content row beneath, so it
-    // breaks before the heading: columns 0, 6, 7, 9, 15.
-    final kinds = List<int>.filled(20, 0)..[7] = 1;
+  test('behind an origin, full columns win over the heading rule', () {
+    // Rows: content except headings at rows 7 and 17; origin 9. Before
+    // the origin the columns stay full (0..3, 3..9) even though the
+    // heading at 7 sits near a foot — pushing it down could only make a
+    // stub. After the origin the rule applies as usual: the heading at
+    // 17 with two rows beneath in 15..20 heads the next column instead.
+    final kinds = List<int>.filled(20, 0)
+      ..[7] = 1
+      ..[17] = 1;
     final p = ColumnPlan(
       textLines: const [20],
       headingLines: 0,
@@ -219,9 +225,10 @@ void main() {
       rowKinds: [kinds],
       origin: 9,
     );
-    expect(p.firstLineOfColumn(1), 6);
-    expect(p.firstLineOfColumn(2), 7);
-    expect(p.firstLineOfColumn(3), 9);
-    expect(p.firstLineOfColumn(4), 15);
+    expect(p.firstLineOfColumn(0), 0);
+    expect(p.firstLineOfColumn(1), 3);
+    expect(p.firstLineOfColumn(2), 9);
+    expect(p.firstLineOfColumn(3), 15);
+    expect(p.firstLineOfColumn(4), 17);
   });
 }

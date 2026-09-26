@@ -84,9 +84,12 @@ columns re-chunk on a toggle. The reading position is carried by the
 anchor line (the first line of the first visible column). Re-chunking
 from the chapter start alone would put that line somewhere inside a
 column and show up to a column of text again; so the plan takes the
-anchor as an origin: the column that would contain it ends there and
-the anchor heads a column again. Text before the anchor keeps its
-layout except for that one shortened column. The other decisions of
+anchor as an origin: the anchor heads a column again, the lines after
+it chunk forward as usual, and the lines before it chunk backward from
+it, so every column stays full and the one short column sits at the
+very start of the module (amended 2026-09-26: cutting the column just
+before the anchor short left stub columns in the middle of the text
+after a jump and a toggle). The other decisions of
 this record stand: the keyboard follows the last
 view acted in, footnote letters run through the chapter, the popup
 shows the chapter, and the reader draws no scrollbars.

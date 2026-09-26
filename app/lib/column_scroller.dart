@@ -117,12 +117,14 @@ class ColumnScroller {
         .clamp(0, p.totalLines - 1);
   }
 
-  /// Shows the column holding [line] first, without animation.
+  /// Shows the column holding [line] first, without animation. The
+  /// anchor is that column's first line, so a later re-chunk starts a
+  /// column there and not at a verse in the column's middle.
   void jumpToLine(int line) {
     final c = controller;
     final p = plan;
     if (c == null || p == null || !c.hasClients) return;
-    anchorLine = line;
+    anchorLine = p.firstLineOfColumn(p.columnOfLine(line));
     c.jumpTo(
       (p.columnOfLine(line) * stride).clamp(0.0, c.position.maxScrollExtent),
     );
