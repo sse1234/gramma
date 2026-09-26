@@ -41,7 +41,8 @@ and heaviest, section heading a shade heavier than text, parallel
 passages and note markers in italics.
 
 **Settings in parts.** The settings screen splits into tabs — Reading,
-Appearance, Typesetting, Text styles, Sync, About — so each part stays
+Appearance, Text styles, Sync, About (the typeface joined Reading once
+ADR 0032 emptied the Typesetting part) — so each part stays
 short on a phone and in the desktop dialog alike.
 
 ## Consequences

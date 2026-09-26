@@ -408,6 +408,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
         [
           ListTile(
             contentPadding: EdgeInsets.zero,
+            title: Text(context.l10n.typeface),
+            subtitle: Text(
+              SettingsController.fontDisplayNames[settings.fontFamily] ??
+                  settings.fontFamily,
+            ),
+            trailing: OutlinedButton(
+              key: const Key('change-font'),
+              onPressed: _changeTypeface,
+              child: Text(context.l10n.changeEllipsis),
+            ),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
             title: Text(context.l10n.textSize),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -729,26 +742,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChanged: settings.setContrast,
             ),
           ),
-        ],
-      ),
-      (
-        'typesetting',
-        context.l10n.sectionTypesetting,
-        [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(context.l10n.typeface),
-            subtitle: Text(
-              SettingsController.fontDisplayNames[settings.fontFamily] ??
-                  settings.fontFamily,
-            ),
-            trailing: OutlinedButton(
-              key: const Key('change-font'),
-              onPressed: _changeTypeface,
-              child: Text(context.l10n.changeEllipsis),
-            ),
-          ),
-          const SizedBox(height: 8),
         ],
       ),
       (

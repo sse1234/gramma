@@ -2105,8 +2105,6 @@ void main() {
     await _settleLayouts(tester);
     await tester.tap(find.byKey(const Key('open-settings')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('settings-tab-typesetting')));
-    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('change-font')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('font-GentiumPlus')));
