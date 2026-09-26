@@ -566,11 +566,35 @@ abstract class AppLocalizations {
   /// **'Text size'**
   String get textSize;
 
-  /// No description provided for @pxColumnLabel.
+  /// No description provided for @textSizeLabel.
   ///
   /// In en, this message translates to:
-  /// **'{px} px column'**
-  String pxColumnLabel(int px);
+  /// **'{pt} pt'**
+  String textSizeLabel(int pt);
+
+  /// No description provided for @sizeSample.
+  ///
+  /// In en, this message translates to:
+  /// **'In the beginning God created the heavens and the earth.'**
+  String get sizeSample;
+
+  /// No description provided for @lineLength.
+  ///
+  /// In en, this message translates to:
+  /// **'Line length'**
+  String get lineLength;
+
+  /// No description provided for @lineLengthLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'≈ {chars} characters'**
+  String lineLengthLabel(int chars);
+
+  /// No description provided for @lineLengthSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Longer lines hold more words. A narrow screen takes the widest line that fits.'**
+  String get lineLengthSubtitle;
 
   /// No description provided for @footnoteTextSize.
   ///
@@ -746,42 +770,6 @@ abstract class AppLocalizations {
   /// **'Change…'**
   String get changeEllipsis;
 
-  /// No description provided for @lineWidth.
-  ///
-  /// In en, this message translates to:
-  /// **'Line width'**
-  String get lineWidth;
-
-  /// No description provided for @lineWidthSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'{ems} em — about {chars} characters per line. Fixed so the visual shape of the text stays familiar on every page and device.'**
-  String lineWidthSubtitle(int ems, int chars);
-
-  /// No description provided for @measureDialogTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Change line width?'**
-  String get measureDialogTitle;
-
-  /// No description provided for @measureDialogBody.
-  ///
-  /// In en, this message translates to:
-  /// **'The line width determines where every line of text breaks. Changing it re-typesets everything — the familiar visual shape of pages you have read will change. This setting is meant to be chosen once and kept.'**
-  String get measureDialogBody;
-
-  /// No description provided for @keepCurrent.
-  ///
-  /// In en, this message translates to:
-  /// **'Keep current'**
-  String get keepCurrent;
-
-  /// No description provided for @understandChange.
-  ///
-  /// In en, this message translates to:
-  /// **'I understand, change it'**
-  String get understandChange;
-
   /// No description provided for @typefaceDialogTitle.
   ///
   /// In en, this message translates to:
@@ -791,7 +779,7 @@ abstract class AppLocalizations {
   /// No description provided for @typefaceDialogBody.
   ///
   /// In en, this message translates to:
-  /// **'The typeface defines where every line of text breaks. Changing it re-typesets everything — the familiar visual shape of pages you have read will change.'**
+  /// **'The face the text is set in.'**
   String get typefaceDialogBody;
 
   /// No description provided for @fontBookSubtitle.

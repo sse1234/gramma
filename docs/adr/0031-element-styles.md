@@ -15,10 +15,12 @@ headings, section headings, parallel-passage lines, verse numbers,
 footnote markers. Until now their look was fixed in the painters, and
 differed between the vertical and the column reader.
 
-The constraint is ADR 0002: line breaks are computed once, at the
-canonical measure, from the regular face's advances, and the reader's
-visual memory rests on them never moving. Any style setting that changed
-a glyph's advance would move breaks and break that promise.
+The constraint is ADR 0002: line breaks are computed once, in ems, from
+the regular face's advances, and the column plan, the anchors, and the
+line counts all rest on them. Any style setting that changed a glyph's
+advance would move breaks and invalidate every one of them. (ADR 0032
+later made the measure a per-pane derivation; the constraint holds
+within a pane exactly as before.)
 
 ## Decision
 

@@ -6,6 +6,15 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
 
 ## [Unreleased]
 
+### Changed
+- Presentation is the reader's (ADR 0032): "Text size" is the glyph
+  size and "Line length" the measure, shown as characters, both plain
+  sliders on the Reading tab. The confirmation dialog and the lock on
+  the line width are gone; the typeface dialog no longer warns. A pane
+  narrower than one column keeps the text size and takes the widest
+  line that fits. Existing installations keep their reading: the glyph
+  size is derived once from the stored column width.
+
 ### Added
 - Text styles (ADR 0031): the weight and slant of chapter and section
   headings, parallel-passage lines, verse numbers, and footnote markers,

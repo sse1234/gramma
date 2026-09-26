@@ -170,11 +170,7 @@ class _DevotionalPaneState extends State<DevotionalPane> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final effWidth = width < settings.columnWidth
-            ? width
-            : settings.columnWidth;
-        final fontSize =
-            effWidth / settings.measureEms * settings.commentaryScale;
+        final fontSize = settings.glyphSize * settings.commentaryScale;
         if (width <= 0 || fontSize <= 0) return const SizedBox.shrink();
         final signature =
             '$module|$locale|${settings.fontFamily}|'

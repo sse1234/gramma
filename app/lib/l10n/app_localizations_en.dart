@@ -275,9 +275,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get textSize => 'Text size';
 
   @override
-  String pxColumnLabel(int px) {
-    return '$px px column';
+  String textSizeLabel(int pt) {
+    return '$pt pt';
   }
+
+  @override
+  String get sizeSample =>
+      'In the beginning God created the heavens and the earth.';
+
+  @override
+  String get lineLength => 'Line length';
+
+  @override
+  String lineLengthLabel(int chars) {
+    return '≈ $chars characters';
+  }
+
+  @override
+  String get lineLengthSubtitle =>
+      'Longer lines hold more words. A narrow screen takes the widest line that fits.';
 
   @override
   String get footnoteTextSize => 'Footnote text size';
@@ -373,32 +389,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get changeEllipsis => 'Change…';
 
   @override
-  String get lineWidth => 'Line width';
-
-  @override
-  String lineWidthSubtitle(int ems, int chars) {
-    return '$ems em — about $chars characters per line. Fixed so the visual shape of the text stays familiar on every page and device.';
-  }
-
-  @override
-  String get measureDialogTitle => 'Change line width?';
-
-  @override
-  String get measureDialogBody =>
-      'The line width determines where every line of text breaks. Changing it re-typesets everything — the familiar visual shape of pages you have read will change. This setting is meant to be chosen once and kept.';
-
-  @override
-  String get keepCurrent => 'Keep current';
-
-  @override
-  String get understandChange => 'I understand, change it';
-
-  @override
   String get typefaceDialogTitle => 'Change typeface?';
 
   @override
-  String get typefaceDialogBody =>
-      'The typeface defines where every line of text breaks. Changing it re-typesets everything — the familiar visual shape of pages you have read will change.';
+  String get typefaceDialogBody => 'The face the text is set in.';
 
   @override
   String get fontBookSubtitle => 'the heavier cut — the default';

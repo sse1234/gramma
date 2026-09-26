@@ -1,6 +1,8 @@
 # 0007 — User settings and the protected measure
 
-- **Status:** accepted (2026-08-22)
+- **Status:** superseded by ADR 0032 (2026-09-26) — the measure is no
+  longer protected; text size and line length are plain settings, the
+  measure per pane. The settings model and the 4–36 em range remain.
 - **Builds on:** ADR 0002, ADR 0006
 
 ## Context

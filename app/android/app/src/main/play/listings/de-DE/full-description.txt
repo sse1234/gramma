@@ -1,4 +1,4 @@
-gramma setzt die Schrift, wie gute Bücher gesetzt werden. Die Satz-Engine steht in der Zeilenumbruch-Tradition von TeX: Blocksatz mit Silbentrennung und denselben Worten auf denselben Zeilen auf jedem Gerät — das visuelle Gedächtnis der Seite bleibt vom Telefon über das Tablet bis zum Schreibtisch erhalten.
+gramma setzt die Schrift, wie gute Bücher gesetzt werden. Die Satz-Engine steht in der Zeilenumbruch-Tradition von TeX: Blocksatz mit Silbentrennung in der Schriftgröße und Zeilenlänge, die du wählst — eine Spalte auf dem Telefon, mehrere auf Tablet und Schreibtisch.
 
 LESEN
 • Endloses Lesen durch ganze Bücher, auf großen Bildschirmen in Spalten

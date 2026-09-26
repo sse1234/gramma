@@ -406,11 +406,7 @@ class _DictionaryPaneState extends State<DictionaryPane> {
         final width = constraints.maxWidth;
         // The Bible text's glyph size, exactly as in the commentary view
         // (ADR 0018): parity by construction, free measure.
-        final effWidth = width < settings.columnWidth
-            ? width
-            : settings.columnWidth;
-        final fontSize =
-            effWidth / settings.measureEms * settings.commentaryScale;
+        final fontSize = settings.glyphSize * settings.commentaryScale;
         if (width <= 0 || fontSize <= 0) return const SizedBox.shrink();
         final signature =
             '$module|${settings.fontFamily}|${fontSize.toStringAsFixed(1)}|'

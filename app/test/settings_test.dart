@@ -47,15 +47,29 @@ Future<void> _openTab(WidgetTester tester, String id) async {
 }
 
 void main() {
-  test('measure changes require explicit confirmation', () async {
+  test('line length and text size apply directly (ADR 0032)', () async {
     final controller = await _controller();
-    expect(
-      () => controller.setMeasureEms(30, confirmed: false),
-      throwsStateError,
-    );
     expect(controller.measureEms, SettingsController.defaultMeasureEms);
-    controller.setMeasureEms(30, confirmed: true);
+    controller.setMeasureEms(30);
     expect(controller.measureEms, 30);
+    controller.setGlyphSize(20);
+    expect(controller.glyphSize, 20);
+    expect(controller.columnWidth, 600);
+  });
+
+  test('an installation from before ADR 0032 keeps its reading', () async {
+    // Column width 416 at 26 em was a 16 px glyph; the width setting is
+    // retired and the glyph size stored in its place.
+    SharedPreferences.setMockInitialValues({
+      'columnWidth': 416.0,
+      'measureEms': 26,
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final controller = SettingsController(prefs);
+    expect(controller.glyphSize, 16);
+    expect(controller.measureEms, 26);
+    expect(prefs.getDouble('glyphSize'), 16);
+    expect(prefs.containsKey('columnWidth'), isFalse);
   });
 
   test('line spacing reaches down to solid', () async {
@@ -68,9 +82,9 @@ void main() {
 
   test('the measure reaches down to a few ems for very large type', () async {
     final controller = await _controller();
-    controller.setMeasureEms(4, confirmed: true);
+    controller.setMeasureEms(4);
     expect(controller.measureEms, 4);
-    controller.setMeasureEms(1, confirmed: true);
+    controller.setMeasureEms(1);
     expect(controller.measureEms, SettingsController.minMeasureEms);
   });
 
@@ -78,7 +92,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final first = SettingsController(prefs)
-      ..setColumnWidth(460)
+      ..setGlyphSize(18)
       ..setContrast(0.7)
       ..setLineSpacing(2.0)
       ..setDefaultModule('GerNeUe')
@@ -86,9 +100,9 @@ void main() {
       ..setFootnoteScale(1.2)
       ..setPreviewScale(1.4)
       ..setThemeMode(ThemeMode.dark);
-    first.setMeasureEms(30, confirmed: true);
+    first.setMeasureEms(30);
     final second = SettingsController(prefs);
-    expect(second.columnWidth, 460);
+    expect(second.glyphSize, 18);
     expect(second.contrast, 0.7);
     expect(second.lineSpacing, 2.0);
     expect(second.defaultModule, 'GerNeUe');
@@ -209,10 +223,9 @@ void main() {
     final controller = await _controller();
     controller.setLocaleCode('de');
     await tester.pumpWidget(_harness(controller));
-    await _openTab(tester, 'typesetting');
     expect(find.text('Einstellungen'), findsOneWidget);
     expect(find.text('Erscheinungsbild'), findsOneWidget);
-    expect(find.text('Zeilenbreite'), findsOneWidget);
+    expect(find.text('Zeilenlänge'), findsOneWidget);
     controller.setLocaleCode(null);
     await tester.pumpAndSettle();
     expect(
@@ -238,29 +251,21 @@ void main() {
     expect(Theme.of(context).brightness, Brightness.dark);
   });
 
-  testWidgets('measure slider is locked behind a confirmation dialog', (
-    tester,
-  ) async {
+  testWidgets('the line length slider commits on release', (tester) async {
     tester.view.physicalSize = const Size(800, 1900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final controller = await _controller();
     await tester.pumpWidget(_harness(controller));
-    await _openTab(tester, 'typesetting');
-    expect(find.byKey(const Key('measure-slider')), findsNothing);
-
-    await tester.tap(find.byKey(const Key('change-measure')));
+    final slider = find.byKey(const Key('measure-slider'));
+    expect(slider, findsOneWidget, reason: 'on the Reading tab, unlocked');
+    await tester.drag(slider, const Offset(-200, 0));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('measure-cancel')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('measure-slider')), findsNothing);
-
-    await tester.tap(find.byKey(const Key('change-measure')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('measure-confirm')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('measure-slider')), findsOneWidget);
+    expect(
+      controller.measureEms,
+      lessThan(SettingsController.defaultMeasureEms),
+    );
   });
 
   testWidgets('contrast slider updates the controller', (tester) async {
@@ -287,20 +292,16 @@ void main() {
     expect(reloaded.columnAdvance, 0.3);
   });
 
-  test('the typeface is protected like the measure', () async {
+  test('the typeface applies directly and refuses unknown families', () async {
     final controller = await _controller();
     expect(controller.fontFamily, 'GentiumBookPlus');
-    expect(
-      () => controller.setFontFamily('GentiumPlus', confirmed: false),
-      throwsStateError,
-    );
-    controller.setFontFamily('NoSuchFont', confirmed: true);
+    controller.setFontFamily('NoSuchFont');
     expect(
       controller.fontFamily,
       'GentiumBookPlus',
       reason: 'unknown families are refused',
     );
-    controller.setFontFamily('GentiumPlus', confirmed: true);
+    controller.setFontFamily('GentiumPlus');
     final reloaded = SettingsController(await SharedPreferences.getInstance());
     expect(reloaded.fontFamily, 'GentiumPlus');
   });

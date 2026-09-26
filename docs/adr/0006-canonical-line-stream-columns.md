@@ -1,6 +1,8 @@
 # 0006 — Canonical line stream and adaptive columns
 
-- **Status:** accepted (2026-08-22)
+- **Status:** accepted (2026-08-22); the "identical words per line
+  everywhere" goal superseded by ADR 0032 (2026-09-26) — the line
+  stream and the adaptive columns stand, the measure is now per pane
 - **Builds on:** ADR 0002 (deterministic typesetting)
 
 ## Context

@@ -1,6 +1,8 @@
 # 0002 — Deterministic Knuth–Plass typesetting engine in the core
 
-- **Status:** accepted (2026-08-22)
+- **Status:** accepted (2026-08-22); the "same words per line
+  everywhere" requirement below was dropped by ADR 0032 (2026-09-26) —
+  the engine and its determinism are unchanged, the measure is per pane
 
 ## Context
 

@@ -20,11 +20,10 @@ merely "text on a screen".
   files in a folder the user controls — no gramma server, no account,
   and nothing readable in transit.
 - **Typesetting as a craft.** Line breaking builds on prior art
-  (TeX / Knuth–Plass): our own engine with rustybuzz shaping, German
-  and English hyphenation, and a protected measure. One column on
-  phones, more on tablet and desktop — with the same words per line
-  everywhere, so the reader builds a stable visual memory of the text.
-  Layout is deterministic across platforms, verified by golden tests.
+  (TeX / Knuth–Plass): our own engine with rustybuzz shaping and German
+  and English hyphenation. The reader sets text size and line length;
+  one column on phones, more on tablet and desktop. Layout is
+  deterministic across platforms, verified by golden tests.
 - **Words as objects.** Every typeset word is addressable: tappable,
   linkable, resolvable through Strong's numbers, searchable, and
   markable.
