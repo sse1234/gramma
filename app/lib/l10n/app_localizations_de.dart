@@ -276,9 +276,24 @@ class AppLocalizationsDe extends AppLocalizations {
   String get textSize => 'Textgröße';
 
   @override
-  String pxColumnLabel(int px) {
-    return '$px px Spalte';
+  String textSizeLabel(int pt) {
+    return '$pt pt';
   }
+
+  @override
+  String get sizeSample => 'Im Anfang schuf Gott die Himmel und die Erde.';
+
+  @override
+  String get lineLength => 'Zeilenlänge';
+
+  @override
+  String lineLengthLabel(int chars) {
+    return '≈ $chars Zeichen';
+  }
+
+  @override
+  String get lineLengthSubtitle =>
+      'Längere Zeilen fassen mehr Wörter. Ein schmaler Bildschirm nimmt die breiteste Zeile, die passt.';
 
   @override
   String get footnoteTextSize => 'Fußnoten-Textgröße';
@@ -374,32 +389,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get changeEllipsis => 'Ändern…';
 
   @override
-  String get lineWidth => 'Zeilenbreite';
-
-  @override
-  String lineWidthSubtitle(int ems, int chars) {
-    return '$ems em — etwa $chars Zeichen pro Zeile. Fest, damit das Schriftbild auf jeder Seite und jedem Gerät vertraut bleibt.';
-  }
-
-  @override
-  String get measureDialogTitle => 'Zeilenbreite ändern?';
-
-  @override
-  String get measureDialogBody =>
-      'Die Zeilenbreite bestimmt, wo jede Textzeile umbricht. Eine Änderung setzt alles neu — das vertraute Schriftbild bereits gelesener Seiten ändert sich. Diese Einstellung ist dafür gedacht, einmal gewählt und dann beibehalten zu werden.';
-
-  @override
-  String get keepCurrent => 'Aktuelle behalten';
-
-  @override
-  String get understandChange => 'Ich verstehe — ändern';
-
-  @override
   String get typefaceDialogTitle => 'Schriftart ändern?';
 
   @override
-  String get typefaceDialogBody =>
-      'Die Schriftart bestimmt, wo jede Textzeile umbricht. Eine Änderung setzt alles neu — das vertraute Schriftbild bereits gelesener Seiten ändert sich.';
+  String get typefaceDialogBody => 'Die Schrift, in der der Text gesetzt wird.';
 
   @override
   String get fontBookSubtitle => 'der kräftigere Schnitt — Standard';

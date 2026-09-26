@@ -1,4 +1,4 @@
-gramma sets Scripture the way fine books are set. Its typesetting engine builds on the line-breaking tradition of TeX: justified, hyphenated paragraphs with the same words on the same lines on every device — so your visual memory of the page carries from phone to tablet to desktop.
+gramma sets Scripture the way fine books are set. Its typesetting engine builds on the line-breaking tradition of TeX: justified, hyphenated paragraphs at the text size and line length you choose — one column on the phone, more on tablet and desktop.
 
 READING
 • Endless scrolling through whole books, in columns on larger screens

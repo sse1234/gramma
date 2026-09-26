@@ -745,7 +745,7 @@ void main() {
         .width;
     // The reader's own em size (min(pane width, column width) / measure):
     // commentary matches the Bible text exactly at scale 1.0.
-    final fontSize = (paneWidth < 400.0 ? paneWidth : 400.0) / 26.0;
+    final fontSize = 16.0;
     final prose = tester.widget<TypesetProse>(find.byType(TypesetProse).first);
     expect(
       prose.fontSize,
@@ -829,7 +829,7 @@ void main() {
         moduleCode: module,
         bookOsis: 'Gen',
         chapter: chapter,
-        measureEms: 26,
+        measureEms: 25,
       ),
     );
     for (var i = 0; i < layout!.lines.length; i++) {
@@ -883,7 +883,7 @@ void main() {
     final entryWidth = tester
         .getSize(find.byKey(const Key('dict-entry-2')))
         .width;
-    final entryFontSize = (entryWidth < 400.0 ? entryWidth : 400.0) / 26.0;
+    final entryFontSize = 16.0;
     late DictLayoutView? entry2;
     await tester.runAsync(() async {
       entry2 = await layoutDictEntry(
@@ -941,7 +941,7 @@ void main() {
     final paneWidth = tester
         .getSize(find.byKey(const Key('dict-entry-1')))
         .width;
-    final fontSize = (paneWidth < 400.0 ? paneWidth : 400.0) / 26.0;
+    final fontSize = 16.0;
     late DictLayoutView? entry;
     await tester.runAsync(() async {
       entry = await layoutDictEntry(
@@ -1143,7 +1143,7 @@ void main() {
     final paneWidth = tester
         .getSize(find.byKey(const Key('book-section-2')))
         .width;
-    final fontSize = (paneWidth < 400.0 ? paneWidth : 400.0) / 26.0;
+    final fontSize = 16.0;
     late BookLayoutView? section;
     await tester.runAsync(() async {
       section = await layoutBookSection(
@@ -2100,14 +2100,10 @@ void main() {
     _freshUserStore();
     _phoneViewport(tester);
     final settings = SettingsController(prefs);
-    addTearDown(
-      () => settings.setFontFamily('GentiumBookPlus', confirmed: true),
-    );
+    addTearDown(() => settings.setFontFamily('GentiumBookPlus'));
     await tester.pumpWidget(GrammaApp(settings: settings));
     await _settleLayouts(tester);
     await tester.tap(find.byKey(const Key('open-settings')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('settings-tab-typesetting')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('change-font')));
     await tester.pumpAndSettle();
@@ -2139,7 +2135,7 @@ void main() {
         moduleCode: 'FixDe',
         bookOsis: 'Gen',
         chapter: chapter,
-        measureEms: 26,
+        measureEms: 25,
       ),
     );
     final markers = <(int, RunView)>[];

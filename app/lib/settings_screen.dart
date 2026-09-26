@@ -67,7 +67,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  bool _measureUnlocked = false;
   double? _measurePreview;
   List<ModuleView> _modules = const [];
   String? _syncDir;
@@ -305,37 +304,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         SettingsController.fontAssets[chosen]!,
       );
       setTypesetFont(fontData: font.buffer.asUint8List());
-      settings.setFontFamily(chosen, confirmed: true);
+      settings.setFontFamily(chosen);
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(content: Text(context.l10n.typefaceChangeFailed('$e'))),
       );
-    }
-  }
-
-  Future<void> _confirmMeasureChange() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.measureDialogTitle),
-        content: Text(context.l10n.measureDialogBody),
-        actions: [
-          TextButton(
-            key: const Key('measure-cancel'),
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(context.l10n.keepCurrent),
-          ),
-          FilledButton(
-            key: const Key('measure-confirm'),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(context.l10n.understandChange),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true && mounted) {
-      setState(() => _measureUnlocked = true);
     }
   }
 
@@ -434,15 +408,83 @@ class _SettingsScreenState extends State<SettingsScreen> {
         [
           ListTile(
             contentPadding: EdgeInsets.zero,
+            title: Text(context.l10n.typeface),
+            subtitle: Text(
+              SettingsController.fontDisplayNames[settings.fontFamily] ??
+                  settings.fontFamily,
+            ),
+            trailing: OutlinedButton(
+              key: const Key('change-font'),
+              onPressed: _changeTypeface,
+              child: Text(context.l10n.changeEllipsis),
+            ),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
             title: Text(context.l10n.textSize),
-            subtitle: Slider(
-              key: const Key('zoom-slider'),
-              min: 320,
-              max: 520,
-              divisions: 20,
-              value: settings.columnWidth,
-              label: context.l10n.pxColumnLabel(settings.columnWidth.round()),
-              onChanged: settings.setColumnWidth,
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    context.l10n.sizeSample,
+                    key: const Key('size-sample'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: settings.fontFamily,
+                      fontSize: settings.glyphSize,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+                Slider(
+                  key: const Key('size-slider'),
+                  min: SettingsController.minGlyphSize,
+                  max: SettingsController.maxGlyphSize,
+                  divisions:
+                      (SettingsController.maxGlyphSize -
+                              SettingsController.minGlyphSize)
+                          .round(),
+                  value: settings.glyphSize,
+                  label: context.l10n.textSizeLabel(settings.glyphSize.round()),
+                  onChanged: settings.setGlyphSize,
+                ),
+              ],
+            ),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(context.l10n.lineLength),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  context.l10n.lineLengthSubtitle,
+                  style: theme.textTheme.bodySmall,
+                ),
+                Slider(
+                  key: const Key('measure-slider'),
+                  min: SettingsController.minMeasureEms.toDouble(),
+                  max: SettingsController.maxMeasureEms.toDouble(),
+                  divisions:
+                      SettingsController.maxMeasureEms -
+                      SettingsController.minMeasureEms,
+                  value: _measurePreview ?? settings.measureEms.toDouble(),
+                  label: context.l10n.lineLengthLabel(
+                    ((_measurePreview ?? settings.measureEms.toDouble()) * 2.1)
+                        .round(),
+                  ),
+                  onChanged: (v) => setState(() => _measurePreview = v),
+                  // Committing only at drag end avoids re-typesetting the
+                  // whole module on every tick.
+                  onChangeEnd: (v) {
+                    settings.setMeasureEms(v.round());
+                    setState(() => _measurePreview = null);
+                  },
+                ),
+              ],
             ),
           ),
           ListTile(
@@ -700,63 +742,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChanged: settings.setContrast,
             ),
           ),
-        ],
-      ),
-      (
-        'typesetting',
-        context.l10n.sectionTypesetting,
-        [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(context.l10n.typeface),
-            subtitle: Text(
-              SettingsController.fontDisplayNames[settings.fontFamily] ??
-                  settings.fontFamily,
-            ),
-            trailing: OutlinedButton(
-              key: const Key('change-font'),
-              onPressed: _changeTypeface,
-              child: Text(context.l10n.changeEllipsis),
-            ),
-          ),
-          const SizedBox(height: 8),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(context.l10n.lineWidth),
-            subtitle: Text(
-              context.l10n.lineWidthSubtitle(
-                settings.measureEms,
-                (settings.measureEms * 2.1).round(),
-              ),
-            ),
-            trailing: _measureUnlocked
-                ? null
-                : OutlinedButton(
-                    key: const Key('change-measure'),
-                    onPressed: _confirmMeasureChange,
-                    child: Text(context.l10n.changeEllipsis),
-                  ),
-          ),
-          if (_measureUnlocked)
-            Slider(
-              key: const Key('measure-slider'),
-              min: SettingsController.minMeasureEms.toDouble(),
-              max: SettingsController.maxMeasureEms.toDouble(),
-              divisions:
-                  SettingsController.maxMeasureEms -
-                  SettingsController.minMeasureEms,
-              value: _measurePreview ?? settings.measureEms.toDouble(),
-              label:
-                  '${(_measurePreview ?? settings.measureEms.toDouble()).round()} em',
-              onChanged: (v) => setState(() => _measurePreview = v),
-              // Committing only at drag end avoids re-typesetting the
-              // whole module on every tick.
-              onChangeEnd: (v) {
-                settings.setMeasureEms(v.round(), confirmed: true);
-                setState(() => _measurePreview = null);
-              },
-            ),
-          const SizedBox(height: 16),
         ],
       ),
       (

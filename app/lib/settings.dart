@@ -87,16 +87,32 @@ class ElementStyle {
 
 /// User settings, persisted locally.
 ///
-/// The measure (line width in ems) is deliberately hard to change: it
-/// defines where every line breaks, and with that the reader's visual
-/// memory of the text. [setMeasureEms] therefore refuses to apply unless
-/// the caller confirms an explicit user decision.
+/// Presentation is the reader's (ADR 0032): the glyph size and the line
+/// length are plain settings, per device. The engine lays out in ems, so
+/// a size change repaints and a line-length change re-typesets in the
+/// background.
 class SettingsController extends ChangeNotifier {
   SettingsController(this._prefs) {
-    _columnWidth = _prefs.getDouble('columnWidth') ?? defaultColumnWidth;
     _contrast = _prefs.getDouble('contrast') ?? defaultContrast;
     _lineSpacing = _prefs.getDouble('lineSpacing') ?? defaultLineSpacing;
-    _measureEms = _prefs.getInt('measureEms') ?? defaultMeasureEms;
+    _measureEms = (_prefs.getInt('measureEms') ?? defaultMeasureEms).clamp(
+      minMeasureEms,
+      maxMeasureEms,
+    );
+    // Before ADR 0032 the column width was the size setting and the glyph
+    // size fell out of it; an existing installation keeps its reading.
+    final storedGlyph = _prefs.getDouble('glyphSize');
+    final legacyColumn = _prefs.getDouble('columnWidth');
+    _glyphSize =
+        (storedGlyph ??
+                (legacyColumn == null
+                    ? defaultGlyphSize
+                    : legacyColumn / _measureEms))
+            .clamp(minGlyphSize, maxGlyphSize);
+    if (storedGlyph == null && legacyColumn != null) {
+      _prefs.setDouble('glyphSize', _glyphSize);
+      _prefs.remove('columnWidth');
+    }
     _trueBlackDark = _prefs.getBool('trueBlackDark') ?? false;
     _readingMode = _prefs.getBool('readingMode') ?? false;
     _keepScreenOn = _prefs.getBool('keepScreenOn') ?? false;
@@ -156,10 +172,13 @@ class SettingsController extends ChangeNotifier {
     'Literata': 'Literata',
   };
 
-  static const defaultColumnWidth = 400.0;
+  /// Glyph size in logical pixels; 16 px at 25 em is a 400 px column.
+  static const defaultGlyphSize = 16.0;
+  static const minGlyphSize = 10.0;
+  static const maxGlyphSize = 40.0;
   static const defaultContrast = 0.85;
   static const minContrast = 0.3;
-  static const defaultMeasureEms = 26;
+  static const defaultMeasureEms = 25;
 
   /// The measure runs down to a few ems: at very large type (low vision)
   /// a column holds only a handful of characters, and the setter still
@@ -178,7 +197,7 @@ class SettingsController extends ChangeNotifier {
 
   final SharedPreferences _prefs;
 
-  double _columnWidth = defaultColumnWidth;
+  double _glyphSize = defaultGlyphSize;
   double _contrast = defaultContrast;
   double _lineSpacing = defaultLineSpacing;
   int _measureEms = defaultMeasureEms;
@@ -214,18 +233,10 @@ class SettingsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// The reading typeface. Like the measure, it defines where every
-  /// line breaks — the setter refuses to apply without an explicit,
-  /// confirmed user decision.
+  /// The reading typeface; a change re-typesets in the background.
   String get fontFamily => _fontFamily;
 
-  void setFontFamily(String family, {required bool confirmed}) {
-    if (!confirmed) {
-      throw StateError(
-        'the typeface re-typesets everything and must only be changed '
-        'after explicit user confirmation',
-      );
-    }
+  void setFontFamily(String family) {
     if (!fontAssets.containsKey(family)) return;
     _fontFamily = family;
     _prefs.setString('fontFamily', family);
@@ -312,8 +323,12 @@ class SettingsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Column width in logical pixels — the zoom level.
-  double get columnWidth => _columnWidth;
+  /// Text size: the glyph size in logical pixels (ADR 0032).
+  double get glyphSize => _glyphSize;
+
+  /// The preferred column width in logical pixels — line length times
+  /// glyph size; a pane narrower than this fits its line length instead.
+  double get columnWidth => _glyphSize * _measureEms;
 
   /// Text/background contrast, [minContrast] (soft) … 1.0 (maximum).
   double get contrast => _contrast;
@@ -321,7 +336,8 @@ class SettingsController extends ChangeNotifier {
   /// Line height as a multiple of the font size.
   double get lineSpacing => _lineSpacing;
 
-  /// Line width in ems; the protected measure.
+  /// Line length in ems (about 2.1 characters each); a pane narrower
+  /// than one column of it lays out at what fits (ADR 0032).
   int get measureEms => _measureEms;
 
   ThemeMode get themeMode => _themeMode;
@@ -353,9 +369,9 @@ class SettingsController extends ChangeNotifier {
   /// (passage previews, later cross-references in secondary literature).
   String? get defaultModule => _defaultModule;
 
-  void setColumnWidth(double value) {
-    _columnWidth = value.clamp(320.0, 520.0);
-    _prefs.setDouble('columnWidth', _columnWidth);
+  void setGlyphSize(double value) {
+    _glyphSize = value.clamp(minGlyphSize, maxGlyphSize);
+    _prefs.setDouble('glyphSize', _glyphSize);
     notifyListeners();
   }
 
@@ -494,15 +510,8 @@ class SettingsController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Applies a new measure only for a confirmed, deliberate user decision;
-  /// programmatic calls without confirmation are an error.
-  void setMeasureEms(int value, {required bool confirmed}) {
-    if (!confirmed) {
-      throw StateError(
-        'the measure defines the reader\'s visual memory and must only be '
-        'changed after explicit user confirmation',
-      );
-    }
+  /// The line length; every text view re-typesets in the background.
+  void setMeasureEms(int value) {
     _measureEms = value.clamp(minMeasureEms, maxMeasureEms);
     _prefs.setInt('measureEms', _measureEms);
     notifyListeners();

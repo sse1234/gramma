@@ -15,6 +15,7 @@ import 'reader_focus.dart';
 import 'reader_selection.dart';
 import 'reference_selector.dart';
 import 'settings.dart';
+import 'text_geometry.dart';
 import 'src/rust/api/library.dart';
 import 'src/rust/api/typeset.dart';
 import 'typeset_chapter.dart';
@@ -127,10 +128,15 @@ class _ReaderPaneState extends State<ReaderPane>
   static const _headingLines = 2;
   static const _gutter = 48.0;
 
-  double _columnWidth = SettingsController.defaultColumnWidth;
+  double _fontSize = SettingsController.defaultGlyphSize;
   double _lineSpacing = SettingsController.defaultLineSpacing;
   double _columnAdvance = SettingsController.defaultColumnAdvance;
+
+  /// The effective measure this pane lays out at — the line-length
+  /// setting, or what fits a narrow pane (ADR 0032); known once the
+  /// first layout pass has seen the pane's width.
   int? _measure;
+  bool _measurePending = false;
   String? _fontFamily;
 
   /// Arrow-key paging and keyboard ownership (ADR 0028).
@@ -199,21 +205,42 @@ class _ReaderPaneState extends State<ReaderPane>
   void didChangeDependencies() {
     super.didChangeDependencies();
     final settings = SettingsScope.of(context);
-    _columnWidth = settings.columnWidth;
+    _fontSize = settings.glyphSize;
     _lineSpacing = settings.lineSpacing;
     _columnAdvance = settings.columnAdvance;
-    final measure = settings.measureEms;
     final family = settings.fontFamily;
-    if (_measure == null) {
-      _measure = measure;
+    if (_fontFamily == null) {
       _fontFamily = family;
       _loadModule();
-    } else if (_measure != measure || _fontFamily != family) {
+    } else if (_fontFamily != family) {
       // A typeface change moves every line break, exactly like a
       // measure change.
-      _measure = measure;
       _fontFamily = family;
       WidgetsBinding.instance.addPostFrameCallback((_) => _remeasure());
+    }
+  }
+
+  /// The preferred column width at this pane's effective measure.
+  double get _columnWidthPx =>
+      _fontSize * (_measure ?? SettingsController.defaultMeasureEms);
+
+  /// Adopts the measure the pane's width calls for (ADR 0032): the first
+  /// width seen starts the line count; a later change re-measures after
+  /// the frame, keeping the chapter being read.
+  void _syncMeasure(int target) {
+    if (_measure == null) {
+      _measure = target;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadKinds();
+      });
+    } else if (target != _measure && !_measurePending) {
+      _measurePending = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _measurePending = false;
+        if (!mounted) return;
+        _measure = target;
+        _remeasure();
+      });
     }
   }
 
@@ -394,6 +421,15 @@ class _ReaderPaneState extends State<ReaderPane>
     if (active.code != widget.spec.module) {
       widget.onModule(active.code);
     }
+    // The line count waits for the first layout pass to fix the measure.
+    if (_measure != null) _loadKinds();
+  }
+
+  /// Counts the module's lines at the pane's measure and restores the
+  /// stored position once they are known.
+  void _loadKinds() {
+    final active = _active;
+    if (active == null) return;
     moduleLineKinds(moduleCode: active.code, measureEms: _measure!).then((
       kinds,
     ) {
@@ -693,6 +729,7 @@ class _ReaderPaneState extends State<ReaderPane>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final settings = SettingsScope.of(context);
     final position = _topChapter < _spine.length
         ? _spine[_topChapter].heading
         : null;
@@ -793,14 +830,17 @@ class _ReaderPaneState extends State<ReaderPane>
                   : LayoutBuilder(
                       builder: (context, constraints) {
                         _vViewportH = constraints.maxHeight;
-                        final effWidth = constraints.maxWidth < _columnWidth
-                            ? constraints.maxWidth
-                            : _columnWidth;
-                        _vLineHeightPx =
-                            effWidth / (_measure ?? 26) * _lineSpacing;
-                        final columns = _columnsFor(constraints.maxWidth);
+                        final geometry = TextGeometry.fit(
+                          settings,
+                          constraints.maxWidth,
+                        );
+                        _syncMeasure(geometry.measureEms);
+                        _vLineHeightPx = _fontSize * _lineSpacing;
+                        final columns = geometry.columns;
                         final Widget reader;
-                        if (columns >= 2 && _linePlan() != null) {
+                        if (columns >= 2 &&
+                            geometry.measureEms == _measure &&
+                            _linePlan() != null) {
                           reader = _horizontalReader(constraints, columns);
                         } else {
                           _columns.detach();
@@ -830,11 +870,6 @@ class _ReaderPaneState extends State<ReaderPane>
     );
   }
 
-  int _columnsFor(double width) {
-    final n = ((width + _gutter) / (_columnWidth + _gutter)).floor();
-    return n < 1 ? 1 : n;
-  }
-
   Widget _verticalReader() {
     final plan = _linePlan();
     var initial = 0;
@@ -845,7 +880,7 @@ class _ReaderPaneState extends State<ReaderPane>
     }
     return Center(
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: _columnWidth),
+        constraints: BoxConstraints(maxWidth: _columnWidthPx),
         child: ScrollablePositionedList.builder(
           key: const Key('vertical-reader'),
           itemScrollController: _vScroll,
@@ -859,13 +894,13 @@ class _ReaderPaneState extends State<ReaderPane>
   }
 
   Widget _horizontalReader(BoxConstraints constraints, int columns) {
-    final columnWidth = _columnWidth;
+    final columnWidth = _columnWidthPx;
     final contentWidth = columns * columnWidth + (columns - 1) * _gutter;
     final sidePadding = ((constraints.maxWidth - contentWidth) / 2).clamp(
       0.0,
       double.infinity,
     );
-    final fontSize = columnWidth / _measure!;
+    final fontSize = _fontSize;
     final lineHeight = fontSize * _lineSpacing;
     var linesPerColumn = (constraints.maxHeight / lineHeight).floor();
     if (linesPerColumn < 1) linesPerColumn = 1;
@@ -980,8 +1015,8 @@ class _ReaderPaneState extends State<ReaderPane>
     );
   }
 
-  double _estimatedHeight(int index, double columnWidth) {
-    final fontSize = columnWidth / _measure!;
+  double _estimatedHeight(int index) {
+    final fontSize = _fontSize;
     final lineHeight = fontSize * _lineSpacing;
     final charsPerLine = _measure! * 2.1;
     final lines = (_spine[index].textLength / charsPerLine).ceil() + 1;
@@ -1001,15 +1036,10 @@ class _ReaderPaneState extends State<ReaderPane>
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 8, bottom: 4),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final fontSize = constraints.maxWidth / _measure!;
-                return ChapterHeading(
-                  text: entry.heading,
-                  fontSize: fontSize,
-                  lineHeight: fontSize * _lineSpacing,
-                );
-              },
+            child: ChapterHeading(
+              text: entry.heading,
+              fontSize: _fontSize,
+              lineHeight: _fontSize * _lineSpacing,
             ),
           ),
           if (layout != null)
@@ -1036,7 +1066,7 @@ class _ReaderPaneState extends State<ReaderPane>
             LayoutBuilder(
               builder: (context, constraints) => SizedBox(
                 key: const Key('chapter-placeholder'),
-                height: _estimatedHeight(index, constraints.maxWidth),
+                height: _estimatedHeight(index),
               ),
             ),
         ],
