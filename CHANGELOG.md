@@ -6,6 +6,8 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-09-27
+
 ### Added
 - The PDF reader takes pocket-edition Bibles: pages with an offset
   origin, MacRoman fonts, ligatures, two narrow columns, letterspaced
