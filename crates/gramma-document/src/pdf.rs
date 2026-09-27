@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use pdf::content::{Op, TextDrawAdjusted};
+use pdf::encoding::BaseEncoding;
 use pdf::file::FileOptions;
 use pdf::font::{Font, FontData, ToUnicodeMap};
 use pdf::object::{Resolve, XObject};
@@ -230,6 +231,17 @@ pub fn read_pages(data: Vec<u8>) -> Result<(Vec<PageText>, String), DocumentErro
                 _ => {}
             }
         }
+        // Positions relative to the page's own corner: a media box need
+        // not start at the origin (a pocket edition cropped out of a
+        // larger sheet), and every layout rule below works in page space.
+        for f in out.fragments.iter_mut() {
+            f.x -= media.left;
+            f.y -= media.bottom;
+        }
+        for image in out.images.iter_mut() {
+            image.x -= media.left;
+            image.y -= media.bottom;
+        }
         pages.push(out);
     }
     Ok((pages, title))
@@ -255,6 +267,9 @@ struct LoadedFont {
     two_byte: bool,
     widths: Option<pdf::font::Widths>,
     differences: HashMap<u32, String>,
+    /// The font's base encoding is MacRomanEncoding (Quartz exports):
+    /// bytes above 0x7f follow the Mac table, not Windows-1252.
+    mac_roman: bool,
 }
 
 impl LoadedFont {
@@ -292,12 +307,16 @@ impl LoadedFont {
                     .collect()
             })
             .unwrap_or_default();
+        let mac_roman = font
+            .encoding()
+            .is_some_and(|e| matches!(e.base, BaseEncoding::MacRomanEncoding));
         LoadedFont {
             role,
             to_unicode,
             two_byte: font.is_cid(),
             widths: font.widths(resolver).ok().flatten(),
             differences,
+            mac_roman,
         }
     }
 
@@ -335,6 +354,8 @@ impl LoadedFont {
                 .unwrap_or_else(|| {
                     if self.two_byte {
                         String::new()
+                    } else if self.mac_roman {
+                        mac_roman(code as u8).to_string()
                     } else {
                         cp1252(code as u8).to_string()
                     }
@@ -355,6 +376,7 @@ impl LoadedFont {
             advance += width;
             i += len;
         }
+        fix_ligatures(&mut out);
         (out, advance)
     }
 
@@ -416,6 +438,75 @@ fn glyph_to_char(glyph: &str) -> String {
         }
     }
     .to_string()
+}
+
+/// The space some producers write after a ligature glyph inside a word
+/// ("dahinﬂ iegen") goes; the ligature itself stays a ligature here and
+/// becomes letters when lines are built, where a space in the next
+/// fragment can be judged too.
+fn fix_ligatures(text: &mut String) {
+    if !text.contains(['ﬁ', 'ﬂ', 'ﬀ', 'ﬃ', 'ﬄ']) {
+        return;
+    }
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    while i < chars.len() {
+        out.push(chars[i]);
+        if is_ligature(chars[i])
+            && i + 2 < chars.len()
+            && chars[i + 1] == ' '
+            && chars[i + 2].is_lowercase()
+        {
+            i += 1;
+        }
+        i += 1;
+    }
+    *text = out;
+}
+
+/// A typographic ligature glyph.
+pub fn is_ligature(c: char) -> bool {
+    matches!(c, 'ﬁ' | 'ﬂ' | 'ﬀ' | 'ﬃ' | 'ﬄ')
+}
+
+/// Ligature glyphs as their letters.
+pub fn expand_ligatures(text: &str) -> String {
+    if !text.contains(is_ligature) {
+        return text.to_string();
+    }
+    let mut out = String::with_capacity(text.len() + 4);
+    for c in text.chars() {
+        match c {
+            'ﬁ' => out.push_str("fi"),
+            'ﬂ' => out.push_str("fl"),
+            'ﬀ' => out.push_str("ff"),
+            'ﬃ' => out.push_str("ffi"),
+            'ﬄ' => out.push_str("ffl"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// Mac OS Roman, the base encoding Quartz writes for its simple fonts.
+fn mac_roman(code: u8) -> char {
+    const HIGH: [char; 128] = [
+        'Ä', 'Å', 'Ç', 'É', 'Ñ', 'Ö', 'Ü', 'á', 'à', 'â', 'ä', 'ã', 'å', 'ç', 'é', 'è', //
+        'ê', 'ë', 'í', 'ì', 'î', 'ï', 'ñ', 'ó', 'ò', 'ô', 'ö', 'õ', 'ú', 'ù', 'û', 'ü', //
+        '†', '°', '¢', '£', '§', '•', '¶', 'ß', '®', '©', '™', '´', '¨', '≠', 'Æ', 'Ø', //
+        '∞', '±', '≤', '≥', '¥', 'µ', '∂', '∑', '∏', 'π', '∫', 'ª', 'º', 'Ω', 'æ', 'ø', //
+        '¿', '¡', '¬', '√', 'ƒ', '≈', '∆', '«', '»', '…', '\u{a0}', 'À', 'Ã', 'Õ', 'Œ',
+        'œ', //
+        '–', '—', '“', '”', '‘', '’', '÷', '◊', 'ÿ', 'Ÿ', '⁄', '€', '‹', '›', 'ﬁ', 'ﬂ', //
+        '‡', '·', '‚', '„', '‰', 'Â', 'Ê', 'Á', 'Ë', 'È', 'Í', 'Î', 'Ï', 'Ì', 'Ó', 'Ô', //
+        '\u{f8ff}', 'Ò', 'Ú', 'Û', 'Ù', 'ı', 'ˆ', '˜', '¯', '˘', '˙', '˚', '¸', '˝', '˛',
+        'ˇ', //
+    ];
+    match code {
+        0x80..=0xff => HIGH[(code - 0x80) as usize],
+        _ => code as char,
+    }
 }
 
 /// Windows-1252, the base of most simple-font encodings in practice.

@@ -323,3 +323,115 @@ fn attr(e: &BytesStart, name: &[u8]) -> Option<String> {
 fn normalize(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
+
+/// Writes a document as OSIS XML that [`parse`] reads back: one `div` per
+/// book, `chapter` and `verse` elements by osisID, section headings as
+/// untyped `title`s inside `div type="section"` (level 1) or
+/// `"subSection"` (level 2) before the verse they precede, and notes as
+/// `note` elements inline at their anchor offset. The point is exchange:
+/// an import can be shared and inspected as text, without the app.
+pub fn write(doc: &OsisDocument) -> String {
+    fn esc(s: &str) -> String {
+        let mut out = String::with_capacity(s.len());
+        for c in s.chars() {
+            match c {
+                '&' => out.push_str("&amp;"),
+                '<' => out.push_str("&lt;"),
+                '>' => out.push_str("&gt;"),
+                '"' => out.push_str("&quot;"),
+                _ => out.push(c),
+            }
+        }
+        out
+    }
+    let mut out = String::new();
+    out.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    out.push_str("<osis xmlns=\"http://www.bibletechnologies.net/2003/OSIS/namespace\">\n");
+    out.push_str(&format!(
+        "<osisText osisIDWork=\"{}\" xml:lang=\"{}\">\n<header><work osisWork=\"{}\"><title>{}</title></work></header>\n",
+        esc(&doc.code),
+        esc(&doc.language),
+        esc(&doc.code),
+        esc(&doc.title)
+    ));
+    let mut open_book: Option<BookId> = None;
+    let mut open_chapter: Option<(BookId, u16)> = None;
+    for v in &doc.verses {
+        if open_book != Some(v.book) {
+            if open_chapter.is_some() {
+                out.push_str("</chapter>\n");
+                open_chapter = None;
+            }
+            if open_book.is_some() {
+                out.push_str("</div>\n");
+            }
+            out.push_str(&format!(
+                "<div type=\"book\" osisID=\"{}\">\n",
+                v.book.info().osis
+            ));
+            open_book = Some(v.book);
+        }
+        if open_chapter != Some((v.book, v.chapter)) {
+            if open_chapter.is_some() {
+                out.push_str("</chapter>\n");
+            }
+            out.push_str(&format!(
+                "<chapter osisID=\"{}.{}\">\n",
+                v.book.info().osis,
+                v.chapter
+            ));
+            open_chapter = Some((v.book, v.chapter));
+        }
+        let mut headings: Vec<&OsisHeading> = doc
+            .headings
+            .iter()
+            .filter(|h| h.book == v.book && h.chapter == v.chapter && h.verse == v.verse)
+            .collect();
+        headings.sort_by_key(|h| h.seq);
+        for h in headings {
+            let kind = if h.level >= 2 {
+                "subSection"
+            } else {
+                "section"
+            };
+            out.push_str(&format!(
+                "<div type=\"{kind}\"><title>{}</title></div>\n",
+                esc(&h.text)
+            ));
+        }
+        let mut notes: Vec<&OsisNote> = doc
+            .notes
+            .iter()
+            .filter(|n| n.book == v.book && n.chapter == v.chapter && n.verse == v.verse)
+            .collect();
+        notes.sort_by_key(|n| (n.offset, n.seq));
+        out.push_str(&format!(
+            "<verse osisID=\"{}.{}.{}\">",
+            v.book.info().osis,
+            v.chapter,
+            v.verse
+        ));
+        let mut at = 0usize;
+        for n in notes {
+            let cut = (n.offset as usize).min(v.text.len());
+            let cut = (cut..=v.text.len())
+                .find(|&i| v.text.is_char_boundary(i))
+                .unwrap_or(v.text.len());
+            if cut >= at {
+                out.push_str(&esc(&v.text[at..cut]));
+                at = cut;
+            }
+            out.push_str(&format!("<note>{}</note>", esc(&n.text)));
+        }
+        out.push_str(&esc(&v.text[at..]));
+        out.push_str("</verse>\n");
+    }
+    if open_chapter.is_some() {
+        out.push_str("</chapter>\n");
+    }
+    if open_book.is_some() {
+        out.push_str("</div>\n");
+    }
+    out.push_str("</osisText>\n</osis>\n");
+    out
+}

@@ -49,6 +49,9 @@ pub struct Line {
     pub monospace: bool,
     /// Cells when the fragments sat in columns; one cell otherwise.
     pub cells: Vec<Cell>,
+    /// Set across both columns of a two-column page (a centered title):
+    /// never a running head, whatever it repeats.
+    pub spans_columns: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -71,8 +74,8 @@ impl Line {
 type FragmentTest = Box<dyn Fn(&Fragment) -> bool>;
 
 /// A vertical gutter with text on both sides on many lines: the page is
-/// set in two columns. Returns the gutter's x position.
-pub fn column_gutter(page: &PageText) -> Option<f32> {
+/// set in two columns. Returns the gutter's x position and its width.
+pub fn column_gutter(page: &PageText) -> Option<(f32, f32)> {
     let frags: Vec<&Fragment> = page
         .fragments
         .iter()
@@ -81,23 +84,27 @@ pub fn column_gutter(page: &PageText) -> Option<f32> {
     gutter_of(&frags, page.width)
 }
 
-/// The gutter of a set of fragments (a whole page or a region of it).
-fn gutter_of(frags: &[&Fragment], page_width: f32) -> Option<f32> {
+/// The gutter of a set of fragments (a whole page or a region of it):
+/// its center and its width.
+fn gutter_of(frags: &[&Fragment], page_width: f32) -> Option<(f32, f32)> {
     if frags.len() < 20 {
         return None;
     }
     let lo = page_width * 0.35;
     let hi = page_width * 0.65;
-    // Coverage histogram at 2 pt resolution across the middle band.
-    let bins = ((hi - lo) / 2.0) as usize + 1;
+    // Coverage histogram across the middle band, at a resolution that
+    // follows the page: a pocket edition set on a 260 pt page has a
+    // gutter of four points where a letter-size page has twenty.
+    let step = (page_width / 300.0).clamp(0.5, 2.0);
+    let bins = ((hi - lo) / step) as usize + 1;
     let mut covered = vec![0usize; bins];
     for f in frags {
         let (a, b) = (f.x, f.x + f.width);
         if b < lo || a > hi {
             continue;
         }
-        let start = (((a.max(lo) - lo) / 2.0) as usize).min(bins - 1);
-        let end = (((b.min(hi) - lo) / 2.0) as usize).min(bins - 1);
+        let start = (((a.max(lo) - lo) / step) as usize).min(bins - 1);
+        let end = (((b.min(hi) - lo) / step) as usize).min(bins - 1);
         for bin in covered.iter_mut().take(end + 1).skip(start) {
             *bin += 1;
         }
@@ -125,17 +132,19 @@ fn gutter_of(frags: &[&Fragment], page_width: f32) -> Option<f32> {
         best = Some((s, bins));
     }
     let (s, e) = best?;
-    if (e - s) * 2 < 6 {
+    let min_gap = (page_width * 0.012).max(3.0);
+    if (e - s) as f32 * step < min_gap {
         return None;
     }
-    let gutter = lo + (s + e) as f32;
+    let gutter = lo + (s + e) as f32 * step / 2.0;
+    let width = (e - s) as f32 * step;
     // Text on both sides on enough lines, and next to nothing running
     // across the gutter (single-column lines above a two-column
     // apparatus would be torn apart).
     let left = frags.iter().filter(|f| f.x + f.width <= gutter).count();
     let right = frags.iter().filter(|f| f.x >= gutter).count();
     let crossing = frags.len() - left - right;
-    (left >= 8 && right >= 8 && crossing * 50 <= frags.len()).then_some(gutter)
+    (left >= 8 && right >= 8 && crossing * 50 <= frags.len()).then_some((gutter, width))
 }
 
 /// Group a page's fragments into lines; a two-column page reads its
@@ -143,13 +152,56 @@ fn gutter_of(frags: &[&Fragment], page_width: f32) -> Option<f32> {
 /// (endnotes) is set in two columns under single-column text reads the
 /// text first, then the apparatus column by column.
 pub fn lines_of_page(page: &PageText, index: usize, options: &InferOptions) -> Vec<Line> {
-    if let Some(gutter) = column_gutter(page) {
-        let mut left = page.clone();
-        let mut right = page.clone();
-        left.fragments.retain(|f| f.x + f.width * 0.5 < gutter);
-        right.fragments.retain(|f| f.x + f.width * 0.5 >= gutter);
+    if let Some((gutter, _gap)) = column_gutter(page) {
+        // A line running across the gutter with ordinary word spacing —
+        // a centered book title — is a full-width line and reads before
+        // the columns, whole.
+        let mut full = page.clone();
+        full.fragments.clear();
+        let mut cols = page.clone();
+        cols.fragments.clear();
+        for group in baseline_groups(&page.fragments, options) {
+            let inked = group.iter().filter(|f| !f.text.trim().is_empty());
+            let last_left = inked
+                .clone()
+                .filter(|f| f.x < gutter)
+                .map(|f| f.x + f.width)
+                .fold(f32::MIN, f32::max);
+            let first_right = inked
+                .clone()
+                .filter(|f| f.x >= gutter)
+                .map(|f| f.x)
+                .fold(f32::MAX, f32::min);
+            // Ordinary word spacing is a third of an em; a column gap is
+            // wider than that at any size that fits a column.
+            let em = inked.map(|f| f.size).fold(0.0, f32::max);
+            let crossing = last_left > f32::MIN
+                && first_right < f32::MAX
+                && first_right - last_left < em * 0.4;
+            let target = if crossing { &mut full } else { &mut cols };
+            target.fragments.extend(group.into_iter().cloned());
+        }
+        let mut left = cols.clone();
+        let mut right = cols.clone();
+        // By start: no fragment straddles a gutter, while an estimated
+        // width can push a midpoint across it.
+        left.fragments.retain(|f| f.x < gutter);
+        right.fragments.retain(|f| f.x >= gutter);
         left.images.clear();
-        let mut lines = lines_of_fragments(&left, index, options);
+        full.images.clear();
+        // The right column's lines start where the left column's do, so
+        // every rule about indents and line widths sees one geometry.
+        let shift = left_edge(&right.fragments) - left_edge(&left.fragments);
+        if shift.is_finite() && shift > 0.0 {
+            for f in right.fragments.iter_mut() {
+                f.x -= shift;
+            }
+        }
+        let mut lines = lines_of_fragments(&full, index, options);
+        for l in lines.iter_mut() {
+            l.spans_columns = true;
+        }
+        lines.extend(lines_of_fragments(&left, index, options));
         lines.extend(lines_of_fragments(&right, index, options));
         return lines;
     }
@@ -180,7 +232,7 @@ pub fn lines_of_page(page: &PageText, index: usize, options: &InferOptions) -> V
         if region.len() == page.fragments.len() || region.len() < 20 {
             continue;
         }
-        let Some(gutter) = gutter_of(&region, page.width) else {
+        let Some((gutter, _)) = gutter_of(&region, page.width) else {
             continue;
         };
         if trace {
@@ -207,6 +259,43 @@ pub fn lines_of_page(page: &PageText, index: usize, options: &InferOptions) -> V
         return lines;
     }
     lines_of_fragments(page, index, options)
+}
+
+/// Fragments grouped by baseline, top of the page first.
+fn baseline_groups<'a>(
+    fragments: &'a [Fragment],
+    options: &InferOptions,
+) -> Vec<Vec<&'a Fragment>> {
+    let mut frags: Vec<&Fragment> = fragments.iter().collect();
+    frags.sort_by(|a, b| {
+        (b.y - b.rise)
+            .partial_cmp(&(a.y - a.rise))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let mut groups: Vec<Vec<&Fragment>> = Vec::new();
+    for f in frags {
+        let baseline = f.y - f.rise;
+        match groups.last_mut() {
+            Some(g) if (g[0].y - g[0].rise - baseline).abs() <= options.line_tolerance => g.push(f),
+            _ => groups.push(vec![f]),
+        }
+    }
+    groups
+}
+
+/// A column's left edge: the tenth percentile of its fragments' starts
+/// (a few indented or centered lines do not move it).
+fn left_edge(fragments: &[Fragment]) -> f32 {
+    let mut xs: Vec<f32> = fragments
+        .iter()
+        .filter(|f| !f.text.trim().is_empty())
+        .map(|f| f.x)
+        .collect();
+    if xs.is_empty() {
+        return f32::NAN;
+    }
+    xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    xs[xs.len() / 10]
 }
 
 fn lines_of_fragments(page: &PageText, index: usize, options: &InferOptions) -> Vec<Line> {
@@ -246,12 +335,15 @@ fn lines_of_fragments(page: &PageText, index: usize, options: &InferOptions) -> 
     let mut i = 0;
     while i < owned.len() {
         let group = &owned[i];
+        // Digits, stars, and closing brackets — or a lone lowercase letter,
+        // the note marker of a pocket Bible.
         let raised = group.iter().all(|f| {
-            f.text
-                .trim()
-                .chars()
-                .all(|c| c.is_ascii_digit() || c == '*' || c == ')')
-                && !f.text.trim().is_empty()
+            let t = f.text.trim().trim_end_matches([',', '.', ';', ':', ')']);
+            !t.is_empty()
+                && (t
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || c == '*' || c == ')')
+                    || (t.len() == 1 && t.bytes().all(|b| b.is_ascii_lowercase())))
         });
         let size = group.iter().map(|f| f.size).fold(0.0, f32::max);
         if raised && i + 1 < owned.len() {
@@ -321,6 +413,37 @@ fn build_line(
         left: group[0].x,
         inlines: Vec::new(),
     }];
+    // Advances that overshoot the next glyph — letterspacing a producer
+    // wrote into positions rather than advances — shrink to the real
+    // gap; and fragments read in x order, raised markers included.
+    let mut clamped: Vec<Fragment> = group.iter().map(|f| (*f).clone()).collect();
+    clamped.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
+    for i in 0..clamped.len().saturating_sub(1) {
+        let next_x = clamped[i + 1].x;
+        let f = &mut clamped[i];
+        if next_x > f.x && f.x + f.width > next_x + 0.05 {
+            f.width = next_x - f.x;
+        }
+    }
+    let group: Vec<&Fragment> = clamped.iter().collect();
+    // A letterspaced line (justified by tracking) opens a little gap
+    // after every glyph; a word gap must clear that by a space width.
+    let mut letter_gaps: Vec<f32> = group
+        .windows(2)
+        .filter(|w| !w[0].text.trim().is_empty() && !w[1].text.starts_with(' '))
+        .map(|w| w[1].x - (w[0].x + w[0].width))
+        .filter(|g| *g > 0.0)
+        .collect();
+    letter_gaps.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let tracking = letter_gaps
+        .get(letter_gaps.len() / 2)
+        .copied()
+        // Tracking shows as many small gaps; a handful of gaps are words.
+        .filter(|median| {
+            letter_gaps.len() >= 8 && letter_gaps.len() * 2 >= group.len() && *median < space
+        })
+        .unwrap_or(0.0);
+    let word_gap = space * 0.6 + tracking;
     let mut cursor = group[0].x;
     let last_index = group.len() - 1;
     for (fi, f) in group.iter().enumerate() {
@@ -335,7 +458,7 @@ fn build_line(
                 left: f.x,
                 inlines: Vec::new(),
             });
-        } else if gap > space * 0.6
+        } else if gap > word_gap
             && !cell.inlines.is_empty()
             && !after_soft_hyphen
             && !punctuation_only(&f.text)
@@ -355,22 +478,118 @@ fn build_line(
         } else {
             f.text.replace('\u{ad}', "")
         };
+        // The space some producers write after a ligature glyph inside a
+        // word ("dahinﬂ" + " iegen") goes; then the ligature is letters.
+        let after_ligature = fi > 0
+            && group[fi - 1]
+                .text
+                .trim_end()
+                .ends_with(super::pdf::is_ligature);
+        let text = if after_ligature
+            && text.starts_with(' ')
+            && text.trim_start().starts_with(|c: char| c.is_lowercase())
+        {
+            super::pdf::expand_ligatures(text.trim_start())
+        } else {
+            super::pdf::expand_ligatures(&text)
+        };
         let f = &Fragment {
             text,
             ..(*f).clone()
         };
         let cell = cells.last_mut().expect("one cell");
-        let superscript =
-            f.rise > 0.5 || (f.size < size * 0.8 && f.y > group[0].y - group[0].rise + 0.5);
+        // A verse number set the way printed Bibles set them: a bold
+        // number a shade smaller than the text, on the baseline (raised
+        // numbers are note markers), in a line that is not itself bold.
+        let digits = f.text.trim();
+        if !bold
+            && f.font.bold
+            && f.rise.abs() <= 0.5
+            && f.size < size * 0.95
+            && f.size >= size * 0.7
+            && !digits.is_empty()
+            && digits.len() <= 3
+            && digits.bytes().all(|b| b.is_ascii_digit())
+            && let Ok(n) = digits.parse::<u16>()
+        {
+            // Kerned producers set "12" as two fragments: digits that
+            // touch the number before them extend it.
+            if let Some(Inline::VerseNumber(prev)) = cell.inlines.last_mut()
+                && gap < size * 0.3
+                && *prev < 100
+            {
+                *prev = *prev * 10 + n;
+            } else if n > 0 {
+                cell.inlines.push(Inline::VerseNumber(n));
+            } else {
+                push_text(&mut cell.inlines, &f.text, Style::PLAIN);
+            }
+            cursor = f.x + f.width;
+            continue;
+        }
+        let lone_letter =
+            f.text.trim().len() == 1 && f.text.trim().bytes().all(|b| b.is_ascii_lowercase());
+        let superscript = f.rise > 0.5
+            || (f.size < size * 0.8 && f.y > group[0].y - group[0].rise + 0.5)
+            // A note letter set small and italic in the margin beside its
+            // line (pocket editions) sits on the baseline.
+            || (f.size < size * 0.8 && f.font.italic && lone_letter);
+        // Small capitals set as smaller full capitals ("H" + "ERR") keep
+        // their capitals under a small-caps style, as the EPUB reader
+        // delivers "HERR".
+        let small_caps = !superscript
+            && f.size < size * 0.85
+            && f.text.chars().any(|c| c.is_alphabetic())
+            && f.text
+                .chars()
+                .all(|c| !c.is_alphabetic() || c.is_uppercase());
         let style = Style {
             italic: f.font.italic,
             bold: f.font.bold,
             monospace: f.font.monospace,
             superscript,
+            small_caps,
             ..Style::PLAIN
         };
         push_text(&mut cell.inlines, &f.text, style);
         cursor = f.x + f.width;
+    }
+    // A note letter set in the margin before its line belongs after the
+    // line's first word: "Evangeli-" + "a um Gottes" joins as "Evangelium"
+    // with the marker where the reader sees it.
+    if let Some(first) = cells.first_mut()
+        && first.inlines.len() >= 2
+    {
+        let is_marker = matches!(
+            &first.inlines[0],
+            Inline::Text { text: m, style: ms }
+                if ms.superscript
+                    && m.trim().len() == 1
+                    && m.trim().bytes().all(|b| b.is_ascii_lowercase())
+        );
+        let split = match &first.inlines[1] {
+            Inline::Text { text, style } => {
+                let t = text.trim_start();
+                t.find(' ').map(|sp| (t.to_string(), sp, *style))
+            }
+            _ => None,
+        };
+        if is_marker && let Some((text, space, style)) = split {
+            let marker = first.inlines.remove(0);
+            let (word, rest) = text.split_at(space);
+            first.inlines[0] = Inline::Text {
+                text: word.to_string(),
+                style,
+            };
+            first.inlines.insert(1, marker);
+            first.inlines.insert(
+                2,
+                Inline::Text {
+                    text: rest.to_string(),
+                    style,
+                },
+            );
+        }
     }
     for cell in cells.iter_mut() {
         normalize_whitespace(&mut cell.inlines);
@@ -397,6 +616,7 @@ fn build_line(
         italic,
         monospace,
         cells,
+        spans_columns: false,
     })
 }
 
@@ -499,7 +719,7 @@ pub fn strip_furniture(lines: Vec<Line>, profile: &Profile, options: &InferOptio
     let band_of = |l: &Line| profile.page_height(l.page) * options.margin_band;
     let in_band = |l: &Line| l.top < band_of(l) || l.top > profile.page_height(l.page) - band_of(l);
     let mut recurring: HashMap<String, usize> = HashMap::new();
-    let key = |l: &Line| -> String {
+    let text_key = |l: &Line| -> String {
         l.text()
             .chars()
             .filter(|c| !c.is_ascii_digit())
@@ -507,18 +727,52 @@ pub fn strip_furniture(lines: Vec<Line>, profile: &Profile, options: &InferOptio
             .trim()
             .to_string()
     };
-    for l in &lines {
-        if in_band(l) {
-            *recurring.entry(key(l)).or_default() += 1;
+    // A band line is keyed together with the other band lines of its
+    // page and band: a running head repeats whole, while a book title
+    // wrapped over two lines ("Der zweite Brief des" / "Apostels
+    // Johannes") recurs line by line across books but never whole.
+    let top_band = |l: &Line| l.top < band_of(l);
+    let keys: Vec<String> = (0..lines.len())
+        .map(|i| {
+            let l = &lines[i];
+            if !in_band(l) {
+                return String::new();
+            }
+            let mut parts: Vec<String> = Vec::new();
+            for m in &lines {
+                if m.page == l.page && in_band(m) && top_band(m) == top_band(l) {
+                    let k = text_key(m);
+                    if !k.is_empty() {
+                        parts.push(k);
+                    }
+                }
+            }
+            parts.join("\n")
+        })
+        .collect();
+    // Each page's band counts once, whatever its number of lines.
+    let mut counted: std::collections::HashSet<(usize, bool)> = std::collections::HashSet::new();
+    for (i, l) in lines.iter().enumerate() {
+        if in_band(l) && counted.insert((l.page, top_band(l))) {
+            *recurring.entry(keys[i].clone()).or_default() += 1;
         }
     }
+    let key = |i: usize| keys[i].clone();
     lines
         .into_iter()
-        .filter(|l| {
-            if !in_band(l) {
+        .enumerate()
+        .filter(|(i, l)| {
+            let i = *i;
+            // A title centered across two columns is never a running head,
+            // even when its first line ("Der Brief des Paulus") recurs on
+            // several books' opening pages. (A centered running head in
+            // the body size still is one.)
+            if !in_band(l) || (l.spans_columns && l.size > profile.body_size + 0.4) {
                 return true;
             }
             let text = l.text();
+            let short = l.right - l.left < (profile.body_right - profile.body_left) * 0.7;
+            let other_size = (l.size - profile.body_size).abs() > 0.3;
             let numeric = text
                 .trim()
                 .chars()
@@ -527,8 +781,14 @@ pub fn strip_furniture(lines: Vec<Line>, profile: &Profile, options: &InferOptio
             if numeric {
                 return false;
             }
-            let k = key(l);
-            if !k.is_empty() && recurring.get(&k).copied().unwrap_or(0) >= 3 {
+            // Recurring text is a running head when it looks like one —
+            // short, or set in another size. A full body line at the foot
+            // of the page recurs too ("Und der HERR redete zu Mose und").
+            let k = key(i);
+            if !k.is_empty()
+                && recurring.get(&k).copied().unwrap_or(0) >= 3
+                && (short || other_size || l.spans_columns)
+            {
                 return false;
             }
             // A short line hugging the top edge set in another size is a
@@ -536,8 +796,9 @@ pub fn strip_furniture(lines: Vec<Line>, profile: &Profile, options: &InferOptio
             // titles start lower on the page).
             let top_band = l.top < band_of(l) * 0.6;
             let short = l.right - l.left < (profile.body_right - profile.body_left) * 0.6;
-            !(top_band && short && (l.size - profile.body_size).abs() > 0.3)
+            !(top_band && short && other_size)
         })
+        .map(|(_, l)| l)
         .collect()
 }
 
@@ -551,10 +812,16 @@ pub fn split_footnotes(lines: Vec<Line>, profile: &Profile) -> (Vec<Line>, NoteL
     let mut body = Vec::new();
     let mut notes: NoteLines = Vec::new();
     let mut i = 0;
-    let small = |l: &Line| l.size < profile.body_size - 1.5;
+    // Smaller than the body by a margin that follows the body size: a
+    // pocket edition's 5 pt notes under 5.8 pt text are small too.
+    let small = |l: &Line| l.size < profile.body_size - (profile.body_size * 0.12).max(0.6);
     while i < lines.len() {
         let l = &lines[i];
-        if small(l) && l.top > profile.page_height(l.page) * 0.5 && !l.bold {
+        if small(l)
+            && l.top > profile.page_height(l.page) * 0.5
+            && !l.bold
+            && leading_label(&l.text()).is_some()
+        {
             // Everything small from here to the end of the page is notes.
             let page = l.page;
             let mut j = i;
@@ -592,7 +859,38 @@ pub fn split_footnotes(lines: Vec<Line>, profile: &Profile) -> (Vec<Line>, NoteL
 }
 
 /// "12 text", "12. text", "a) text": the label of a note line.
+/// The note label a raised run carries: digits ("12"), or one lowercase
+/// letter ("a"), possibly followed by punctuation set in the same face
+/// ("a,"); empty when the run is no marker.
+fn marker_label(text: &str) -> String {
+    let t = text.trim();
+    let digits: String = t.chars().take_while(|c| c.is_ascii_digit()).collect();
+    let label = if !digits.is_empty() {
+        digits
+    } else if t.bytes().next().is_some_and(|b| b.is_ascii_lowercase()) {
+        t[..1].to_string()
+    } else {
+        return String::new();
+    };
+    let rest = &t[label.len()..];
+    if rest
+        .chars()
+        .all(|c| matches!(c, ',' | '.' | ';' | ':' | ')'))
+    {
+        label
+    } else {
+        String::new()
+    }
+}
+
 fn leading_label(text: &str) -> Option<String> {
+    // A lettered note ("a (1,26) hebr. …"), as pocket Bibles set them.
+    let mut chars = text.chars();
+    if let (Some(letter), Some(' ')) = (chars.next(), chars.next())
+        && letter.is_ascii_lowercase()
+    {
+        return Some(letter.to_string());
+    }
     let digits: String = text.chars().take_while(|c| c.is_ascii_digit()).collect();
     if !digits.is_empty() && digits.len() <= 3 {
         let rest = &text[digits.len()..];
@@ -730,8 +1028,13 @@ impl<'a> BlockBuilder<'a> {
         let p = self.profile;
         let short = line.right - line.left < (p.body_right - p.body_left) * 0.85;
         let larger = line.size > p.body_size + 0.4;
+        // A title set much larger than the text is a heading whatever its
+        // width — a book title centered across two columns is wider than
+        // either column.
+        let much_larger = line.size > p.body_size * 1.3;
         let numbered_only = line.text().trim().chars().all(|c| c.is_ascii_digit());
         (larger && short)
+            || (much_larger && !numbered_only)
             || (line.bold
                 && short
                 && !numbered_only
@@ -753,9 +1056,51 @@ impl<'a> BlockBuilder<'a> {
         let p = self.profile;
         let gap = match &self.last {
             Some(prev) if prev.page == line.page => line.top - prev.top,
+            // A page turn inside a paragraph: a full last line continues
+            // on the next page (and a hyphen at its end joins across).
+            Some(prev)
+                if prev.page < line.page
+                    && prev.right >= p.body_right - (p.body_right - p.body_left) * 0.25 =>
+            {
+                p.body_pitch
+            }
             _ => f32::INFINITY,
         };
 
+        // A short justified line inside a paragraph spreads its few words
+        // across the measure: word gaps as wide as cell gaps, but no
+        // table. It reads as one cell.
+        let mut line = line;
+        let justified_words = line.cells.len() >= 2
+            && self.table_rows.is_empty()
+            && self.para_lines > 0
+            && line.right >= p.body_right - p.body_size
+            && (line.size - p.body_size).abs() < 0.3
+            && line
+                .cells
+                .iter()
+                .all(|c| super::plain_text(&c.inlines).split_whitespace().count() <= 4);
+        if justified_words {
+            let cells = std::mem::take(&mut line.cells);
+            let mut merged = Cell {
+                left: cells[0].left,
+                inlines: Vec::new(),
+            };
+            for (k, cell) in cells.into_iter().enumerate() {
+                if k > 0 {
+                    push_text(&mut merged.inlines, " ", Style::PLAIN);
+                }
+                for inline in cell.inlines {
+                    match inline {
+                        Inline::Text { text, style } => {
+                            push_text(&mut merged.inlines, &text, style)
+                        }
+                        other => merged.inlines.push(other),
+                    }
+                }
+            }
+            line.cells = vec![merged];
+        }
         // Tables: rows with two or more cells at shared positions; a row
         // may leave columns empty, and a one-cell line whose left sits on
         // a column continues the table (a wrapped cell).
@@ -836,10 +1181,12 @@ impl<'a> BlockBuilder<'a> {
         let prev_short = self.last.as_ref().is_some_and(|prev| {
             prev.right < p.body_right - measure * 0.25 && self.hyphen_break != Some(true)
         });
-        let style_change = self
-            .last
-            .as_ref()
-            .is_some_and(|prev| prev.bold != line.bold && !line.italic);
+        let style_change = self.last.as_ref().is_some_and(|prev| {
+            (prev.bold != line.bold && !line.italic)
+                // A heading and its reference line (5.6 and 5.0 pt) are
+                // separate paragraphs even when nothing else says so.
+                || (prev.size - line.size).abs() > 0.4
+        });
         // A first-line indent opens a paragraph; a hanging indent inside a
         // list item or a quotation continues one.
         let first_line_indent = indented
@@ -958,7 +1305,8 @@ impl<'a> BlockBuilder<'a> {
         // A line ending in a soft or hard hyphen joins the next.
         let ends_hyphen = match self.para.last() {
             Some(Inline::Text { text, .. }) => {
-                text.ends_with('\u{ad}') || (text.ends_with('-') && text.len() > 1)
+                let t = text.trim_end();
+                t.ends_with('\u{ad}') || (t.ends_with('-') && t.len() > 1)
             }
             _ => false,
         };
@@ -1007,11 +1355,12 @@ impl<'a> BlockBuilder<'a> {
         for inline in inlines.drain(..) {
             match inline {
                 Inline::Text { text, style }
-                    if style.superscript
-                        && text.trim().chars().all(|c| c.is_ascii_digit())
-                        && !text.trim().is_empty() =>
+                    if style.superscript && !marker_label(&text).is_empty() =>
                 {
-                    let label = text.trim().to_string();
+                    let label = marker_label(&text);
+                    // Punctuation set in the marker's face ("a,") follows
+                    // the reference as text.
+                    let tail = text.trim()[label.len()..].to_string();
                     let key = (page, label.clone());
                     let index = match self.note_map.get(&key) {
                         Some(i) => *i,
@@ -1049,6 +1398,9 @@ impl<'a> BlockBuilder<'a> {
                         }
                     };
                     out.push(Inline::NoteRef(index));
+                    if !tail.is_empty() {
+                        push_text(&mut out, &tail, Style::PLAIN);
+                    }
                 }
                 other => out.push(other),
             }
@@ -1379,12 +1731,14 @@ fn join_hyphen(para: &mut [Inline], next: &mut [Inline]) -> bool {
         return false;
     };
     let next_lower = matches!(next.first(), Some(Inline::Text { text, .. }) if text.chars().next().is_some_and(|c| c.is_lowercase()));
-    if text.ends_with('\u{ad}') {
-        text.pop();
+    // Producers may leave a space after the line-final hyphen.
+    let trimmed = text.trim_end().len();
+    if text[..trimmed].ends_with('\u{ad}') {
+        text.truncate(trimmed - '\u{ad}'.len_utf8());
         return true;
     }
-    if text.ends_with('-') && text.len() > 1 && next_lower {
-        text.pop();
+    if text[..trimmed].ends_with('-') && trimmed > 1 && next_lower {
+        text.truncate(trimmed - 1);
         while text.ends_with(' ') {
             text.pop();
         }

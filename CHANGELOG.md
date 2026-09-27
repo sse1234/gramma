@@ -4,6 +4,16 @@ All notable changes to gramma. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 are the app's `pubspec.yaml` version, tags are `v<version>`.
 
+## [Unreleased]
+
+### Added
+- The PDF reader takes pocket-edition Bibles: pages with an offset
+  origin, MacRoman fonts, ligatures, two narrow columns, letterspaced
+  lines, bold verse numbers, lettered margin notes, and chapter numbers
+  drawn rather than set (ADR 0029, refinements of 2026-09-27).
+- `inspect_document --osis <file>` exports a Bible import as OSIS XML
+  that gramma reads back, for sharing an import without the app.
+
 ## [1.1.3] - 2026-09-26
 
 ### Fixed

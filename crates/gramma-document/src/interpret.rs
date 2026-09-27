@@ -484,8 +484,14 @@ pub fn to_bible(doc: &Document, code: &str) -> Result<OsisDocument, InterpretErr
     // Unreferenced notes with a "(c,v)" locator, bound after the text.
     let mut located_notes: Vec<(BookId, u16, u16, String)> = Vec::new();
     let mut used_notes = vec![false; doc.notes.len()];
+    // An unnumbered paragraph waiting for the next verse number (see the
+    // paragraph arm below).
+    let mut held: Option<Vec<Inline>> = None;
+    // Block index of the last section title, to join a wrapped title.
+    let mut last_title_block: Option<usize> = None;
     for (i, block) in doc.blocks.iter().enumerate() {
         if let Some((b, c)) = start_at.remove(&i) {
+            flush_held(&mut held, &mut out, doc, &mut note_seq, &mut used_notes);
             book = Some(b);
             chapter = c;
             verse = 0;
@@ -512,8 +518,28 @@ pub fn to_bible(doc: &Document, code: &str) -> Result<OsisDocument, InterpretErr
             {
                 // A section title set apart (short, italic or bold) or a
                 // line of parallel passages: headings before the next
-                // verse, never verse text.
-                pending_headings.push((level, text));
+                // verse, never verse text. A title wrapped over two lines
+                // arrives as two consecutive blocks and is one heading. A
+                // held paragraph stays held: a section title may stand
+                // between a chapter's first and second verse.
+                let part_title = |t: &str| {
+                    t.starts_with("Kapitel ")
+                        || t.chars()
+                            .filter(|c| c.is_alphabetic())
+                            .all(|c| c.is_uppercase())
+                };
+                if level == 1
+                    && last_title_block == Some(i - 1)
+                    && !part_title(&text)
+                    && let Some((1, last)) = pending_headings.last_mut()
+                    && !part_title(last)
+                {
+                    last.push(' ');
+                    last.push_str(&text);
+                } else {
+                    pending_headings.push((level, text));
+                }
+                last_title_block = Some(i);
             }
             Block::Paragraph { inlines, .. } if chapter > 0 => {
                 // Split at verse numbers; text before the first number
@@ -544,78 +570,91 @@ pub fn to_bible(doc: &Document, code: &str) -> Result<OsisDocument, InterpretErr
                             None
                         }
                     });
-                    if let Some(n) = number {
-                        verse = n;
-                        let seq_base = out
-                            .headings
-                            .iter()
-                            .filter(|h| {
-                                h.book == current_book && h.chapter == chapter && h.verse == n
-                            })
-                            .count() as u16;
-                        for (k, (level, heading)) in pending_headings.drain(..).enumerate() {
-                            out.headings.push(OsisHeading {
-                                book: current_book,
-                                chapter,
-                                verse: n,
-                                seq: seq_base + k as u16 + 1,
-                                level,
-                                text: heading,
-                            });
+                    let Some(n) = number else {
+                        if text.is_empty() {
+                            continue;
                         }
-                        out.verses.push(OsisVerse {
-                            book: current_book,
-                            chapter,
-                            verse: n,
-                            text: String::new(),
+                        // Unnumbered text waits for the next number to say
+                        // what it is: the first verse of a chapter whose
+                        // number the reader could not see (printed as a
+                        // drawn glyph), or a continuation of the last verse.
+                        // At a chapter's opening the pieces of that first
+                        // verse add up; after verses, the newer piece waits
+                        // and the older one continues the last verse.
+                        let continues = held.as_ref().is_some_and(|first| {
+                            let prev = collapse(&plain_text(first));
+                            let prev_open = !prev
+                                .trim_end()
+                                .ends_with(['.', '!', '?', ':', ';', '«', '»', '"']);
+                            let next_lower = text.starts_with(|c: char| c.is_lowercase());
+                            prev_open || next_lower
                         });
-                    }
-                    if verse == 0 {
-                        // Prose before any verse (front matter, book intro).
-                        continue;
-                    }
-                    let Some(last) = out.verses.last_mut() else {
+                        if (verse == 0 || continues)
+                            && let Some(first) = held.as_mut()
+                        {
+                            // The same paragraph, broken by a page turn.
+                            first.push(Inline::LineBreak);
+                            first.extend(seg);
+                        } else {
+                            flush_held(&mut held, &mut out, doc, &mut note_seq, &mut used_notes);
+                            held = Some(seg);
+                        }
                         continue;
                     };
-                    // Note markers anchor at their offset in the verse text.
-                    let mut offset_text = String::new();
-                    for inline in &seg {
-                        match inline {
-                            Inline::Text { text, .. } | Inline::Reference { text, .. } => {
-                                offset_text.push_str(text)
-                            }
-                            Inline::LineBreak => offset_text.push(' '),
-                            Inline::NoteRef(index) => {
-                                if let Some(note) = doc.notes.get(*index) {
-                                    used_notes[*index] = true;
-                                    let key = (current_book, chapter, verse);
-                                    let seq = note_seq.entry(key).or_default();
-                                    *seq += 1;
-                                    let prefix_len = normalized_len(&last.text, &offset_text);
-                                    out.notes.push(OsisNote {
-                                        book: current_book,
-                                        chapter,
-                                        verse,
-                                        seq: *seq,
-                                        offset: prefix_len as u32,
-                                        text: note_text(note),
-                                    });
-                                }
-                            }
-                            Inline::VerseNumber(_) => {}
-                        }
+                    let mut n = n;
+                    if verse > 0 && n == 1 {
+                        // An explicit "1" after verses: the next chapter.
+                        flush_held(&mut held, &mut out, doc, &mut note_seq, &mut used_notes);
+                        chapter += 1;
+                        verse = 0;
+                    } else if verse >= 2 && n < verse && n <= 3 && held.is_some() {
+                        // A small number after a whole chapter, behind an
+                        // unnumbered paragraph: that paragraph is verse 1 of
+                        // the next chapter, its number drawn rather than
+                        // set (and, with "3", a "2" the edition left out).
+                        chapter += 1;
+                        verse = 0;
+                    } else if verse == 0 && n >= 2 && held.is_some() {
+                        // The chapter opened without a number.
+                    } else {
+                        flush_held(&mut held, &mut out, doc, &mut note_seq, &mut used_notes);
                     }
-                    if !text.is_empty() {
-                        if !last.text.is_empty() {
-                            last.text.push(' ');
-                        }
-                        last.text.push_str(&collapse(&text));
+                    if verse == 0 && n >= 2 && held.is_some() {
+                        // The held paragraph opens the chapter as verse 1.
+                        let first = held.take().expect("held");
+                        push_verse(&mut out, current_book, chapter, 1, &mut pending_headings);
+                        let last = out.verses.len() - 1;
+                        append_segment(
+                            &mut out,
+                            doc,
+                            last,
+                            &first,
+                            plain_text(&first).trim(),
+                            &mut note_seq,
+                            &mut used_notes,
+                        );
                     }
+                    if n == 0 {
+                        n = 1;
+                    }
+                    verse = n;
+                    push_verse(&mut out, current_book, chapter, n, &mut pending_headings);
+                    let last = out.verses.len() - 1;
+                    append_segment(
+                        &mut out,
+                        doc,
+                        last,
+                        &seg,
+                        &text,
+                        &mut note_seq,
+                        &mut used_notes,
+                    );
                 }
             }
             _ => {}
         }
     }
+    flush_held(&mut held, &mut out, doc, &mut note_seq, &mut used_notes);
     // Notes nobody marked: "(c,v)" locators bind them to a verse.
     for (index, note) in doc.notes.iter().enumerate() {
         if used_notes[index] {
@@ -657,7 +696,113 @@ pub fn to_bible(doc: &Document, code: &str) -> Result<OsisDocument, InterpretErr
     if out.verses.is_empty() {
         return Err(InterpretError::NoVerses);
     }
+    for v in out.verses.iter_mut() {
+        let trimmed = v.text.trim_end();
+        if trimmed.len() != v.text.len() {
+            v.text.truncate(trimmed.len());
+        }
+    }
     Ok(out)
+}
+
+/// Opens a verse row and attaches the headings waiting for it.
+fn push_verse(
+    out: &mut OsisDocument,
+    book: BookId,
+    chapter: u16,
+    verse: u16,
+    pending_headings: &mut Vec<(u8, String)>,
+) {
+    let seq_base = out
+        .headings
+        .iter()
+        .filter(|h| h.book == book && h.chapter == chapter && h.verse == verse)
+        .count() as u16;
+    for (k, (level, heading)) in pending_headings.drain(..).enumerate() {
+        out.headings.push(OsisHeading {
+            book,
+            chapter,
+            verse,
+            seq: seq_base + k as u16 + 1,
+            level,
+            text: heading,
+        });
+    }
+    out.verses.push(OsisVerse {
+        book,
+        chapter,
+        verse,
+        text: String::new(),
+    });
+}
+
+/// Appends a segment's text to the verse row at [`index`], binding its
+/// note markers at their offset in the verse text.
+fn append_segment(
+    out: &mut OsisDocument,
+    doc: &Document,
+    index: usize,
+    seg: &[Inline],
+    text: &str,
+    note_seq: &mut HashMap<(BookId, u16, u16), u16>,
+    used_notes: &mut [bool],
+) {
+    let (book, chapter, verse) = {
+        let row = &out.verses[index];
+        (row.book, row.chapter, row.verse)
+    };
+    let mut offset_text = String::new();
+    for inline in seg {
+        match inline {
+            Inline::Text { text, .. } | Inline::Reference { text, .. } => {
+                offset_text.push_str(text)
+            }
+            Inline::LineBreak => offset_text.push(' '),
+            Inline::NoteRef(note_index) => {
+                if let Some(note) = doc.notes.get(*note_index) {
+                    used_notes[*note_index] = true;
+                    let seq = note_seq.entry((book, chapter, verse)).or_default();
+                    *seq += 1;
+                    let prefix_len = normalized_len(&out.verses[index].text, &offset_text);
+                    out.notes.push(OsisNote {
+                        book,
+                        chapter,
+                        verse,
+                        seq: *seq,
+                        offset: prefix_len as u32,
+                        text: note_text(note),
+                    });
+                }
+            }
+            Inline::VerseNumber(_) => {}
+        }
+    }
+    if !text.is_empty() {
+        let row = &mut out.verses[index];
+        if !row.text.is_empty() {
+            row.text.push(' ');
+        }
+        row.text.push_str(&collapse(text));
+    }
+}
+
+/// A held paragraph turned out to continue the last verse.
+fn flush_held(
+    held: &mut Option<Vec<Inline>>,
+    out: &mut OsisDocument,
+    doc: &Document,
+    note_seq: &mut HashMap<(BookId, u16, u16), u16>,
+    used_notes: &mut [bool],
+) {
+    let Some(seg) = held.take() else {
+        return;
+    };
+    if out.verses.is_empty() {
+        return;
+    }
+    let last = out.verses.len() - 1;
+    let text = plain_text(&seg).trim().to_string();
+    append_segment(out, doc, last, &seg, &text, note_seq, used_notes);
 }
 
 /// A paragraph without verse numbers that reads as a heading: short and
@@ -667,6 +812,22 @@ fn heading_like(inlines: &[Inline]) -> Option<(u8, String)> {
     let text = collapse(&plain_text(inlines));
     if text.is_empty() || text.chars().count() > 120 {
         return None;
+    }
+    // A part title set in capitals ("DIE URZEIT: VON DER SCHÖPFUNG BIS
+    // ABRAHAM"), with or without its chapter range on the same line.
+    let letters: Vec<char> = text.chars().filter(|c| c.is_alphabetic()).collect();
+    if letters.len() >= 6 && letters.iter().all(|c| c.is_uppercase()) && text.chars().count() <= 80
+    {
+        return Some((1, text));
+    }
+    // A part title naming a chapter range ("Kapitel 1 - 11").
+    if let Some(rest) = text.strip_prefix("Kapitel ")
+        && rest
+            .chars()
+            .all(|c| c.is_ascii_digit() || c == ' ' || c == '-' || c == '–')
+        && rest.chars().any(|c| c.is_ascii_digit())
+    {
+        return Some((1, text));
     }
     let styled = inlines.iter().all(|i| match i {
         Inline::Text { text, style } => {

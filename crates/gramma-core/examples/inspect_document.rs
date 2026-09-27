@@ -2,7 +2,7 @@
 //! found: counts per block kind, notes, images, and the first blocks.
 //!
 //! Usage: cargo run --example inspect_document -- <file> [--blocks N] [--from I]
-//!        [--import <library.db> <code> [bible|commentary|book]]
+//!        [--import <library.db> <code> [bible|commentary|book]] [--osis <out.xml>]
 
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -21,6 +21,7 @@ fn main() {
     let mut import: Option<(String, String, Option<String>)> = None;
     let mut entries_chapter: Option<u16> = None;
     let mut text_out: Option<String> = None;
+    let mut osis_out: Option<String> = None;
     let mut find: Option<String> = None;
     let mut fragments_page: Option<usize> = None;
     let mut lines_page: Option<usize> = None;
@@ -46,6 +47,10 @@ fn main() {
             }
             "--text" => {
                 text_out = Some(args[i + 1].clone());
+                i += 2;
+            }
+            "--osis" => {
+                osis_out = Some(args[i + 1].clone());
                 i += 2;
             }
             "--entries" => {
@@ -259,6 +264,37 @@ fn main() {
         }
         std::fs::write(&path, out).expect("write text dump");
         println!("text written to {path}");
+    }
+    if let Some(path) = osis_out {
+        // The Bible interpretation as OSIS XML — the exchange format: it
+        // can be read, diffed, and imported without the app.
+        // The module code from the file's name, letters and digits only.
+        let code: String = std::path::Path::new(&args[1])
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("EXPORT")
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric())
+            .take(16)
+            .collect();
+        let code = if code.is_empty() {
+            "EXPORT".to_string()
+        } else {
+            code
+        };
+        match gramma_core::document::interpret::to_bible(&doc, &code) {
+            Ok(bible) => {
+                println!(
+                    "bible: {} verses, {} headings, {} notes",
+                    bible.verses.len(),
+                    bible.headings.len(),
+                    bible.notes.len()
+                );
+                std::fs::write(&path, gramma_core::osis::write(&bible)).expect("write osis");
+                println!("osis written to {path}");
+            }
+            Err(e) => println!("no bible: {e}"),
+        }
     }
     if let Some(chapter) = entries_chapter {
         match gramma_core::document::interpret::to_commentary(&doc, None) {

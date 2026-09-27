@@ -155,6 +155,52 @@ Rules added once real pages were read; each is unit-tested:
 - **Headings link.** References inside a Bible text's headings (the
   parallel-passage lines) are tappable and preview their passage.
 
+## Refinements (2026-09-27, a pocket Bible PDF)
+
+A two-column pocket edition exported by Quartz (259 × 360 pt pages,
+5.8 pt text, MacRoman simple fonts, chapter numbers drawn as paths)
+added a round of rules, each unit-tested or checked against the EPUB of
+the same text — the closed loop for Bibles is verse by verse:
+
+- **Page space.** Fragment positions are relative to the media box's
+  corner, which need not be the origin.
+- **Encoding.** A simple font's base encoding (MacRomanEncoding) is
+  honored; ligature glyphs become letters, and the space some producers
+  write after a ligature inside a word goes.
+- **Columns.** The gutter search scales with the page; fragments join a
+  column by their start, never by a width estimate; a line running
+  across the gutter with word spacing (a centered title) reads whole
+  before the columns; the right column's lines shift onto the left
+  column's edge so indents and widths mean the same in both.
+- **Advances.** An advance overshooting the next glyph (letterspacing
+  written into positions) shrinks to the real gap; a letterspaced line
+  raises its word-gap threshold; a short justified line inside a
+  paragraph is one cell, not a table row.
+- **Furniture.** Recurrence is keyed on a page's whole band, so a
+  running head repeats while a wrapped title never does; a title much
+  larger than the text is a heading whatever its width.
+- **Verse numbers.** A bold number a shade smaller than the text, on the
+  baseline, is a verse number; kerned digits join into one number.
+- **Notes.** Lettered notes ("a (1,26) …"); markers set as raised or
+  margin letters, with punctuation in the marker's face; the small-type
+  threshold follows the body size.
+- **Chapters without numbers.** A drawn chapter number is invisible to
+  the reader: an unnumbered paragraph waits for the next number, and a
+  small number after a whole chapter makes it verse 1 of the next; a
+  chapter's opening pieces add up across a page turn; a section title
+  may stand between a chapter's first and second verse.
+- **Small capitals** set as smaller full capitals keep their letters
+  under a small-caps style, as the EPUB reader delivers them.
+- **OSIS export.** A Bible interpretation writes as OSIS XML that our
+  own reader takes back, so an import can be shared, read, and diffed
+  without the app (`inspect_document --osis`).
+
+Result: 66 books, 31,154 verses against the EPUB's 31,098, 26,350
+verses byte-identical and 3,700 more within three characters, 1,199 of
+1,213 notes bound. What remains is mostly the edition itself: hyphens
+the export dropped ("voll endet"), a few verse numbers it left out,
+and its own punctuation.
+
 ## Consequences
 
 - One reader per source, one inference pass, one storage shape: a new
