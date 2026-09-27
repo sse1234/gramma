@@ -13,6 +13,20 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
   drawn rather than set (ADR 0029, refinements of 2026-09-27).
 - `inspect_document --osis <file>` exports a Bible import as OSIS XML
   that gramma reads back, for sharing an import without the app.
+- ODT import (ADR 0029): a word processor's own file read as written —
+  outline headings, a "Buchtitel" paragraph style, "Verszahl" spans as
+  verse numbers, inline styles, footnotes with their citation as label.
+- Paragraphs travel with the text (ADR 0033): a verse that opens a
+  paragraph in its source (OSIS `<p>`, `<lg>`, x-p milestones; SWORD
+  modules; imported PDF, EPUB and ODT documents) starts a fresh line in
+  the reader, and the OSIS export carries the structure as `<p>`.
+  Sources that set every verse as its own paragraph run on as before.
+  Texts imported earlier show paragraphs after a fresh import.
+
+### Fixed
+- PDF import: a running head sharing its line with the page number no
+  longer slips through as a heading (two cells spanning the gutter are
+  not a centered title; a digits-only cell marks the line as furniture).
 
 ## [1.1.3] - 2026-09-26
 

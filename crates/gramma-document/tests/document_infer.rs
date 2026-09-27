@@ -114,6 +114,47 @@ fn furniture_goes_and_lines_join_into_paragraphs() {
 }
 
 #[test]
+fn a_running_head_sharing_its_line_with_the_page_number_goes() {
+    // A pocket edition sets "2   1. MOSE 1.2" on one line at the top of
+    // the page: wide as a line, two cells, one of them digits. The body
+    // starts inside the margin band, so the page's band key never
+    // recurs; the line is furniture all the same.
+    let pages: Vec<PageText> = (1..=3)
+        .map(|n| {
+            let opener = ["Erste", "Zweite", "Dritte"][n - 1];
+            let mut fragments = vec![
+                frag(50.0, H - 30.0, 9.0, "1. MOSE 1.2"),
+                frag(330.0, H - 30.0, 9.0, &(n * 2).to_string()),
+            ];
+            let mut y = H - 45.0;
+            for text in [
+                format!("{opener} Seite beginnt mit einer vollen Zeile bis zum Rand,"),
+                "die weiter geht und hier endet.".to_string(),
+            ] {
+                fragments.push(frag(50.0, y, 10.0, &text));
+                y -= 13.0;
+            }
+            PageText {
+                width: W,
+                height: H,
+                fragments,
+                images: Vec::new(),
+            }
+        })
+        .collect();
+    let doc = document_from_pages(&pages, &InferOptions::default());
+    let text = paragraphs(&doc).join(" | ");
+    assert!(!text.contains("MOSE"), "{text}");
+    assert!(
+        !doc.blocks
+            .iter()
+            .any(|b| matches!(b, Block::Heading { .. })),
+        "{:#?}",
+        doc.blocks
+    );
+}
+
+#[test]
 fn footnotes_bind_to_raised_numbers() {
     let mut p = page(
         1,

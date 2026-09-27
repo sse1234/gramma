@@ -545,6 +545,9 @@ pub fn to_bible(doc: &Document, code: &str) -> Result<OsisDocument, InterpretErr
                 // Split at verse numbers; text before the first number
                 // continues the previous verse (or opens verse 1 when it
                 // starts with "1 ").
+                // The block's first verse opens a paragraph (ADR 0033)
+                // unless unnumbered text stands before it.
+                let mut at_start = true;
                 let mut segments: Vec<(Option<u16>, Vec<Inline>)> = vec![(None, Vec::new())];
                 for inline in inlines {
                     match inline {
@@ -574,6 +577,7 @@ pub fn to_bible(doc: &Document, code: &str) -> Result<OsisDocument, InterpretErr
                         if text.is_empty() {
                             continue;
                         }
+                        at_start = false;
                         // Unnumbered text waits for the next number to say
                         // what it is: the first verse of a chapter whose
                         // number the reader could not see (printed as a
@@ -622,7 +626,14 @@ pub fn to_bible(doc: &Document, code: &str) -> Result<OsisDocument, InterpretErr
                     if verse == 0 && n >= 2 && held.is_some() {
                         // The held paragraph opens the chapter as verse 1.
                         let first = held.take().expect("held");
-                        push_verse(&mut out, current_book, chapter, 1, &mut pending_headings);
+                        push_verse(
+                            &mut out,
+                            current_book,
+                            chapter,
+                            1,
+                            true,
+                            &mut pending_headings,
+                        );
                         let last = out.verses.len() - 1;
                         append_segment(
                             &mut out,
@@ -638,7 +649,14 @@ pub fn to_bible(doc: &Document, code: &str) -> Result<OsisDocument, InterpretErr
                         n = 1;
                     }
                     verse = n;
-                    push_verse(&mut out, current_book, chapter, n, &mut pending_headings);
+                    push_verse(
+                        &mut out,
+                        current_book,
+                        chapter,
+                        n,
+                        std::mem::take(&mut at_start),
+                        &mut pending_headings,
+                    );
                     let last = out.verses.len() - 1;
                     append_segment(
                         &mut out,
@@ -655,6 +673,7 @@ pub fn to_bible(doc: &Document, code: &str) -> Result<OsisDocument, InterpretErr
         }
     }
     flush_held(&mut held, &mut out, doc, &mut note_seq, &mut used_notes);
+    drop_verse_per_line_paragraphs(&mut out.verses);
     // Notes nobody marked: "(c,v)" locators bind them to a verse.
     for (index, note) in doc.notes.iter().enumerate() {
         if used_notes[index] {
@@ -705,12 +724,35 @@ pub fn to_bible(doc: &Document, code: &str) -> Result<OsisDocument, InterpretErr
     Ok(out)
 }
 
+/// A source that sets nearly every verse as its own paragraph uses
+/// paragraphs as verse lines, not as structure (ADR 0033): its flags
+/// say nothing and go, and the verses run on. Chapter openings do not
+/// count — they open a paragraph in any edition.
+fn drop_verse_per_line_paragraphs(verses: &mut [OsisVerse]) {
+    let mut inner = 0usize;
+    let mut flagged = 0usize;
+    for pair in verses.windows(2) {
+        let (prev, v) = (&pair[0], &pair[1]);
+        if (prev.book, prev.chapter) != (v.book, v.chapter) {
+            continue;
+        }
+        inner += 1;
+        flagged += usize::from(v.paragraph);
+    }
+    if inner >= 20 && flagged * 10 >= inner * 9 {
+        for v in verses.iter_mut() {
+            v.paragraph = false;
+        }
+    }
+}
+
 /// Opens a verse row and attaches the headings waiting for it.
 fn push_verse(
     out: &mut OsisDocument,
     book: BookId,
     chapter: u16,
     verse: u16,
+    paragraph: bool,
     pending_headings: &mut Vec<(u8, String)>,
 ) {
     let seq_base = out
@@ -733,6 +775,7 @@ fn push_verse(
         chapter,
         verse,
         text: String::new(),
+        paragraph,
     });
 }
 

@@ -743,6 +743,9 @@ pub struct BibleVerse {
     /// Normalized verse text.
     pub text: String,
     pub links: Vec<WordLink>,
+    /// The verse opens a paragraph (ADR 0033): a `<milestone
+    /// type="x-p"/>`, `<p>`, `<lg>` or `<l>` stood at its start.
+    pub paragraph: bool,
 }
 
 /// A Strong's link covering a byte range of the verse text ("G2316").
@@ -862,6 +865,7 @@ fn parse_ztext_parsed(conf: Conf, testaments: &[Testament]) -> Result<SwordBible
                 verse,
                 text: parsed.text,
                 links: parsed.links,
+                paragraph: parsed.paragraph,
             });
         }
     }
@@ -884,6 +888,8 @@ struct BibleFragment {
     text: String,
     links: Vec<WordLink>,
     notes: Vec<(u32, String)>,
+    /// A paragraph opened before any verse text (ADR 0033).
+    paragraph: bool,
 }
 
 /// One verse (or structural) fragment: `w` elements carry Strong's
@@ -897,6 +903,7 @@ fn parse_bible_fragment(fragment: &str) -> Result<BibleFragment, SwordError> {
         chapter_marker: None,
         text: String::new(),
         links: Vec::new(),
+        paragraph: false,
         notes: Vec::new(),
     };
     let mut text = TextBuilder::new();
@@ -963,6 +970,22 @@ fn parse_bible_fragment(fragment: &str) -> Result<BibleFragment, SwordError> {
                     // editorial titles are excluded.
                     b"title" if !empty && attr(e, b"canonical").as_deref() != Some("true") => {
                         skip_depth += 1;
+                    }
+                    b"milestone"
+                        if attr(e, b"type").as_deref() == Some("x-p")
+                            && note_depth == 0
+                            && skip_depth == 0
+                            && text.out.trim().is_empty() =>
+                    {
+                        out.paragraph = true;
+                    }
+                    b"p" | b"lg" | b"l"
+                        if (!empty || attr(e, b"sID").is_some())
+                            && note_depth == 0
+                            && skip_depth == 0
+                            && text.out.trim().is_empty() =>
+                    {
+                        out.paragraph = true;
                     }
                     b"lb" | b"milestone" if empty && note_depth == 0 && skip_depth == 0 => {
                         text.push_text(" ");

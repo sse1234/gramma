@@ -36,8 +36,9 @@ merely "text on a screen".
   (saved workspace layouts), light/dark themes, English and German UI.
 - **Content**: clean-room readers for SWORD modules — Bibles (zText),
   commentaries (zCom), dictionaries and daily devotionals (zLD),
-  general books (RawGenBook) — plus direct OSIS import, all into a
-  local SQLite library.
+  general books (RawGenBook) — plus direct OSIS import and document
+  import from PDF, EPUB and ODT (ADR 0029), all into a local SQLite
+  library.
 - **Study tools**: Strong's dictionaries with pane history,
   concordance built from Strong's-tagged Bibles, cross-reference and
   passage previews, lexical search (BM25 with German-aware token

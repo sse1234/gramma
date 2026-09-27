@@ -26,7 +26,7 @@ fn layout(verses: &[(u16, &str)], ems: i64) -> Vec<LineOut> {
 fn layout_with_notes(verses: &[(u16, &str)], notes: &[(u16, u32)], ems: i64) -> Vec<LineOut> {
     let m = measure();
     let width = ems * m.units_per_em() as i64;
-    layout_verses(verses, notes, &[], &m, Some(&german()), width)
+    layout_verses(verses, notes, &[], &[], &m, Some(&german()), width)
 }
 
 fn layout_with_headings(
@@ -36,7 +36,7 @@ fn layout_with_headings(
 ) -> Vec<LineOut> {
     let m = measure();
     let width = ems * m.units_per_em() as i64;
-    layout_verses(verses, &[], headings, &m, Some(&german()), width)
+    layout_verses(verses, &[], headings, &[], &m, Some(&german()), width)
 }
 
 fn line_text(line: &LineOut) -> String {
@@ -98,6 +98,45 @@ fn verses_flow_into_justified_lines() {
             "justified line must be flush right: edge {right_edge} vs measure {width}"
         );
     }
+}
+
+#[test]
+fn a_paragraph_opening_verse_starts_a_fresh_line() {
+    // ADR 0033: the line before ends ragged, the verse opens the next
+    // line, no spacing line and no indent.
+    let m = measure();
+    let width = 12 * m.units_per_em() as i64;
+    let verses = [(1, GEN_1_1), (2, GEN_1_2)];
+    let run_on = layout_verses(&verses, &[], &[], &[], &m, Some(&german()), width);
+    let broken = layout_verses(&verses, &[], &[], &[2], &m, Some(&german()), width);
+    let opens = |lines: &[LineOut]| {
+        lines.iter().position(|l| {
+            l.runs
+                .first()
+                .is_some_and(|r| r.verse_number && r.text == "2")
+        })
+    };
+    let at = opens(&broken).expect("verse 2 opens a line");
+    assert!(at > 0);
+    assert_eq!(broken[at].runs[0].x, 0.0);
+    let last = broken[at - 1].runs.last().expect("a run");
+    assert!(
+        ((last.x + last.width) as i64) < width - m.units_per_em() as i64,
+        "the line before ends ragged: {}",
+        line_text(&broken[at - 1])
+    );
+    assert!(broken.iter().all(|l| !l.runs.is_empty()), "no spacing line");
+    assert!(broken.len() >= run_on.len());
+    // The same words, whatever the hyphenation of the new line breaks.
+    let words = |lines: &[LineOut]| {
+        lines
+            .iter()
+            .map(line_text)
+            .collect::<Vec<_>>()
+            .join(" ")
+            .replace("- ", "")
+    };
+    assert_eq!(words(&broken), words(&run_on), "the words are the same");
 }
 
 #[test]
@@ -307,7 +346,7 @@ fn no_grotesque_lines_across_fonts_and_measures() {
         let (space, _, _) = m.space();
         for ems in 14..=30i64 {
             let width = ems * m.units_per_em() as i64;
-            let lines = layout_verses(&verses, &[], &[], &m, Some(&hyph), width);
+            let lines = layout_verses(&verses, &[], &[], &[], &m, Some(&hyph), width);
             for (i, line) in lines.iter().enumerate() {
                 if line.runs.is_empty() || i + 1 == lines.len() {
                     continue;
@@ -376,7 +415,7 @@ fn marker_labels_run_through_the_chapter() {
         (2, "Und die Erde war wüst"),
     ];
     let notes = [(1u16, 2u32), (1, 9), (2, 4)];
-    let lines = layout_verses(&verses, &notes, &[], &m, None, width);
+    let lines = layout_verses(&verses, &notes, &[], &[], &m, None, width);
     let markers: Vec<String> = lines
         .iter()
         .flat_map(|l| l.runs.iter())
@@ -385,7 +424,15 @@ fn marker_labels_run_through_the_chapter() {
         .collect();
     assert_eq!(markers, ["a", "b", "c"]);
     // A heading between verses does not restart the letters either.
-    let headed = layout_verses(&verses, &notes, &[(2, 1, "Zweiter Tag")], &m, None, width);
+    let headed = layout_verses(
+        &verses,
+        &notes,
+        &[(2, 1, "Zweiter Tag")],
+        &[],
+        &m,
+        None,
+        width,
+    );
     let markers: Vec<String> = headed
         .iter()
         .flat_map(|l| l.runs.iter())

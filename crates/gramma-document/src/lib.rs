@@ -6,6 +6,7 @@
 pub mod epub;
 pub mod infer;
 pub mod interpret;
+pub mod odt;
 pub mod pdf;
 
 use serde::{Deserialize, Serialize};

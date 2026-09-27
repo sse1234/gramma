@@ -40,6 +40,29 @@ fn container_verses_roundtrip_through_chapter_query() {
 }
 
 #[test]
+fn paragraph_openings_survive_the_library() {
+    // ADR 0033: `<p>` containers and x-p milestones flag the verse they
+    // open, and the chapter query hands the flag back.
+    let library = library_with(CONTAINER);
+    let genesis = book_by_osis("Gen").unwrap();
+    let verses = library.chapter("FixDe", genesis, 1).unwrap();
+    assert_eq!(
+        verses.iter().map(|v| v.paragraph).collect::<Vec<_>>(),
+        [true, true]
+    );
+    let genesis_2 = library.chapter("FixDe", genesis, 2).unwrap();
+    assert!(!genesis_2[0].paragraph, "no container, no flag");
+
+    let library = library_with(MILESTONE);
+    let john = book_by_osis("John").unwrap();
+    let verses = library.chapter("FixEn", john, 3).unwrap();
+    assert_eq!(
+        verses.iter().map(|v| v.paragraph).collect::<Vec<_>>(),
+        [false, true]
+    );
+}
+
+#[test]
 fn verse_text_whitespace_is_normalized() {
     let library = library_with(CONTAINER);
     let genesis = book_by_osis("Gen").unwrap();

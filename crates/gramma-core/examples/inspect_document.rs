@@ -138,6 +138,8 @@ fn main() {
     let started = std::time::Instant::now();
     let doc = if path.to_ascii_lowercase().ends_with(".epub") {
         epub::read(File::open(path).expect("open")).expect("read epub")
+    } else if path.to_ascii_lowercase().ends_with(".odt") {
+        gramma_core::document::odt::read(File::open(path).expect("open")).expect("read odt")
     } else {
         let mut data = Vec::new();
         File::open(path)
@@ -285,8 +287,9 @@ fn main() {
         match gramma_core::document::interpret::to_bible(&doc, &code) {
             Ok(bible) => {
                 println!(
-                    "bible: {} verses, {} headings, {} notes",
+                    "bible: {} verses ({} open paragraphs), {} headings, {} notes",
                     bible.verses.len(),
+                    bible.verses.iter().filter(|v| v.paragraph).count(),
                     bible.headings.len(),
                     bible.notes.len()
                 );

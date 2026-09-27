@@ -44,6 +44,10 @@ pub struct OsisVerse {
     pub chapter: u16,
     pub verse: u16,
     pub text: String,
+    /// The verse opens a paragraph (ADR 0033): the text before it ends
+    /// its line and this verse starts a fresh one. Read from `<p>`,
+    /// `<lg>`/`<l>` and `<milestone type="x-p"/>` at the verse's start.
+    pub paragraph: bool,
 }
 
 /// A section heading standing before a verse; `level` 1 = section,
@@ -93,6 +97,10 @@ pub fn parse(source: impl BufRead) -> Result<OsisDocument, OsisError> {
     let mut heading_text = String::new();
     let mut heading_level: u8 = 1;
     let mut pending_headings: Vec<(u8, String)> = Vec::new();
+    // Paragraph structure (ADR 0033): a container or milestone opening
+    // before a verse, or inside it before any text, flags the verse.
+    let mut pending_paragraph = false;
+    let mut verse_paragraph = false;
 
     loop {
         match reader.read_event_into(&mut buf)? {
@@ -130,8 +138,17 @@ pub fn parse(source: impl BufRead) -> Result<OsisDocument, OsisError> {
                     if let Some(id) = attr(&e, b"osisID") {
                         current = parse_osis_id(&id);
                         text.clear();
+                        verse_paragraph = std::mem::take(&mut pending_paragraph);
                         attach_pending(&current, &mut pending_headings, &mut headings);
                     }
+                }
+                b"p" | b"lg" | b"l" if note_depth == 0 && !in_header => {
+                    open_paragraph(
+                        &current,
+                        &text,
+                        &mut pending_paragraph,
+                        &mut verse_paragraph,
+                    );
                 }
                 _ => {}
             },
@@ -140,10 +157,27 @@ pub fn parse(source: impl BufRead) -> Result<OsisDocument, OsisError> {
                     if let Some(id) = attr(&e, b"sID").or_else(|| attr(&e, b"osisID")) {
                         current = parse_osis_id(&id);
                         text.clear();
+                        verse_paragraph = std::mem::take(&mut pending_paragraph);
                         attach_pending(&current, &mut pending_headings, &mut headings);
                     } else if attr(&e, b"eID").is_some() {
-                        commit(&mut current, &mut text, &mut verses);
+                        commit(&mut current, &mut text, verse_paragraph, &mut verses);
                     }
+                }
+                b"milestone" if attr(&e, b"type").as_deref() == Some("x-p") && note_depth == 0 => {
+                    open_paragraph(
+                        &current,
+                        &text,
+                        &mut pending_paragraph,
+                        &mut verse_paragraph,
+                    );
+                }
+                b"p" | b"lg" | b"l" if attr(&e, b"sID").is_some() && note_depth == 0 => {
+                    open_paragraph(
+                        &current,
+                        &text,
+                        &mut pending_paragraph,
+                        &mut verse_paragraph,
+                    );
                 }
                 b"div" => match attr(&e, b"type").as_deref() {
                     Some("section") => heading_level = 1,
@@ -178,7 +212,7 @@ pub fn parse(source: impl BufRead) -> Result<OsisDocument, OsisError> {
                         commit_note(&current, &mut note_text, note_offset, &mut notes);
                     }
                 }
-                b"verse" => commit(&mut current, &mut text, &mut verses),
+                b"verse" => commit(&mut current, &mut text, verse_paragraph, &mut verses),
                 _ => {}
             },
             Event::Text(t) => {
@@ -280,9 +314,27 @@ fn commit_note(
     });
 }
 
+/// A paragraph opens (ADR 0033): before a verse it flags the next one,
+/// inside a verse that has no text yet it flags that verse. A break in
+/// the middle of a verse's text is one the verse model cannot hold and
+/// is dropped.
+fn open_paragraph(
+    current: &Option<(BookId, u16, u16)>,
+    text: &str,
+    pending_paragraph: &mut bool,
+    verse_paragraph: &mut bool,
+) {
+    match current {
+        None => *pending_paragraph = true,
+        Some(_) if text.trim().is_empty() => *verse_paragraph = true,
+        Some(_) => {}
+    }
+}
+
 fn commit(
     current: &mut Option<(BookId, u16, u16)>,
     text: &mut String,
+    paragraph: bool,
     verses: &mut Vec<OsisVerse>,
 ) {
     if let Some((book, chapter, verse)) = current.take() {
@@ -293,6 +345,7 @@ fn commit(
                 chapter,
                 verse,
                 text: normalized,
+                paragraph,
             });
         }
     }
@@ -356,9 +409,19 @@ pub fn write(doc: &OsisDocument) -> String {
     ));
     let mut open_book: Option<BookId> = None;
     let mut open_chapter: Option<(BookId, u16)> = None;
+    // Paragraphs (ADR 0033): every chapter opens one, every flagged
+    // verse a new one; titles stand between paragraphs.
+    let mut open_paragraph = false;
+    let close_paragraph = |out: &mut String, open: &mut bool| {
+        if *open {
+            out.push_str("</p>\n");
+            *open = false;
+        }
+    };
     for v in &doc.verses {
         if open_book != Some(v.book) {
             if open_chapter.is_some() {
+                close_paragraph(&mut out, &mut open_paragraph);
                 out.push_str("</chapter>\n");
                 open_chapter = None;
             }
@@ -373,6 +436,7 @@ pub fn write(doc: &OsisDocument) -> String {
         }
         if open_chapter != Some((v.book, v.chapter)) {
             if open_chapter.is_some() {
+                close_paragraph(&mut out, &mut open_paragraph);
                 out.push_str("</chapter>\n");
             }
             out.push_str(&format!(
@@ -388,6 +452,9 @@ pub fn write(doc: &OsisDocument) -> String {
             .filter(|h| h.book == v.book && h.chapter == v.chapter && h.verse == v.verse)
             .collect();
         headings.sort_by_key(|h| h.seq);
+        if !headings.is_empty() {
+            close_paragraph(&mut out, &mut open_paragraph);
+        }
         for h in headings {
             let kind = if h.level >= 2 {
                 "subSection"
@@ -405,6 +472,13 @@ pub fn write(doc: &OsisDocument) -> String {
             .filter(|n| n.book == v.book && n.chapter == v.chapter && n.verse == v.verse)
             .collect();
         notes.sort_by_key(|n| (n.offset, n.seq));
+        if v.paragraph {
+            close_paragraph(&mut out, &mut open_paragraph);
+        }
+        if !open_paragraph {
+            out.push_str("<p>\n");
+            open_paragraph = true;
+        }
         out.push_str(&format!(
             "<verse osisID=\"{}.{}.{}\">",
             v.book.info().osis,
@@ -427,6 +501,7 @@ pub fn write(doc: &OsisDocument) -> String {
         out.push_str("</verse>\n");
     }
     if open_chapter.is_some() {
+        close_paragraph(&mut out, &mut open_paragraph);
         out.push_str("</chapter>\n");
     }
     if open_book.is_some() {

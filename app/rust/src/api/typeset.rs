@@ -143,11 +143,17 @@ pub fn layout_chapter(
         .iter()
         .map(|h| (h.verse, h.level, h.text.as_str()))
         .collect();
+    let paragraphs: Vec<u16> = verses
+        .iter()
+        .filter(|v| v.paragraph)
+        .map(|v| v.verse)
+        .collect();
     let measure_units = measure_ems as i64 * measure.units_per_em() as i64;
     let mut lines = layout_verses(
         &verse_refs,
         &note_refs,
         &heading_refs,
+        &paragraphs,
         measure,
         hyphenator,
         measure_units,
@@ -683,10 +689,16 @@ pub fn module_line_kinds(module_code: String, measure_ems: u16) -> anyhow::Resul
             .iter()
             .map(|h| (h.verse, h.level, h.text.as_str()))
             .collect();
+        let paragraphs: Vec<u16> = verses
+            .iter()
+            .filter(|v| v.paragraph)
+            .map(|v| v.verse)
+            .collect();
         let lines = layout_verses(
             &refs,
             &note_refs,
             &heading_refs,
+            &paragraphs,
             measure,
             hyphenator,
             measure_units,

@@ -259,6 +259,7 @@ fn heading_references_become_links() {
         &verses,
         &[],
         &headings,
+        &[],
         &m,
         None,
         30 * m.units_per_em() as i64,

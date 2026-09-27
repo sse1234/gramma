@@ -206,6 +206,74 @@ fn a_bible_is_detected_and_converted() {
 }
 
 #[test]
+fn paragraph_openings_follow_the_blocks() {
+    // ADR 0033: a block's first verse opens a paragraph unless unnumbered
+    // text (a continuation) stands before it.
+    let doc = Document {
+        title: "Die Bibel".into(),
+        language: "de".into(),
+        blocks: vec![
+            h(2, "Das erste Buch Mose (Genesis)"),
+            h(3, "Die Urzeit"),
+            p(vec![Inline::text(
+                "1 Im Anfang schuf Gott die Himmel und die Erde.",
+            )]),
+            p(vec![
+                Inline::VerseNumber(2),
+                Inline::text("Die Erde aber war wüst und leer."),
+                Inline::VerseNumber(3),
+                Inline::text("Und Gott sprach: Es werde Licht!"),
+            ]),
+            p(vec![
+                Inline::text("Und es wurde Licht."),
+                Inline::VerseNumber(4),
+                Inline::text("Und Gott sah das Licht."),
+            ]),
+            p(vec![
+                Inline::VerseNumber(5),
+                Inline::text("Und Gott nannte das Licht Tag."),
+            ]),
+        ],
+        ..Document::default()
+    };
+    let osis = to_bible(&doc, "Probe").unwrap();
+    let flags: Vec<(u16, bool)> = osis.verses.iter().map(|v| (v.verse, v.paragraph)).collect();
+    assert_eq!(
+        flags,
+        [(1, true), (2, true), (3, false), (4, false), (5, true)]
+    );
+    assert_eq!(
+        osis.verses[2].text,
+        "Und Gott sprach: Es werde Licht! Und es wurde Licht."
+    );
+}
+
+#[test]
+fn a_verse_per_line_source_carries_no_paragraphs() {
+    // ADR 0033: paragraphs used as verse lines say nothing about the
+    // text's structure; the verses run on.
+    let mut blocks = vec![
+        h(2, "Das erste Buch Mose (Genesis)"),
+        p(vec![Inline::text("1 Im Anfang.")]),
+    ];
+    blocks.extend((2..30).map(|n| {
+        p(vec![
+            Inline::VerseNumber(n),
+            Inline::text(format!("Vers {n}.")),
+        ])
+    }));
+    let doc = Document {
+        title: "Die Bibel".into(),
+        language: "de".into(),
+        blocks,
+        ..Document::default()
+    };
+    let osis = to_bible(&doc, "Probe").unwrap();
+    assert_eq!(osis.verses.len(), 29);
+    assert!(osis.verses.iter().all(|v| !v.paragraph));
+}
+
+#[test]
 fn a_commentary_anchors_sections_and_resolves_references() {
     let doc = Document {
         title: "Kommentar zum Römerbrief".into(),

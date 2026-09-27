@@ -95,15 +95,20 @@ pub(super) struct BoxMeta {
 }
 
 /// Lay out verses as justified paragraphs at `line_width` font units,
-/// segmented by section headings. `notes` are (verse, byte offset) pairs;
-/// each produces an inline lettered marker bound to the word containing its
-/// anchor. `headings` are (verse, level, text) rows standing before their
-/// verse; each heading group is preceded by one empty spacing line (except
-/// at the very top) and rendered as its own ragged line(s).
+/// segmented by section headings and paragraph openings. `notes` are
+/// (verse, byte offset) pairs; each produces an inline lettered marker
+/// bound to the word containing its anchor. `headings` are (verse, level,
+/// text) rows standing before their verse; each heading group is preceded
+/// by one empty spacing line (except at the very top) and rendered as its
+/// own ragged line(s). `paragraphs` lists the verses that open a paragraph
+/// (ADR 0033): the line before each ends ragged and the verse starts the
+/// next line, with no spacing line and no indent — the verse number at the
+/// line's head is the mark, as in the editions the structure comes from.
 pub fn layout_verses(
     verses: &[(u16, &str)],
     notes: &[(u16, u32)],
     headings: &[(u16, u8, &str)],
+    paragraphs: &[u16],
     measure: &impl TextMeasure,
     hyphenator: Option<&Standard>,
     line_width: Scaled,
@@ -114,6 +119,18 @@ pub fn layout_verses(
     // z, aa, ab — never restarting at a verse or heading.
     let mut marker_index = 0usize;
     for &(number, text) in verses {
+        if paragraphs.contains(&number) {
+            flush_segment(
+                &mut lines,
+                &segment,
+                notes,
+                measure,
+                hyphenator,
+                line_width,
+                &mut marker_index,
+            );
+            segment.clear();
+        }
         let verse_headings: Vec<_> = headings.iter().filter(|(v, _, _)| *v == number).collect();
         if !verse_headings.is_empty() {
             flush_segment(

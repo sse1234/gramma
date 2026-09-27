@@ -136,10 +136,12 @@ static DOCUMENT_CACHE: Mutex<Option<(String, gramma_core::document::Document)>> 
 
 #[flutter_rust_bridge::frb(ignore)]
 fn read_document(path: &str) -> anyhow::Result<gramma_core::document::Document> {
-    use gramma_core::document::{epub, pdf, title_from_filename};
+    use gramma_core::document::{epub, odt, pdf, title_from_filename};
     let lower = path.to_ascii_lowercase();
     let mut doc = if lower.ends_with(".epub") {
         epub::read(File::open(path).with_context(|| format!("open {path}"))?)?
+    } else if lower.ends_with(".odt") {
+        odt::read(File::open(path).with_context(|| format!("open {path}"))?)?
     } else {
         let data = std::fs::read(path).with_context(|| format!("read {path}"))?;
         pdf::read(data)?

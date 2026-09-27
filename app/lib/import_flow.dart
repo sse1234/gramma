@@ -20,8 +20,8 @@ Future<void> importFromPicker(
       // iOS/macOS match on UTIs, the other platforms on extensions.
       // SWORD commentary packages (ADR 0017) arrive as zip files.
       XTypeGroup(
-        label: 'OSIS XML / SWORD / Plan / PDF / EPUB',
-        extensions: ['xml', 'osis', 'zip', 'json', 'pdf', 'epub'],
+        label: 'OSIS XML / SWORD / Plan / PDF / EPUB / ODT',
+        extensions: ['xml', 'osis', 'zip', 'json', 'pdf', 'epub', 'odt'],
         uniformTypeIdentifiers: [
           'public.xml',
           'public.text',
@@ -29,6 +29,7 @@ Future<void> importFromPicker(
           'public.json',
           'com.adobe.pdf',
           'org.idpf.epub-container',
+          'org.oasis-open.opendocument.text',
         ],
       ),
     ],
@@ -38,7 +39,7 @@ Future<void> importFromPicker(
   final l10n = context.l10n;
   try {
     final lower = file.path.toLowerCase();
-    if (lower.endsWith('.pdf') || lower.endsWith('.epub')) {
+    if (lower.endsWith('.pdf') || lower.endsWith('.epub') || lower.endsWith('.odt')) {
       await _importDocument(context, file.path, onModulesChanged);
       return;
     }

@@ -719,13 +719,15 @@ pub fn strip_furniture(lines: Vec<Line>, profile: &Profile, options: &InferOptio
     let band_of = |l: &Line| profile.page_height(l.page) * options.margin_band;
     let in_band = |l: &Line| l.top < band_of(l) || l.top > profile.page_height(l.page) - band_of(l);
     let mut recurring: HashMap<String, usize> = HashMap::new();
+    // The key is the line's letters: a running head names the book, and
+    // its chapter span ("1. MOSE 1.2", "1. MOSE 3") and the page number
+    // sharing its line on some pages change from page to page.
     let text_key = |l: &Line| -> String {
         l.text()
-            .chars()
-            .filter(|c| !c.is_ascii_digit())
-            .collect::<String>()
-            .trim()
-            .to_string()
+            .split(|c: char| !c.is_alphabetic())
+            .filter(|w| !w.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
     };
     // A band line is keyed together with the other band lines of its
     // page and band: a running head repeats whole, while a book title
@@ -766,8 +768,12 @@ pub fn strip_furniture(lines: Vec<Line>, profile: &Profile, options: &InferOptio
             // A title centered across two columns is never a running head,
             // even when its first line ("Der Brief des Paulus") recurs on
             // several books' opening pages. (A centered running head in
-            // the body size still is one.)
-            if !in_band(l) || (l.spans_columns && l.size > profile.body_size + 0.4) {
+            // the body size still is one.) A title is one cell; a running
+            // head sharing its line with the page number is two, and
+            // together they span the gutter without being a title.
+            if !in_band(l)
+                || (l.spans_columns && l.cells.len() == 1 && l.size > profile.body_size + 0.4)
+            {
                 return true;
             }
             let text = l.text();
@@ -793,10 +799,18 @@ pub fn strip_furniture(lines: Vec<Line>, profile: &Profile, options: &InferOptio
             }
             // A short line hugging the top edge set in another size is a
             // running head even when its words are unique (chapter
-            // titles start lower on the page).
+            // titles start lower on the page). A running head sharing its
+            // line with the page number — a cell of digits — is not short
+            // as a line, but it is one.
             let top_band = l.top < band_of(l) * 0.6;
             let short = l.right - l.left < (profile.body_right - profile.body_left) * 0.6;
-            !(top_band && short && other_size)
+            let numbered = l.cells.len() >= 2
+                && l.cells.iter().any(|c| {
+                    let t = super::plain_text(&c.inlines);
+                    let t = t.trim();
+                    !t.is_empty() && t.chars().all(|ch| ch.is_ascii_digit())
+                });
+            !(top_band && (short || numbered) && other_size)
         })
         .map(|(_, l)| l)
         .collect()

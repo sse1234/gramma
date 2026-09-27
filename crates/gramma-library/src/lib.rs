@@ -58,6 +58,9 @@ pub struct Comment {
 pub struct Verse {
     pub verse: u16,
     pub text: String,
+    /// The verse opens a paragraph (ADR 0033): the typesetter ends the
+    /// line before it.
+    pub paragraph: bool,
 }
 
 /// A footnote of a verse; `seq` numbers notes within one verse from 1.
@@ -104,6 +107,7 @@ CREATE TABLE IF NOT EXISTS verse(
   chapter INTEGER NOT NULL,
   verse INTEGER NOT NULL,
   text TEXT NOT NULL,
+  paragraph INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY(module_id, book, chapter, verse)
 ) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS heading(
@@ -275,6 +279,12 @@ impl Library {
         // plain text the existing views read; older rows stay NULL.
         let _ = conn.execute("ALTER TABLE comment ADD COLUMN blocks TEXT", []);
         let _ = conn.execute("ALTER TABLE book_section ADD COLUMN blocks TEXT", []);
+        // ADR 0033: verses carry their paragraph structure; older rows
+        // run on until the module is imported again.
+        let _ = conn.execute(
+            "ALTER TABLE verse ADD COLUMN paragraph INTEGER NOT NULL DEFAULT 0",
+            [],
+        );
         Ok(Library { conn })
     }
 
@@ -305,8 +315,8 @@ impl Library {
             // Subverse parts sharing one id (e.g. `Gen.1.1!a` + `!b`) merge
             // into a single verse row.
             let mut insert = tx.prepare(
-                "INSERT INTO verse(module_id, book, chapter, verse, text)
-                 VALUES (?1, ?2, ?3, ?4, ?5)
+                "INSERT INTO verse(module_id, book, chapter, verse, text, paragraph)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
                  ON CONFLICT(module_id, book, chapter, verse)
                  DO UPDATE SET text = text || ' ' || excluded.text",
             )?;
@@ -317,6 +327,7 @@ impl Library {
                     v.chapter,
                     v.verse,
                     &v.text,
+                    v.paragraph,
                 ))?;
             }
         }
@@ -449,8 +460,8 @@ impl Library {
         let module_id = tx.last_insert_rowid();
         {
             let mut insert_verse = tx.prepare(
-                "INSERT OR REPLACE INTO verse(module_id, book, chapter, verse, text)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                "INSERT OR REPLACE INTO verse(module_id, book, chapter, verse, text, paragraph)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             )?;
             let mut insert_link = tx.prepare(
                 "INSERT OR REPLACE INTO word_link
@@ -464,6 +475,7 @@ impl Library {
                     v.chapter,
                     v.verse,
                     &v.text,
+                    v.paragraph,
                 ))?;
                 for (seq, link) in v.links.iter().enumerate() {
                     insert_link.execute((
@@ -1264,7 +1276,7 @@ impl Library {
     ) -> Result<Vec<Verse>, LibraryError> {
         let module_id = self.module_id(module_code)?;
         let mut stmt = self.conn.prepare(
-            "SELECT verse, text FROM verse
+            "SELECT verse, text, paragraph FROM verse
              WHERE module_id = ?1 AND book = ?2 AND chapter = ?3
              ORDER BY verse",
         )?;
@@ -1273,6 +1285,7 @@ impl Library {
                 Ok(Verse {
                     verse: row.get(0)?,
                     text: row.get(1)?,
+                    paragraph: row.get(2)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;

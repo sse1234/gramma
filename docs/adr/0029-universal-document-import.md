@@ -201,6 +201,41 @@ verses byte-identical and 3,700 more within three characters, 1,199 of
 the export dropped ("voll endet"), a few verse numbers it left out,
 and its own punctuation.
 
+## Refinements (2026-09-27, an ODT edition)
+
+A private edition of the same text arrived as the word processor's own
+file (ODT) and as its PDF export. The export, single-column with
+verse numbers as plain text and chapter heads as quoted paragraphs,
+inferred poorly (a fifth of the verses); the ODT is the source of that
+PDF and needs no inference at all, so it became the third reader:
+
+- **Structure as written.** `text:h` carries its outline level;
+  `text:p` is a paragraph; a paragraph style named "Buchtitel" (by name
+  or display name, through the style's ancestry) is a book heading; a
+  character style named "Verszahl" marks a verse number; footnotes
+  come with their citation as label and their body as inlines.
+- **Styles through ancestry.** Automatic styles in content.xml derive
+  from the named styles of styles.xml; bold, italic, superscript and
+  small caps resolve along the chain. A style without properties is an
+  empty element and is registered as such.
+- **Language and title** come from the default style's `fo:language`
+  and meta.xml.
+
+Read against the EPUB of the same translation: 30,692 of 31,098
+verses byte-identical, 229 more within three characters; the rest are
+the edition's own numbering choices (Ecclesiastes 4–6, Isaiah 9,
+Daniel 3–4, Hosea 14). The ODT also carries the edition's paragraphs,
+which is what led to ADR 0033. Reading the pocket PDF beside it showed
+running heads slipping through as headings on the second page of every
+book: there the page number shares the head's line, the two cells span
+the gutter like a centered title, and the line is too wide to be
+"short". Two rules changed: the centered-title exemption needs a
+one-cell line, and a band line with a digits-only cell counts as short.
+Running heads are also keyed by their letters alone now, so a chapter
+span on the line does not disguise them. Headings in that import went
+from 5,062 to 3,906, verses identical to the EPUB from 26,350 to
+26,442.
+
 ## Consequences
 
 - One reader per source, one inference pass, one storage shape: a new

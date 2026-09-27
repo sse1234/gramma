@@ -496,7 +496,7 @@ const SLOT_V1: &str = concat!(
     r#"<note type="study">a marginal <catchWord>note</catchWord></note>"#,
 );
 const SLOT_V2: &str = concat!(
-    r#"<w lemma="strong:G3772">And heaven</w> "#,
+    r#"<milestone marker="¶" type="x-p"/><w lemma="strong:G3772">And heaven</w> "#,
     r#"<w lemma="lemma.TR:untagged">was</w> void."#,
 );
 // A psalm superscription in the GerMenge manner: the canonical title
@@ -590,6 +590,8 @@ fn parses_a_synthetic_ztext_bible() {
     assert_eq!(v2.verse, 2);
     assert_eq!(v2.text, "And heaven was void.");
     assert_eq!(v2.links.len(), 1, "lemma without strong: yields no link");
+    assert!(v2.paragraph, "the x-p milestone opens verse 2 (ADR 0033)");
+    assert!(!v1.paragraph);
 
     // The superscription pair: unbalanced title tags across the two
     // fragments must not fail the parse, the editorial heading is not
@@ -597,9 +599,14 @@ fn parses_a_synthetic_ztext_bible() {
     let v3 = &doc.verses[2];
     assert_eq!(v3.verse, 3);
     assert_eq!(v3.text, "A Psalm of David, when he fled.");
+    assert!(v3.paragraph, "a line group opening before the text");
     let v4 = &doc.verses[3];
     assert_eq!(v4.verse, 4);
     assert_eq!(v4.text, "Help me, LORD, how many rise against me!");
+    assert!(
+        !v4.paragraph,
+        "the line group opens after the superscription"
+    );
     assert_eq!(v4.links.len(), 1);
     assert_eq!(
         &v4.text[v4.links[0].start as usize..v4.links[0].end as usize],
