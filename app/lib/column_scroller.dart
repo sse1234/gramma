@@ -33,6 +33,7 @@ class ColumnScroller {
 
   int _origin = 0;
   String? _params;
+  String? _shape;
   final List<ScrollController> _stale = [];
 
   double _wheelAccum = 0;
@@ -50,6 +51,8 @@ class ColumnScroller {
   /// anchor as the plan's origin, so the line the reader was looking at
   /// heads the first column again rather than landing inside one
   /// (ADR 0028 as amended), and replaces the controller at that column.
+  /// A changed stride alone (the column gap, ADR 0034) replaces the
+  /// controller at that column without re-chunking.
   ColumnPlan layout({
     required int columns,
     required int linesPerColumn,
@@ -61,9 +64,15 @@ class ColumnScroller {
     })
     buildPlan,
   }) {
-    final params = '$columns-$linesPerColumn-${columnWidth.round()}';
+    // A new column gap (ADR 0034) moves the columns without re-chunking
+    // them: the plan stands, but the list and its offset must be rebuilt
+    // in the new stride, or the old one leaves the view a fraction of a
+    // column off. Only a change of shape re-chunks from the anchor.
+    final shape = '$columns-$linesPerColumn-${columnWidth.round()}';
+    final params = '$shape-${stride.round()}';
     final changed = params != _params;
-    if (changed) _origin = anchorLine;
+    if (shape != _shape) _origin = anchorLine;
+    _shape = shape;
     final built = buildPlan(linesPerColumn: linesPerColumn, origin: _origin);
     if (changed) {
       final old = controller;
