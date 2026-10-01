@@ -32,7 +32,6 @@ class DeskGrid extends StatefulWidget {
 
   static const gripThickness = 12.0;
   static const minPaneExtent = 140.0;
-  static const gutter = 48.0;
 
   @override
   State<DeskGrid> createState() => _DeskGridState();
@@ -94,11 +93,11 @@ class _DeskGridState extends State<DeskGrid> {
     final leftWidth = columns[left].weight / sum * contentWidth;
     final rightWidth = columns[left + 1].weight / sum * contentWidth;
     final available = leftWidth + rightWidth - DeskGrid.minPaneExtent;
-    final columnWidth = SettingsScope.of(context).columnWidth;
+    final settings = SettingsScope.of(context);
     final onGrid = snapToColumns(
       leftWidth,
-      columnWidth,
-      DeskGrid.gutter,
+      settings.columnWidth,
+      settings.columnGap,
       available,
     );
     // A divider released nearer the middle than a whole number of text

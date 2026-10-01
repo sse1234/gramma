@@ -268,6 +268,25 @@ void main() {
     );
   });
 
+  testWidgets('column gap slider updates the controller', (tester) async {
+    tester.view.physicalSize = const Size(800, 1900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = await _controller();
+    await tester.pumpWidget(_harness(controller));
+    final slider = find.byKey(const Key('gap-slider'));
+    await tester.ensureVisible(slider);
+    await tester.pumpAndSettle();
+    await tester.drag(slider, const Offset(300, 0));
+    await tester.pumpAndSettle();
+    expect(
+      controller.columnGapEms,
+      greaterThan(SettingsController.defaultColumnGapEms),
+    );
+    expect(controller.columnGapEms * 2, controller.columnGapEms * 2 ~/ 1);
+  });
+
   testWidgets('contrast slider updates the controller', (tester) async {
     tester.view.physicalSize = const Size(800, 1600);
     tester.view.devicePixelRatio = 1.0;

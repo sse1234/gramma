@@ -20,8 +20,24 @@ void main() {
     expect(g.fontSize, 16);
     expect(g.measureEms, 25);
     expect(g.columnWidth, 400);
-    // 2 * 400 + 48 = 848 fits, 3 * 400 + 2 * 48 = 1296 fits too.
+    // 2 * 400 + 32 = 832 fits, 3 * 400 + 2 * 32 = 1264 fits too.
     expect(g.columns, 3);
+    expect(g.gutter, 32, reason: '2 em of 16 px');
+  });
+
+  // ADR 0034: the gap between columns is the reader's, in ems.
+  test('the column gap follows the glyph size and the setting', () async {
+    final s = await _settings();
+    s.setColumnGapEms(4);
+    final g = TextGeometry.fit(s, 1300);
+    expect(g.gutter, 64);
+    // 3 * 400 + 2 * 64 = 1328 no longer fits.
+    expect(g.columns, 2);
+    expect(TextGeometry.fit(s, 1300, scale: 1.5).gutter, 96);
+    s.setColumnGapEms(1.3);
+    expect(s.columnGapEms, 1.5, reason: 'half-em steps');
+    s.setColumnGapEms(9);
+    expect(s.columnGapEms, SettingsController.maxColumnGapEms);
   });
 
   test('a pane just wide enough holds one column at the line length', () async {

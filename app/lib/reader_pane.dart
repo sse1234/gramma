@@ -126,7 +126,12 @@ class _ReaderPaneState extends State<ReaderPane>
     with ReaderSelection<ReaderPane> {
   static const _cacheLimit = 80;
   static const _headingLines = 2;
-  static const _gutter = 48.0;
+
+  /// The gap between columns at this pane's glyph size (ADR 0034),
+  /// taken from the geometry on every layout.
+  double _gutter =
+      SettingsController.defaultGlyphSize *
+      SettingsController.defaultColumnGapEms;
 
   double _fontSize = SettingsController.defaultGlyphSize;
   double _lineSpacing = SettingsController.defaultLineSpacing;
@@ -835,6 +840,7 @@ class _ReaderPaneState extends State<ReaderPane>
                           constraints.maxWidth,
                         );
                         _syncMeasure(geometry.measureEms);
+                        _gutter = geometry.gutter;
                         _vLineHeightPx = _fontSize * _lineSpacing;
                         final columns = geometry.columns;
                         final Widget reader;
@@ -943,7 +949,7 @@ class _ReaderPaneState extends State<ReaderPane>
             itemExtent: stride,
             itemCount: plan.columnCount,
             itemBuilder: (context, column) => Padding(
-              padding: const EdgeInsets.only(right: _gutter),
+              padding: EdgeInsets.only(right: _gutter),
               child: _columnItem(plan, column, scale, fontSize, lineHeight),
             ),
           ),

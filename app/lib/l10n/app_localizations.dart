@@ -596,6 +596,24 @@ abstract class AppLocalizations {
   /// **'Longer lines hold more words. A narrow screen takes the widest line that fits.'**
   String get lineLengthSubtitle;
 
+  /// No description provided for @columnGap.
+  ///
+  /// In en, this message translates to:
+  /// **'Column gap'**
+  String get columnGap;
+
+  /// No description provided for @columnGapLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'{ems} em'**
+  String columnGapLabel(String ems);
+
+  /// No description provided for @columnGapSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Space between columns, in ems of the text size.'**
+  String get columnGapSubtitle;
+
   /// No description provided for @footnoteTextSize.
   ///
   /// In en, this message translates to:

@@ -296,6 +296,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Longer lines hold more words. A narrow screen takes the widest line that fits.';
 
   @override
+  String get columnGap => 'Column gap';
+
+  @override
+  String columnGapLabel(String ems) {
+    return '$ems em';
+  }
+
+  @override
+  String get columnGapSubtitle =>
+      'Space between columns, in ems of the text size.';
+
+  @override
   String get footnoteTextSize => 'Footnote text size';
 
   @override

@@ -95,6 +95,8 @@ class SettingsController extends ChangeNotifier {
   SettingsController(this._prefs) {
     _contrast = _prefs.getDouble('contrast') ?? defaultContrast;
     _lineSpacing = _prefs.getDouble('lineSpacing') ?? defaultLineSpacing;
+    _columnGapEms = (_prefs.getDouble('columnGapEms') ?? defaultColumnGapEms)
+        .clamp(minColumnGapEms, maxColumnGapEms);
     _measureEms = (_prefs.getInt('measureEms') ?? defaultMeasureEms).clamp(
       minMeasureEms,
       maxMeasureEms,
@@ -191,6 +193,13 @@ class SettingsController extends ChangeNotifier {
   /// close, and the font's own ascent and descent keep them apart.
   static const minLineSpacing = 1.0;
   static const maxLineSpacing = 2.6;
+
+  /// The gap between text columns in ems of the glyph size (ADR 0034):
+  /// a printed page sets its gutter in the body size, so the gap scales
+  /// with the type. Half-em steps from one to four.
+  static const defaultColumnGapEms = 2.0;
+  static const minColumnGapEms = 1.0;
+  static const maxColumnGapEms = 4.0;
   static const defaultColumnAdvance = 0.5;
   static const minColumnAdvance = 0.15;
   static const maxColumnAdvance = 0.6;
@@ -200,6 +209,7 @@ class SettingsController extends ChangeNotifier {
   double _glyphSize = defaultGlyphSize;
   double _contrast = defaultContrast;
   double _lineSpacing = defaultLineSpacing;
+  double _columnGapEms = defaultColumnGapEms;
   int _measureEms = defaultMeasureEms;
   ThemeMode _themeMode = ThemeMode.system;
   bool _trueBlackDark = false;
@@ -336,6 +346,12 @@ class SettingsController extends ChangeNotifier {
   /// Line height as a multiple of the font size.
   double get lineSpacing => _lineSpacing;
 
+  /// The gap between text columns in ems of the glyph size (ADR 0034).
+  double get columnGapEms => _columnGapEms;
+
+  /// The gap between text columns in logical pixels at the glyph size.
+  double get columnGap => _glyphSize * _columnGapEms;
+
   /// Line length in ems (about 2.1 characters each); a pane narrower
   /// than one column of it lays out at what fits (ADR 0032).
   int get measureEms => _measureEms;
@@ -384,6 +400,17 @@ class SettingsController extends ChangeNotifier {
   void setLineSpacing(double value) {
     _lineSpacing = value.clamp(minLineSpacing, maxLineSpacing);
     _prefs.setDouble('lineSpacing', _lineSpacing);
+    notifyListeners();
+  }
+
+  /// The column gap, snapped to half ems; column views re-fit, nothing
+  /// re-typesets.
+  void setColumnGapEms(double value) {
+    _columnGapEms = ((value * 2).round() / 2).clamp(
+      minColumnGapEms,
+      maxColumnGapEms,
+    );
+    _prefs.setDouble('columnGapEms', _columnGapEms);
     notifyListeners();
   }
 

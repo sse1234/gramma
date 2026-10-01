@@ -6,6 +6,11 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
 
 ## [Unreleased]
 
+### Added
+- Column gap setting (ADR 0034): the space between text columns is the
+  reader's, one to four ems of the text size in half-em steps, default
+  two (was a fixed 48 px). Side margins stay as they were.
+
 ## [1.1.4] - 2026-09-27
 
 ### Added

@@ -296,6 +296,18 @@ class AppLocalizationsDe extends AppLocalizations {
       'Längere Zeilen fassen mehr Wörter. Ein schmaler Bildschirm nimmt die breiteste Zeile, die passt.';
 
   @override
+  String get columnGap => 'Spaltenabstand';
+
+  @override
+  String columnGapLabel(String ems) {
+    return '$ems Geviert';
+  }
+
+  @override
+  String get columnGapSubtitle =>
+      'Abstand zwischen den Spalten, in Geviert der Schriftgröße.';
+
+  @override
   String get footnoteTextSize => 'Fußnoten-Textgröße';
 
   @override

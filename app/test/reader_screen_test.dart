@@ -313,7 +313,7 @@ void main() {
     await tester.pumpAndSettle();
     final list = tester.widget<ListView>(find.byType(ListView).first);
     final offset = list.controller!.offset;
-    const stride = 448.0; // default 400px column + 48px gutter
+    const stride = 432.0; // default 400px column + 2 em (32px) gap
     expect(offset, greaterThan(0), reason: 'the drag must scroll');
     expect(
       (offset % stride).abs(),
@@ -340,7 +340,7 @@ void main() {
     pointer.hover(center);
     await tester.sendEventToBinding(pointer.scroll(const Offset(0, 50)));
     await tester.pumpAndSettle();
-    const stride = 448.0;
+    const stride = 432.0; // 400px column + 2 em (32px) gap
     final list = tester.widget<ListView>(find.byType(ListView).first);
     expect(list.controller!.offset, moreOrLessEquals(stride, epsilon: 1));
     await tester.sendEventToBinding(pointer.scroll(const Offset(0, 50)));
@@ -437,7 +437,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester.getSize(find.byType(ReaderPane).first).width,
-      moreOrLessEquals(848, epsilon: 2),
+      moreOrLessEquals(832, epsilon: 2),
       reason: 'the fresh split snapped on creation',
     );
 
@@ -445,7 +445,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester.getSize(find.byType(ReaderPane).first).width,
-      moreOrLessEquals(848, epsilon: 2),
+      moreOrLessEquals(832, epsilon: 2),
       reason:
           'a window resize re-snaps to whole column widths '
           '(proportional weights alone would give ~721)',
@@ -472,7 +472,7 @@ void main() {
     final width = tester.getSize(find.byType(ReaderPane).first).width;
     expect(
       width,
-      moreOrLessEquals(848, epsilon: 2),
+      moreOrLessEquals(832, epsilon: 2),
       reason: 'left column snaps to two typeset columns',
     );
   });
@@ -582,7 +582,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       textAfter.width,
-      moreOrLessEquals(848, epsilon: 2),
+      moreOrLessEquals(832, epsilon: 2),
       reason: 'a new tiling lands on whole column widths at once',
     );
   });
@@ -1810,7 +1810,7 @@ void main() {
       tester,
       () => _found(find.byKey(const ValueKey('columns-active'))),
     );
-    const stride = 448.0;
+    const stride = 432.0; // 400px column + 2 em (32px) gap
     double offset() =>
         tester.widget<ListView>(find.byType(ListView).first).controller!.offset;
 
@@ -1851,7 +1851,7 @@ void main() {
       tester,
       () => _found(find.byKey(const ValueKey('columns-active'))),
     );
-    const stride = 448.0;
+    const stride = 432.0; // 400px column + 2 em (32px) gap
     final list = tester.widget<ListView>(find.byType(ListView).first);
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
     await tester.pumpAndSettle();

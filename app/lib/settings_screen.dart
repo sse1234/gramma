@@ -489,6 +489,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           ListTile(
             contentPadding: EdgeInsets.zero,
+            title: Text(context.l10n.columnGap),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  context.l10n.columnGapSubtitle,
+                  style: theme.textTheme.bodySmall,
+                ),
+                Slider(
+                  key: const Key('gap-slider'),
+                  min: SettingsController.minColumnGapEms,
+                  max: SettingsController.maxColumnGapEms,
+                  divisions:
+                      ((SettingsController.maxColumnGapEms -
+                                  SettingsController.minColumnGapEms) *
+                              2)
+                          .round(),
+                  value: settings.columnGapEms,
+                  label: context.l10n.columnGapLabel(
+                    settings.columnGapEms.toStringAsFixed(1),
+                  ),
+                  onChanged: settings.setColumnGapEms,
+                ),
+              ],
+            ),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
             title: Text(context.l10n.footnoteTextSize),
             subtitle: Slider(
               key: const Key('footnote-scale'),
