@@ -287,6 +287,33 @@ void main() {
     expect(controller.columnGapEms * 2, controller.columnGapEms * 2 ~/ 1);
   });
 
+  testWidgets('page-wise switch and pens are on their tabs', (tester) async {
+    tester.view.physicalSize = const Size(800, 2200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = await _controller();
+    await tester.pumpWidget(_harness(controller));
+    final toggle = find.byKey(const Key('page-wise'));
+    await tester.ensureVisible(toggle);
+    await tester.pumpAndSettle();
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(controller.pageWise, isTrue);
+
+    await _openTab(tester, 'appearance');
+    final pen = find.byKey(const Key('pen-2'));
+    await tester.ensureVisible(pen);
+    await tester.pumpAndSettle();
+    await tester.tap(pen);
+    await tester.pumpAndSettle();
+    // The editor opens on the pen; edits need the user store and are
+    // covered with it in the reader tests.
+    expect(find.byKey(const Key('pen-hue')), findsOneWidget);
+    expect(find.byKey(const Key('pen-style')), findsOneWidget);
+    expect(find.byKey(const Key('pen-reset')), findsOneWidget);
+  });
+
   testWidgets('contrast slider updates the controller', (tester) async {
     tester.view.physicalSize = const Size(800, 1600);
     tester.view.devicePixelRatio = 1.0;

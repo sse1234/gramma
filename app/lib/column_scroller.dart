@@ -28,6 +28,19 @@ class ColumnScroller {
   double stride = 0;
   int columns = 1;
 
+  /// Page by whole screens — all visible columns at once — instead of
+  /// one column (ADR 0036). Pages are fixed groups of columns from the
+  /// module's start.
+  bool pageWise = false;
+
+  /// The scroll distance of one step: a column, or a screen of them.
+  double get unit => pageWise ? stride * columns : stride;
+
+  /// The offset at which [column] heads the view, on the page grid when
+  /// paging by screens.
+  double _offsetOf(int column) =>
+      pageWise ? (column ~/ columns) * unit : column * stride;
+
   /// First line of the first visible column.
   int anchorLine = 0;
 
@@ -69,7 +82,7 @@ class ColumnScroller {
     // in the new stride, or the old one leaves the view a fraction of a
     // column off. Only a change of shape re-chunks from the anchor.
     final shape = '$columns-$linesPerColumn-${columnWidth.round()}';
-    final params = '$shape-${stride.round()}';
+    final params = '$shape-${stride.round()}${pageWise ? '-p' : ''}';
     final changed = params != _params;
     if (shape != _shape) _origin = anchorLine;
     _shape = shape;
@@ -80,8 +93,10 @@ class ColumnScroller {
         old.removeListener(_onScroll);
         _stale.add(old);
       }
+      this.columns = columns;
+      this.stride = stride;
       controller = ScrollController(
-        initialScrollOffset: built.columnOfLine(anchorLine) * stride,
+        initialScrollOffset: _offsetOf(built.columnOfLine(anchorLine)),
       )..addListener(_onScroll);
       _params = params;
     }
@@ -133,10 +148,10 @@ class ColumnScroller {
     final c = controller;
     final p = plan;
     if (c == null || p == null || !c.hasClients) return;
-    anchorLine = p.firstLineOfColumn(p.columnOfLine(line));
-    c.jumpTo(
-      (p.columnOfLine(line) * stride).clamp(0.0, c.position.maxScrollExtent),
-    );
+    final column = p.columnOfLine(line);
+    final head = pageWise ? column - column % columns : column;
+    anchorLine = p.firstLineOfColumn(head);
+    c.jumpTo(_offsetOf(column).clamp(0.0, c.position.maxScrollExtent));
   }
 
   /// Discrete mouse wheels page by whole columns: one column per wheel
@@ -156,8 +171,12 @@ class ColumnScroller {
     step(steps);
   }
 
-  /// Page by [steps] whole columns; wheel ticks and arrow keys share the
-  /// chained target so rapid input queues cleanly.
+  /// Turn [pages] whole screens, whatever the paging mode.
+  void page(int pages) => step(pageWise ? pages : pages * columns);
+
+  /// Page by [steps] units — columns, or screens when paging by screens;
+  /// wheel ticks and arrow keys share the chained target so rapid input
+  /// queues cleanly.
   void step(int steps) {
     final c = controller;
     if (c == null || !c.hasClients) return;
@@ -169,13 +188,13 @@ class ColumnScroller {
         _wheelTarget ??
         ColumnSnapPhysics.snapTarget(
           position.pixels,
-          stride,
+          unit,
           position.minScrollExtent,
           position.maxScrollExtent,
         );
     final target = ColumnSnapPhysics.snapTarget(
-      base + steps * stride,
-      stride,
+      base + steps * unit,
+      unit,
       position.minScrollExtent,
       position.maxScrollExtent,
     );

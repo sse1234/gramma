@@ -5,12 +5,15 @@ import 'package:flutter/services.dart';
 /// the view acted in last — clicked, dragged, or scrolled — and a press
 /// is never spent on focusing.
 class ReaderFocus {
-  ReaderFocus({required this.onStep, required this.isCurrent}) {
+  ReaderFocus({required this.onStep, this.onPage, required this.isCurrent}) {
     node.addListener(_changed);
   }
 
-  /// Pages the owning view by whole columns.
+  /// Pages the owning view by whole columns (or screens, ADR 0036).
   final void Function(int steps) onStep;
+
+  /// Turns whole screens: Page Up and Page Down, whatever the mode.
+  final void Function(int pages)? onPage;
 
   /// Whether the owning view is still mounted and its route is on top.
   final bool Function() isCurrent;
@@ -41,6 +44,14 @@ class ReaderFocus {
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
       onStep(-1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.pageDown && onPage != null) {
+      onPage!(1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.pageUp && onPage != null) {
+      onPage!(-1);
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;

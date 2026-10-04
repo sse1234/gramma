@@ -19,6 +19,7 @@ import 'package:gramma/l10n.dart';
 import 'package:gramma/notes_pane.dart';
 import 'package:gramma/main.dart';
 import 'package:gramma/pane_model.dart';
+import 'package:gramma/pens.dart';
 import 'package:gramma/search_tool.dart';
 import 'package:gramma/settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1306,6 +1307,57 @@ void main() {
       find.byKey(const Key('current-position')).first,
     );
     expect(position.data, '1. Mose 3');
+  });
+
+  testWidgets('annotations: a note without a pen, and pens that persist', (
+    tester,
+  ) async {
+    _freshUserStore();
+    Pens.invalidate();
+    tester.view.physicalSize = const Size(700, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+
+    // ADR 0035: "note only" needs text; the save waits for it.
+    await tester.longPressAt(await wordPoint(tester, 1, 'Himmel'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('selection-mark')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('mark-color-none')));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<FilledButton>(find.byKey(const Key('mark-save'))).onPressed,
+      isNull,
+    );
+    await tester.enterText(find.byKey(const Key('mark-text')), 'Nur Notiz');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('mark-save')));
+    await tester.pumpAndSettle();
+    final saved = Annotations.all().single;
+    expect(saved.colorIndex, Pens.none);
+    expect(saved.text, 'Nur Notiz');
+
+    // The note's words stay plain: tapping one does not open the note
+    // (it toggles reading mode like any plain tap).
+    await tester.tapAt(await wordPoint(tester, 1, 'Himmel'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('mark-text')), findsNothing);
+    // The tap toggled reading mode, which persists; toggle it back.
+    await tester.tapAt(await wordPoint(tester, 1, 'Himmel'));
+    await tester.pumpAndSettle();
+
+    // Pens live in the user store and survive a cache drop.
+    final pen = Pen(hue: 200, strength: 0.5, style: PenStyle.underline);
+    Pens.save(2, pen);
+    Pens.invalidate();
+    expect(Pens.of(2), pen);
+    expect(userKeys(prefix: 'pen/'), hasLength(1));
+    Pens.reset(2);
+    Pens.invalidate();
+    expect(Pens.of(2), Pen.standard(2));
   });
 
   testWidgets('annotations: mark, note, edit, and cross-module verses', (

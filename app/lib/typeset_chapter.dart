@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'annotations.dart';
+import 'mark_paint.dart';
 import 'run_hit.dart';
 import 'run_paint.dart';
 import 'settings.dart';
@@ -24,6 +25,7 @@ class TypesetChapter extends StatelessWidget {
     this.onSelectExtend,
     this.onSelectEnd,
     this.onRunTap,
+    this.onNoteTap,
     this.marks = const [],
     this.paneModule,
     this.selection,
@@ -50,8 +52,11 @@ class TypesetChapter extends StatelessWidget {
   /// taps hitting nothing still fall to [onPlainTap].
   final ValueChanged<RunView>? onRunTap;
 
-  /// Color marks to wash behind the text, pre-resolved to theme colors.
-  final List<(NoteMark, Color)> marks;
+  /// A tap on the icon of a note without a pen (ADR 0035).
+  final ValueChanged<NoteMark>? onNoteTap;
+
+  /// Marks resolved for painting: pens, or note icons and their anchors.
+  final List<MarkPaint> marks;
   final String? paneModule;
   final VerseSelection? selection;
 
@@ -73,6 +78,20 @@ class TypesetChapter extends StatelessWidget {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTapUp: (details) {
+              final note = noteIconAt(
+                [
+                  for (var i = 0; i < layout.lines.length; i++)
+                    (index: i, top: i * lineHeight),
+                ],
+                scale,
+                fontSize,
+                marks,
+                details.localPosition,
+              );
+              if (note != null && onNoteTap != null) {
+                onNoteTap!(note);
+                return;
+              }
               final marker = markerNear(
                 [
                   for (var i = 0; i < layout.lines.length; i++)
@@ -149,6 +168,8 @@ class TypesetChapter extends StatelessWidget {
                 selectionColor: scheme.primary.withValues(
                   alpha: theme.brightness == Brightness.light ? 0.22 : 0.34,
                 ),
+                brightness: theme.brightness,
+                paper: scheme.surface,
               ),
             ),
           ),
@@ -173,6 +194,8 @@ class _ChapterPainter extends CustomPainter {
     required this.paneModule,
     required this.selection,
     required this.selectionColor,
+    required this.brightness,
+    required this.paper,
   });
 
   final ChapterLayoutView layout;
@@ -191,15 +214,30 @@ class _ChapterPainter extends CustomPainter {
   /// Presence of the text's elements (user settings, ADR 0031).
   final Map<TextElement, ElementStyle> styles;
 
-  final List<(NoteMark, Color)> marks;
+  final List<MarkPaint> marks;
   final String? paneModule;
   final VerseSelection? selection;
   final Color selectionColor;
+  final Brightness brightness;
+
+  /// The page color, for the lines drawn into a note icon.
+  final Color paper;
 
   /// Washes behind one line: user marks, then the live selection.
   void _paintWashes(Canvas canvas, LineView line, double y) {
-    void wash(bool Function(RunView) covers, Color color) {
-      for (final (start, end) in coveredSpans(line, covers)) {
+    paintMarkLine(
+      canvas,
+      line,
+      y,
+      scale,
+      fontSize,
+      brightness,
+      marks,
+      paneModule,
+    );
+    final sel = selection;
+    if (sel != null) {
+      for (final (start, end) in coveredSpans(line, sel.coversRun)) {
         canvas.drawRRect(
           RRect.fromRectAndRadius(
             Rect.fromLTRB(
@@ -210,17 +248,9 @@ class _ChapterPainter extends CustomPainter {
             ),
             const Radius.circular(3),
           ),
-          Paint()..color = color,
+          Paint()..color = selectionColor,
         );
       }
-    }
-
-    for (final (mark, color) in marks) {
-      wash((run) => markCoversRun(mark, run, paneModule), color);
-    }
-    final sel = selection;
-    if (sel != null) {
-      wash(sel.coversRun, selectionColor);
     }
   }
 
@@ -254,6 +284,7 @@ class _ChapterPainter extends CustomPainter {
           extraWeightEm: weightEm + (element?.weightEm ?? 0),
         );
       }
+      paintNoteIcons(canvas, i, y, scale, fontSize, marks, numberColor, paper);
     }
   }
 
@@ -267,6 +298,7 @@ class _ChapterPainter extends CustomPainter {
         old.family != family ||
         !mapEquals(old.styles, styles) ||
         !identical(old.marks, marks) ||
+        old.brightness != brightness ||
         old.selection != selection;
   }
 }

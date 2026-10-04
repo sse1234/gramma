@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'annotations.dart';
 import 'l10n.dart';
+import 'mark_paint.dart';
 import 'mark_popup.dart';
-import 'palette.dart';
 import 'pane_model.dart';
+import 'pens.dart';
 import 'src/rust/api/library.dart';
 import 'src/rust/api/references.dart';
 import 'src/rust/api/typeset.dart';
@@ -22,6 +23,9 @@ mixin ReaderSelection<T extends StatefulWidget> on State<T> {
 
   /// Where a selected word is looked up (ADR 0019).
   WordLookup? get wordLookup;
+
+  /// The chapter's layout, once typeset — note icons anchor on it.
+  ChapterLayoutView? layoutOf(int chapterIndex);
 
   /// The chapter index the selection belongs to, the long-press anchor
   /// run, and the normalized range.
@@ -52,13 +56,15 @@ mixin ReaderSelection<T extends StatefulWidget> on State<T> {
     });
   }
 
-  /// The last mark covering [run] in its chapter, if any.
+  /// The last mark covering [run] in its chapter, if any. A note
+  /// without a pen covers no word: its icon is the way in (ADR 0035).
   NoteMark? markCovering(int chapterIndex, RunView run) {
     final chapter = spine[chapterIndex];
-    return Annotations.forChapter(
-      chapter.bookOsis,
-      chapter.chapter,
-    ).where((m) => markCoversRun(m, run, paneModule)).lastOrNull;
+    return Annotations.forChapter(chapter.bookOsis, chapter.chapter)
+        .where(
+          (m) => m.colorIndex != Pens.none && markCoversRun(m, run, paneModule),
+        )
+        .lastOrNull;
   }
 
   String selectionLabel(int chapterIndex, VerseSelection sel) {
@@ -136,15 +142,15 @@ mixin ReaderSelection<T extends StatefulWidget> on State<T> {
     );
   }
 
-  /// Marks of one chapter with their theme colors, for the painters.
-  List<(NoteMark, Color)> paintMarks(int chapterIndex) {
+  /// Marks of one chapter resolved for the painters: their pens, or the
+  /// anchors of their icons (ADR 0035).
+  List<MarkPaint> paintMarks(int chapterIndex) {
     if (chapterIndex >= spine.length) return const [];
     final chapter = spine[chapterIndex];
-    final brightness = Theme.of(context).brightness;
-    return [
-      for (final m in Annotations.forChapter(chapter.bookOsis, chapter.chapter))
-        (m, markColor(m.colorIndex, brightness)),
-    ];
+    return MarkPaint.resolve(
+      Annotations.forChapter(chapter.bookOsis, chapter.chapter),
+      layoutOf(chapterIndex),
+    );
   }
 
   /// The floating bar of an active selection: its reference, dictionary

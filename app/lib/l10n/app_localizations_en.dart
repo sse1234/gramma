@@ -308,6 +308,46 @@ class AppLocalizationsEn extends AppLocalizations {
       'Space between columns, in ems of the text size.';
 
   @override
+  String get pageWise => 'Turn whole screens';
+
+  @override
+  String get pageWiseSubtitle =>
+      'Arrow keys, wheel and swipes move all visible columns at once. Page Up and Page Down always do.';
+
+  @override
+  String get pens => 'Marking pens';
+
+  @override
+  String get pensSubtitle =>
+      'Hue, strength and style of the eight pens. Marks follow their pen on every device.';
+
+  @override
+  String penTitle(int n) {
+    return 'Pen $n';
+  }
+
+  @override
+  String get penHue => 'Hue';
+
+  @override
+  String get penStrength => 'Strength';
+
+  @override
+  String get penStyleWash => 'Wash';
+
+  @override
+  String get penStyleUnderline => 'Underline';
+
+  @override
+  String get penReset => 'Reset';
+
+  @override
+  String get noteOnly => 'Note only — shown as an icon after the verse';
+
+  @override
+  String get editPen => 'Edit pen (or long-press a swatch)';
+
+  @override
   String get footnoteTextSize => 'Footnote text size';
 
   @override

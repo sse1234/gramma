@@ -614,6 +614,78 @@ abstract class AppLocalizations {
   /// **'Space between columns, in ems of the text size.'**
   String get columnGapSubtitle;
 
+  /// No description provided for @pageWise.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn whole screens'**
+  String get pageWise;
+
+  /// No description provided for @pageWiseSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Arrow keys, wheel and swipes move all visible columns at once. Page Up and Page Down always do.'**
+  String get pageWiseSubtitle;
+
+  /// No description provided for @pens.
+  ///
+  /// In en, this message translates to:
+  /// **'Marking pens'**
+  String get pens;
+
+  /// No description provided for @pensSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Hue, strength and style of the eight pens. Marks follow their pen on every device.'**
+  String get pensSubtitle;
+
+  /// No description provided for @penTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pen {n}'**
+  String penTitle(int n);
+
+  /// No description provided for @penHue.
+  ///
+  /// In en, this message translates to:
+  /// **'Hue'**
+  String get penHue;
+
+  /// No description provided for @penStrength.
+  ///
+  /// In en, this message translates to:
+  /// **'Strength'**
+  String get penStrength;
+
+  /// No description provided for @penStyleWash.
+  ///
+  /// In en, this message translates to:
+  /// **'Wash'**
+  String get penStyleWash;
+
+  /// No description provided for @penStyleUnderline.
+  ///
+  /// In en, this message translates to:
+  /// **'Underline'**
+  String get penStyleUnderline;
+
+  /// No description provided for @penReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get penReset;
+
+  /// No description provided for @noteOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Note only — shown as an icon after the verse'**
+  String get noteOnly;
+
+  /// No description provided for @editPen.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit pen (or long-press a swatch)'**
+  String get editPen;
+
   /// No description provided for @footnoteTextSize.
   ///
   /// In en, this message translates to:

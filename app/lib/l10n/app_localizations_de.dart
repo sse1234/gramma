@@ -308,6 +308,46 @@ class AppLocalizationsDe extends AppLocalizations {
       'Abstand zwischen den Spalten, in Geviert der Schriftgröße.';
 
   @override
+  String get pageWise => 'Seitenweise blättern';
+
+  @override
+  String get pageWiseSubtitle =>
+      'Pfeiltasten, Mausrad und Wischen bewegen alle sichtbaren Spalten auf einmal. Bild auf und Bild ab tun das immer.';
+
+  @override
+  String get pens => 'Markierstifte';
+
+  @override
+  String get pensSubtitle =>
+      'Farbton, Stärke und Art der acht Stifte. Markierungen folgen ihrem Stift auf jedem Gerät.';
+
+  @override
+  String penTitle(int n) {
+    return 'Stift $n';
+  }
+
+  @override
+  String get penHue => 'Farbton';
+
+  @override
+  String get penStrength => 'Stärke';
+
+  @override
+  String get penStyleWash => 'Marker';
+
+  @override
+  String get penStyleUnderline => 'Unterstreichung';
+
+  @override
+  String get penReset => 'Zurücksetzen';
+
+  @override
+  String get noteOnly => 'Nur Notiz – als Symbol hinter dem Vers';
+
+  @override
+  String get editPen => 'Stift bearbeiten (oder Farbfeld lange drücken)';
+
+  @override
   String get footnoteTextSize => 'Fußnoten-Textgröße';
 
   @override

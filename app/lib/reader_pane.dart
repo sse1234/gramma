@@ -10,7 +10,9 @@ import 'note_popup.dart';
 import 'column_snap_physics.dart';
 import 'passage_preview.dart';
 import 'pane_header.dart';
+import 'annotations.dart';
 import 'pane_model.dart';
+import 'pens.dart';
 import 'reader_focus.dart';
 import 'reader_selection.dart';
 import 'reference_selector.dart';
@@ -147,6 +149,7 @@ class _ReaderPaneState extends State<ReaderPane>
   /// Arrow-key paging and keyboard ownership (ADR 0028).
   late final ReaderFocus _focus = ReaderFocus(
     onStep: (steps) => _columns.step(steps),
+    onPage: (pages) => _columns.page(pages),
     isCurrent: () => mounted && (ModalRoute.of(context)?.isCurrent ?? true),
   );
 
@@ -157,6 +160,9 @@ class _ReaderPaneState extends State<ReaderPane>
 
   @override
   List<ChapterRefView> get spine => _spine;
+
+  @override
+  ChapterLayoutView? layoutOf(int chapterIndex) => _layouts[chapterIndex];
   @override
   String? get paneModule => widget.spec.module;
   @override
@@ -195,13 +201,23 @@ class _ReaderPaneState extends State<ReaderPane>
   void initState() {
     super.initState();
     _vPositions.itemPositions.addListener(_onVerticalPositions);
+    // Pens and marks change elsewhere — settings, a sync pull — and the
+    // text repaints with them (ADR 0035).
+    Pens.revision.addListener(_repaint);
+    Annotations.revision.addListener(_repaint);
     if (widget.spec.badge == '1') _focus.claimAfterFrame();
+  }
+
+  void _repaint() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     _focus.dispose();
     _vPositions.itemPositions.removeListener(_onVerticalPositions);
+    Pens.revision.removeListener(_repaint);
+    Annotations.revision.removeListener(_repaint);
     _columns.dispose();
     super.dispose();
   }
@@ -213,6 +229,7 @@ class _ReaderPaneState extends State<ReaderPane>
     _fontSize = settings.glyphSize;
     _lineSpacing = settings.lineSpacing;
     _columnAdvance = settings.columnAdvance;
+    _columns.pageWise = settings.pageWise;
     final family = settings.fontFamily;
     if (_fontFamily == null) {
       _fontFamily = family;
@@ -945,7 +962,10 @@ class _ReaderPaneState extends State<ReaderPane>
             key: Key('horizontal-reader-${_columns.params}'),
             controller: _columns.controller,
             scrollDirection: Axis.horizontal,
-            physics: ColumnSnapPhysics(stride: stride, advance: _columnAdvance),
+            physics: ColumnSnapPhysics(
+              stride: _columns.unit,
+              advance: _columnAdvance,
+            ),
             itemExtent: stride,
             itemCount: plan.columnCount,
             itemBuilder: (context, column) => Padding(
@@ -989,7 +1009,13 @@ class _ReaderPaneState extends State<ReaderPane>
         final lineIndex = local - _headingLines;
         if (lineIndex < layout.lines.length) {
           rows.add(
-            TextRow(row, layout.lines[lineIndex], layout.numberScale, chapter),
+            TextRow(
+              row,
+              layout.lines[lineIndex],
+              layout.numberScale,
+              chapter,
+              lineIndex,
+            ),
           );
         }
       }
@@ -1009,6 +1035,7 @@ class _ReaderPaneState extends State<ReaderPane>
       },
       onPlainTap: _plainTap,
       onRunTap: _runTap,
+      onNoteTap: (_, mark) => editMark(mark),
       onSelectStart: selectStart,
       onSelectExtend: selectExtend,
       onSelectEnd: () {},
@@ -1061,6 +1088,7 @@ class _ReaderPaneState extends State<ReaderPane>
               },
               onPlainTap: _plainTap,
               onRunTap: (run) => _runTap(index, run),
+              onNoteTap: editMark,
               onSelectStart: (run) => selectStart(index, run),
               onSelectExtend: (run) => selectExtend(index, run),
               onSelectEnd: () {},

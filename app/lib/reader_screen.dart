@@ -20,6 +20,7 @@ import 'search_tool.dart';
 import 'sync_transport.dart';
 import 'pane_badge.dart';
 import 'pane_model.dart';
+import 'pens.dart';
 import 'pane_header.dart';
 import 'reader_focus.dart';
 import 'reader_pane.dart';
@@ -183,6 +184,7 @@ class _ReaderScreenState extends State<ReaderScreen>
     final changed = await pullSync();
     if (changed.isEmpty || !mounted) return;
     Annotations.invalidate();
+    Pens.invalidate();
     setState(() {
       if (changed.contains('desks')) {
         final registry = DeskRegistry.decode(userGet(key: 'desks') ?? '');

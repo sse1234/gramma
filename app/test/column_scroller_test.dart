@@ -44,4 +44,25 @@ void main() {
       reason: 'no re-chunk: the columns stand where they were',
     );
   });
+
+  // ADR 0036: paging by screens moves all visible columns at once, on a
+  // page grid from the module's start.
+  test('page-wise paging steps by screens on the page grid', () {
+    final s = ColumnScroller(onScrolled: () {});
+    final plan = lay(s, 400);
+    expect(s.unit, 400);
+    s.anchorLine = plan.firstLineOfColumn(3);
+    s.pageWise = true;
+    final paged = lay(s, 400);
+    expect(s.unit, 800, reason: 'two columns per screen');
+    expect(
+      s.controller!.initialScrollOffset,
+      800,
+      reason: 'column 3 lies on the second page, which starts at column 2',
+    );
+    expect(paged, same(s.plan));
+    s.pageWise = false;
+    lay(s, 400);
+    expect(s.unit, 400);
+  });
 }

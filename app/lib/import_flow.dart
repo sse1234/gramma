@@ -39,7 +39,9 @@ Future<void> importFromPicker(
   final l10n = context.l10n;
   try {
     final lower = file.path.toLowerCase();
-    if (lower.endsWith('.pdf') || lower.endsWith('.epub') || lower.endsWith('.odt')) {
+    if (lower.endsWith('.pdf') ||
+        lower.endsWith('.epub') ||
+        lower.endsWith('.odt')) {
       await _importDocument(context, file.path, onModulesChanged);
       return;
     }

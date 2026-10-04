@@ -129,6 +129,7 @@ class SettingsController extends ChangeNotifier {
     _previewScale = _prefs.getDouble('previewScale') ?? 1.0;
     _commentaryScale = _prefs.getDouble('commentaryScale') ?? 1.0;
     _columnAdvance = _prefs.getDouble('columnAdvance') ?? defaultColumnAdvance;
+    _pageWise = _prefs.getBool('pageWise') ?? false;
     _currentDeskId = _prefs.getString('currentDesk');
     _fontWeightLight = _prefs.getDouble('fontWeightLight') ?? defaultFontWeight;
     _fontWeightDark = _prefs.getDouble('fontWeightDark') ?? defaultFontWeight;
@@ -221,6 +222,7 @@ class SettingsController extends ChangeNotifier {
   double _previewScale = 1.0;
   double _commentaryScale = 1.0;
   double _columnAdvance = defaultColumnAdvance;
+  bool _pageWise = false;
   String? _currentDeskId;
   double _fontWeightLight = 0;
   double _fontWeightDark = 0;
@@ -380,6 +382,16 @@ class SettingsController extends ChangeNotifier {
   /// Fraction of a column a swipe must naturally travel to turn to the
   /// next column ([minColumnAdvance] light … [maxColumnAdvance] firm).
   double get columnAdvance => _columnAdvance;
+
+  /// Multi-column views turn whole screens instead of single columns
+  /// (ADR 0036).
+  bool get pageWise => _pageWise;
+
+  void setPageWise(bool value) {
+    _pageWise = value;
+    _prefs.setBool('pageWise', value);
+    notifyListeners();
+  }
 
   /// Module used to resolve references outside any pane context
   /// (passage previews, later cross-references in secondary literature).

@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 
 import 'annotations.dart';
 import 'l10n.dart';
-import 'palette.dart';
+import 'pen_editor.dart';
+import 'pens.dart';
 
-/// The note/marker popup (ADR 0023): HCL color swatches, an optional
-/// note text, save — and delete for existing marks. An empty text saves
-/// a pure color mark.
+/// The note/marker popup (ADR 0023, 0035): the reader's pens, "note
+/// only" for a note shown by its icon alone, an optional note text,
+/// save — and delete for existing marks. An empty text saves a pure
+/// color mark; a note without a pen needs text.
 Future<void> showMarkPopup(
   BuildContext context, {
   required String title,
@@ -61,7 +63,6 @@ class _MarkDialogState extends State<_MarkDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final brightness = theme.brightness;
     return Dialog(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
@@ -73,35 +74,65 @@ class _MarkDialogState extends State<_MarkDialog> {
             children: [
               Text(widget.title, style: theme.textTheme.titleSmall),
               const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  for (var i = 0; i < markColorCount; i++)
-                    InkWell(
-                      key: Key('mark-color-$i'),
-                      borderRadius: BorderRadius.circular(14),
-                      onTap: () => setState(() => _color = i),
-                      child: Container(
-                        width: 26,
-                        height: 26,
-                        decoration: BoxDecoration(
-                          color: markColor(i, brightness),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: i == _color
-                                ? theme.colorScheme.onSurface
-                                : Colors.transparent,
-                            width: 2,
+              ValueListenableBuilder<int>(
+                valueListenable: Pens.revision,
+                builder: (context, _, _) => Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    for (var i = 0; i < Pens.count; i++)
+                      InkWell(
+                        key: Key('mark-color-$i'),
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () => setState(() => _color = i),
+                        onLongPress: () => showPenEditor(context, i),
+                        child: PenSwatch(
+                          pen: Pens.of(i),
+                          selected: i == _color,
+                        ),
+                      ),
+                    Tooltip(
+                      message: context.l10n.noteOnly,
+                      child: InkWell(
+                        key: const Key('mark-color-none'),
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () => setState(() => _color = Pens.none),
+                        child: Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: _color == Pens.none
+                                  ? theme.colorScheme.onSurface
+                                  : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.sticky_note_2_outlined,
+                            size: 16,
+                            color: theme.colorScheme.primary,
                           ),
                         ),
                       ),
                     ),
-                ],
+                    IconButton(
+                      key: const Key('mark-pen-edit'),
+                      tooltip: context.l10n.editPen,
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.tune, size: 18),
+                      onPressed: _color == Pens.none
+                          ? null
+                          : () => showPenEditor(context, _color),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 12),
               TextField(
                 key: const Key('mark-text'),
                 controller: _text,
+                onChanged: (_) => setState(() {}),
                 minLines: 2,
                 maxLines: 6,
                 decoration: InputDecoration(
@@ -132,24 +163,28 @@ class _MarkDialogState extends State<_MarkDialog> {
                   ),
                   FilledButton(
                     key: const Key('mark-save'),
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      widget.onSave(
-                        NoteMark(
-                          id: widget.draft.id,
-                          module: widget.draft.module,
-                          bookOsis: widget.draft.bookOsis,
-                          chapter: widget.draft.chapter,
-                          verseStart: widget.draft.verseStart,
-                          verseEnd: widget.draft.verseEnd,
-                          startOffset: widget.draft.startOffset,
-                          endOffset: widget.draft.endOffset,
-                          colorIndex: _color,
-                          text: _text.text.trim(),
-                          created: widget.draft.created,
-                        ),
-                      );
-                    },
+                    // A note without a pen is its text: nothing to show
+                    // without one.
+                    onPressed: _color == Pens.none && _text.text.trim().isEmpty
+                        ? null
+                        : () {
+                            Navigator.of(context).pop();
+                            widget.onSave(
+                              NoteMark(
+                                id: widget.draft.id,
+                                module: widget.draft.module,
+                                bookOsis: widget.draft.bookOsis,
+                                chapter: widget.draft.chapter,
+                                verseStart: widget.draft.verseStart,
+                                verseEnd: widget.draft.verseEnd,
+                                startOffset: widget.draft.startOffset,
+                                endOffset: widget.draft.endOffset,
+                                colorIndex: _color,
+                                text: _text.text.trim(),
+                                created: widget.draft.created,
+                              ),
+                            );
+                          },
                     child: Text(context.l10n.save),
                   ),
                 ],

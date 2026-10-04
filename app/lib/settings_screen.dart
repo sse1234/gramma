@@ -11,6 +11,8 @@ import 'l10n.dart';
 import 'icloud.dart';
 import 'mac_bookmarks.dart';
 import 'pane_header.dart' show StrongsBadge;
+import 'pen_editor.dart';
+import 'pens.dart';
 import 'settings.dart';
 import 'sync_transport.dart';
 import 'src/rust/api/library.dart';
@@ -515,6 +517,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
+          SwitchListTile(
+            key: const Key('page-wise'),
+            contentPadding: EdgeInsets.zero,
+            title: Text(context.l10n.pageWise),
+            subtitle: Text(context.l10n.pageWiseSubtitle),
+            value: settings.pageWise,
+            onChanged: settings.setPageWise,
+          ),
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(context.l10n.footnoteTextSize),
@@ -768,6 +778,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
               value: settings.contrast,
               label: '${(settings.contrast * 100).round()} %',
               onChanged: settings.setContrast,
+            ),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(context.l10n.pens),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  context.l10n.pensSubtitle,
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 8),
+                ValueListenableBuilder<int>(
+                  valueListenable: Pens.revision,
+                  builder: (context, _, _) => Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      for (var i = 0; i < Pens.count; i++)
+                        Tooltip(
+                          message: context.l10n.penTitle(i + 1),
+                          child: InkWell(
+                            key: Key('pen-$i'),
+                            borderRadius: BorderRadius.circular(17),
+                            onTap: () => showPenEditor(context, i),
+                            child: PenSwatch(
+                              pen: Pens.of(i),
+                              selected: false,
+                              size: 34,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ],

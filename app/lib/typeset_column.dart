@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'annotations.dart';
+import 'mark_paint.dart';
 import 'run_hit.dart';
 import 'run_paint.dart';
 import 'settings.dart';
@@ -22,13 +23,22 @@ class HeadingRow extends ColumnRow {
 }
 
 class TextRow extends ColumnRow {
-  const TextRow(super.row, this.line, this.numberScale, this.chapter);
+  const TextRow(
+    super.row,
+    this.line,
+    this.numberScale,
+    this.chapter,
+    this.lineIndex,
+  );
 
   final LineView line;
   final double numberScale;
 
   /// Spine index of the chapter this line belongs to (for note lookup).
   final int chapter;
+
+  /// Index of the line within its chapter's layout (for note icons).
+  final int lineIndex;
 }
 
 /// Paints one column of the horizontal reader: a fixed window of global
@@ -47,6 +57,7 @@ class TypesetColumn extends StatelessWidget {
     this.onSelectExtend,
     this.onSelectEnd,
     this.onRunTap,
+    this.onNoteTap,
     this.marksByChapter = const {},
     this.paneModule,
     this.selection,
@@ -65,8 +76,11 @@ class TypesetColumn extends StatelessWidget {
   /// A tap resolved to a word run (marks open their note popup).
   final void Function(int chapter, RunView run)? onRunTap;
 
-  /// Color marks per chapter index, pre-resolved to theme colors.
-  final Map<int, List<(NoteMark, Color)>> marksByChapter;
+  /// A tap on the icon of a note without a pen (ADR 0035).
+  final void Function(int chapter, NoteMark mark)? onNoteTap;
+
+  /// Marks per chapter index, resolved for painting.
+  final Map<int, List<MarkPaint>> marksByChapter;
   final String? paneModule;
 
   /// The live selection with its chapter index, if any.
@@ -134,6 +148,21 @@ class TypesetColumn extends StatelessWidget {
               return;
             }
           }
+          if (onNoteTap != null) {
+            for (final row in rows.whereType<TextRow>()) {
+              final note = noteIconAt(
+                [(index: row.lineIndex, top: row.row * lineHeight)],
+                scale,
+                fontSize,
+                marksByChapter[row.chapter] ?? const [],
+                details.localPosition,
+              );
+              if (note != null) {
+                onNoteTap!(row.chapter, note);
+                return;
+              }
+            }
+          }
           final hit = _rowAt(details.localPosition.dy);
           final run = hit == null
               ? null
@@ -173,6 +202,8 @@ class TypesetColumn extends StatelessWidget {
             selectionColor: scheme.primary.withValues(
               alpha: theme.brightness == Brightness.light ? 0.22 : 0.34,
             ),
+            brightness: theme.brightness,
+            paper: scheme.surface,
           ),
         ),
       ),
@@ -195,6 +226,8 @@ class _ColumnPainter extends CustomPainter {
     required this.paneModule,
     required this.selection,
     required this.selectionColor,
+    required this.brightness,
+    required this.paper,
   });
 
   final List<ColumnRow> rows;
@@ -213,14 +246,29 @@ class _ColumnPainter extends CustomPainter {
   /// Presence of the text's elements (user settings, ADR 0031).
   final Map<TextElement, ElementStyle> styles;
 
-  final Map<int, List<(NoteMark, Color)>> marksByChapter;
+  final Map<int, List<MarkPaint>> marksByChapter;
   final String? paneModule;
   final (int, VerseSelection)? selection;
   final Color selectionColor;
+  final Brightness brightness;
+
+  /// The page color, for the lines drawn into a note icon.
+  final Color paper;
 
   void _paintWashes(Canvas canvas, TextRow row, double y) {
-    void wash(bool Function(RunView) covers, Color color) {
-      for (final (start, end) in coveredSpans(row.line, covers)) {
+    paintMarkLine(
+      canvas,
+      row.line,
+      y,
+      scale,
+      fontSize,
+      brightness,
+      marksByChapter[row.chapter] ?? const [],
+      paneModule,
+    );
+    final sel = selection;
+    if (sel != null && sel.$1 == row.chapter) {
+      for (final (start, end) in coveredSpans(row.line, sel.$2.coversRun)) {
         canvas.drawRRect(
           RRect.fromRectAndRadius(
             Rect.fromLTRB(
@@ -231,18 +279,9 @@ class _ColumnPainter extends CustomPainter {
             ),
             const Radius.circular(3),
           ),
-          Paint()..color = color,
+          Paint()..color = selectionColor,
         );
       }
-    }
-
-    for (final (mark, color)
-        in marksByChapter[row.chapter] ?? const <(NoteMark, Color)>[]) {
-      wash((run) => markCoversRun(mark, run, paneModule), color);
-    }
-    final sel = selection;
-    if (sel != null && sel.$1 == row.chapter) {
-      wash(sel.$2.coversRun, selectionColor);
     }
   }
 
@@ -277,7 +316,12 @@ class _ColumnPainter extends CustomPainter {
             Offset(0, y + lineHeight * 0.3),
             extraWeightEm: weightEm + chapter.weightEm,
           );
-        case TextRow(:final line, :final numberScale):
+        case TextRow(
+          :final line,
+          :final numberScale,
+          :final chapter,
+          :final lineIndex,
+        ):
           final numberStyle = TextStyle(
             fontFamily: family,
             fontSize: fontSize * numberScale,
@@ -298,6 +342,16 @@ class _ColumnPainter extends CustomPainter {
               extraWeightEm: weightEm + (element?.weightEm ?? 0),
             );
           }
+          paintNoteIcons(
+            canvas,
+            lineIndex,
+            y,
+            scale,
+            fontSize,
+            marksByChapter[chapter] ?? const [],
+            numberColor,
+            paper,
+          );
       }
     }
   }

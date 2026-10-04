@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'annotations.dart';
 import 'l10n.dart';
 import 'mark_popup.dart';
-import 'palette.dart';
+import 'pens.dart';
 import 'pane_header.dart';
 import 'src/rust/api/references.dart';
 
@@ -141,17 +141,21 @@ class _NotesPaneState extends State<NotesPane> {
                           return ListTile(
                             key: Key('note-row-$i'),
                             dense: compact,
-                            leading: Container(
-                              width: 16,
-                              height: 16,
-                              decoration: BoxDecoration(
-                                color: markColor(
-                                  mark.colorIndex,
-                                  theme.brightness,
-                                ),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
+                            leading: mark.colorIndex == Pens.none
+                                ? Icon(
+                                    Icons.sticky_note_2_outlined,
+                                    size: 18,
+                                    color: theme.colorScheme.primary,
+                                  )
+                                : Container(
+                                    width: 16,
+                                    height: 16,
+                                    decoration: BoxDecoration(
+                                      color: Pens.of(mark.colorIndex)
+                                          .swatch(theme.brightness),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
                             title: compact
                                 ? Text(
                                     _label(mark),

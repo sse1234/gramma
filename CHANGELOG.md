@@ -10,6 +10,16 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
 - Column gap setting (ADR 0034): the space between text columns is the
   reader's, one to four ems of the text size in half-em steps, default
   two (was a fixed 48 px). Side margins stay as they were.
+- Marking pens (ADR 0035): the eight mark colors are the reader's —
+  hue, strength (how much the mark fades into the paper) and style, a
+  wash or an underline — edited in Settings → Appearance or from the
+  mark popup, and synced like the marks themselves.
+- Notes without a mark (ADR 0035): "note only" in the mark popup
+  leaves the text plain and shows a small note icon after the verse;
+  tapping it opens the note.
+- Turn whole screens (ADR 0036): a Reading setting that pages
+  multi-column views by all visible columns at once; Page Up and Page
+  Down always do.
 
 ## [1.1.4] - 2026-09-27
 
