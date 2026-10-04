@@ -6,6 +6,8 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
 
 ## [Unreleased]
 
+## [1.1.5] - 2026-10-04
+
 ### Added
 - Column gap setting (ADR 0034): the space between text columns is the
   reader's, one to four ems of the text size in half-em steps, default
