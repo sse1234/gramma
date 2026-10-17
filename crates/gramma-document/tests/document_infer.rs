@@ -413,3 +413,60 @@ fn ordered_lists_restart_at_one() {
         .collect();
     assert_eq!(lists, vec![2, 2], "{:#?}", doc.blocks);
 }
+
+#[test]
+fn a_footnote_broken_by_the_page_turn_continues_on_the_next_page() {
+    // The note "a" ends page 1 mid-word; page 2's first note line has no
+    // label and continues it; "b" is a note of its own. Raised letters
+    // in the text bind them.
+    let note = |y: f32, text: &str| frag(50.0, y, 7.5, text);
+    let mut one = page(
+        1,
+        &[
+            (0.0, "Ein Satz mit einer Anmerkung"),
+            (0.0, "und einer zweiten Zeile."),
+        ],
+    );
+    let anchor_x = 50.0 + "Ein Satz mit einer Anmerkung".chars().count() as f32 * 5.0;
+    one.fragments.push(frag(anchor_x, H - 70.0 + 3.0, 6.5, "a"));
+    one.fragments
+        .push(note(80.0, "a Diese Weissagung wurde wortwört-"));
+    let mut two = page(
+        2,
+        &[
+            (0.0, "Zweite Seite mit Text"),
+            (0.0, "und noch eine Zeile."),
+        ],
+    );
+    let anchor_x = 50.0 + "Zweite Seite mit Text".chars().count() as f32 * 5.0;
+    two.fragments.push(frag(anchor_x, H - 70.0 + 3.0, 6.5, "b"));
+    two.fragments
+        .push(note(80.0, "lich erfüllt und ist belegt."));
+    two.fragments.push(note(70.0, "b Eine zweite Anmerkung."));
+    let doc = document_from_pages(&[one, two], &InferOptions::default());
+    let notes: Vec<String> = doc
+        .notes
+        .iter()
+        .map(|n| {
+            n.blocks
+                .iter()
+                .filter_map(|b| match b {
+                    Block::Paragraph { inlines, .. } => Some(plain_text(inlines)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .collect();
+    assert_eq!(notes.len(), 2, "{notes:?} {:#?}", doc.blocks);
+    assert_eq!(
+        notes[0],
+        "Diese Weissagung wurde wortwörtlich erfüllt und ist belegt."
+    );
+    assert_eq!(notes[1], "Eine zweite Anmerkung.");
+    let text = paragraphs(&doc).join(" | ");
+    assert!(
+        !text.contains("lich erfüllt"),
+        "the continuation is no body text: {text}"
+    );
+}

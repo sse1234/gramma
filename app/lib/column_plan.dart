@@ -111,13 +111,78 @@ class ColumnPlan {
     return textRow < rows.length ? rows[textRow] : 0;
   }
 
+  /// Backward columns checked for orphaned headings when placing an
+  /// origin: the ones a reader pages back through.
+  static const checkedBackwardColumns = 20;
+
   List<int> _computeStarts() {
     if (totalLines == 0) return const [];
-    final origin = this.origin;
+    var origin = this.origin;
     if (origin == null || origin <= 0 || origin >= totalLines) {
       return _chunkForward(0, totalLines);
     }
+    origin = _settleOrigin(origin);
+    if (origin <= 0) return _chunkForward(0, totalLines);
     return [..._chunkBackward(origin), ..._chunkForward(origin, totalLines)];
+  }
+
+  /// The origin, moved up to half a column earlier when that keeps the
+  /// headings of the columns behind it with their lines (ADR 0028,
+  /// amended again): the backward columns are full, so a heading can
+  /// only land at a column's foot or head, and the head is a matter of
+  /// where the counting starts. The nearest origin whose next
+  /// [checkedBackwardColumns] columns orphan no heading wins; failing
+  /// that, the one that orphans fewest. The reader's line stays in the
+  /// first column, a few rows lower.
+  int _settleOrigin(int origin) {
+    if (!_aware) return origin;
+    var best = origin;
+    var bestOrphans = _backwardOrphans(origin);
+    for (
+      var shift = 1;
+      shift <= linesPerColumn ~/ 2 && bestOrphans > 0;
+      shift++
+    ) {
+      final candidate = origin - shift;
+      if (candidate <= 0) break;
+      final orphans = _backwardOrphans(candidate);
+      if (orphans < bestOrphans) {
+        best = candidate;
+        bestOrphans = orphans;
+      }
+    }
+    return best;
+  }
+
+  int _backwardOrphans(int origin) {
+    var orphans = 0;
+    var e = origin;
+    for (var k = 0; k < checkedBackwardColumns && e > 0; k++) {
+      var s = e - linesPerColumn;
+      if (s < 0) s = 0;
+      if (_orphanAtFoot(s, e)) orphans++;
+      e = s;
+    }
+    return orphans;
+  }
+
+  /// Whether the column [s, e) ends with a heading group that has fewer
+  /// than [keptContentRows] content rows beneath it.
+  bool _orphanAtFoot(int s, int e) {
+    var content = 0;
+    for (var i = e - 1; i > s; i--) {
+      final kind = _kind(i);
+      if (kind == 1) {
+        // A group that begins at the column's head heads the column.
+        var g = i;
+        while (g > s && _kind(g - 1) == 1) {
+          g--;
+        }
+        return g > s;
+      }
+      if (kind == 0 && ++content >= keptContentRows) return false;
+    }
+    return false;
   }
 
   bool get _aware =>
@@ -142,7 +207,8 @@ class ColumnPlan {
   /// [linesPerColumn] lines before it and the remainder forms the first
   /// column. The heading rule does not apply here — with the column's
   /// end fixed, pushing a heading down could only produce a stub column,
-  /// and these lines lie behind the reader.
+  /// and these lines lie behind the reader; [_settleOrigin] chooses the
+  /// end so that headings fall at column heads instead.
   List<int> _chunkBackward(int to) {
     final starts = <int>[];
     var e = to;

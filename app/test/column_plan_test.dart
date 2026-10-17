@@ -209,12 +209,14 @@ void main() {
     }
   });
 
-  test('behind an origin, full columns win over the heading rule', () {
-    // Rows: content except headings at rows 7 and 17; origin 9. Before
-    // the origin the columns stay full (0..3, 3..9) even though the
-    // heading at 7 sits near a foot — pushing it down could only make a
-    // stub. After the origin the rule applies as usual: the heading at
-    // 17 with two rows beneath in 15..20 heads the next column instead.
+  test('behind an origin, the origin settles so headings head columns', () {
+    // Rows: content except headings at rows 7 and 17; origin 9. Counting
+    // full columns back from 9 would put the heading at 7 at the foot of
+    // 3..9 with one row beneath it. The origin moves up to 7 instead, the
+    // nearest start whose backward columns orphan no heading: 1..7 and the
+    // module's short first column 0..1. After the origin the rule applies
+    // as usual: the heading at 17 with two rows beneath in 13..19 heads
+    // the next column instead.
     final kinds = List<int>.filled(20, 0)
       ..[7] = 1
       ..[17] = 1;
@@ -225,10 +227,42 @@ void main() {
       rowKinds: [kinds],
       origin: 9,
     );
-    expect(p.firstLineOfColumn(0), 0);
-    expect(p.firstLineOfColumn(1), 3);
-    expect(p.firstLineOfColumn(2), 9);
-    expect(p.firstLineOfColumn(3), 15);
-    expect(p.firstLineOfColumn(4), 17);
+    expect(
+      [for (var c = 0; c < p.columnCount; c++) p.firstLineOfColumn(c)],
+      [0, 1, 7, 13, 17],
+    );
+  });
+
+  test('an origin stays when the columns behind it orphan nothing', () {
+    final kinds = List<int>.filled(30, 0)..[2] = 1;
+    final p = ColumnPlan(
+      textLines: const [30],
+      headingLines: 0,
+      linesPerColumn: 6,
+      rowKinds: [kinds],
+      origin: 14,
+    );
+    expect(
+      [for (var c = 0; c < p.columnCount; c++) p.firstLineOfColumn(c)],
+      [0, 2, 8, 14, 20, 26],
+    );
+  });
+
+  test('a chapter heading right before the origin heads its column', () {
+    // Two chapters of ten lines with two heading rows each; the origin is
+    // the second chapter's first text line (row 14). The heading rows
+    // 12..14 would sit at the foot of the column before — the origin
+    // takes them along.
+    final p = ColumnPlan(
+      textLines: const [10, 10],
+      headingLines: 2,
+      linesPerColumn: 8,
+      rowKinds: const [
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      ],
+      origin: 14,
+    );
+    expect(p.firstLineOfColumn(p.columnOfLine(14)), 12);
   });
 }

@@ -547,6 +547,13 @@ class _ReaderPaneState extends State<ReaderPane>
               _layouts.remove(_layouts.keys.first);
             }
           });
+          final pending = _pendingVerseJump;
+          if (pending != null && pending.index == index) {
+            _pendingVerseJump = null;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _jumpToChapter(index, verse: pending.verse);
+            });
+          }
         })
         .whenComplete(() => _loading.remove(index));
   }
@@ -627,14 +634,27 @@ class _ReaderPaneState extends State<ReaderPane>
     });
   }
 
+  /// A verse jump made before its chapter was typeset: completed when
+  /// the layout arrives, so a jump from the selector or a reading plan
+  /// lands on the verse and not on the chapter's first line.
+  ({int index, int verse})? _pendingVerseJump;
+
   void _jumpToChapter(int index, {int? verse}) {
     final targetLine = verse == null ? null : _lineOfVerse(index, verse);
+    _pendingVerseJump =
+        verse != null && targetLine == null && !_layouts.containsKey(index)
+        ? (index: index, verse: verse)
+        : null;
     if (_columns.attached) {
       var line = _columns.plan!.blockStart(index);
       if (targetLine != null) {
         line += _headingLines + targetLine;
       }
       _columns.jumpToLine(line);
+      // The column actually landed on is the position — its head may lie
+      // in the chapter before the target — and the footnotes follow it.
+      _onColumnScrolled();
+      return;
     } else if (_vScroll.isAttached) {
       if (targetLine != null && _vViewportH > 0) {
         // Position the verse's line near the viewport top: negative

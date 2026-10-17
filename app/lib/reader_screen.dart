@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'annotations.dart';
 import 'book_pane.dart';
@@ -563,7 +564,20 @@ class _ReaderScreenState extends State<ReaderScreen>
     return Focus(
       skipTraversal: true,
       includeSemantics: false,
-      onKeyEvent: (node, event) => ReaderFocus.handleStray(event),
+      onKeyEvent: (node, event) {
+        // "p" opens the reading plan (the first, when several are
+        // installed) — a plain key, unmodified, outside text fields.
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.keyP &&
+            !HardwareKeyboard.instance.isControlPressed &&
+            !HardwareKeyboard.instance.isMetaPressed &&
+            !HardwareKeyboard.instance.isAltPressed &&
+            _plans.isNotEmpty) {
+          _openReadingPlan(_plans.first);
+          return KeyEventResult.handled;
+        }
+        return ReaderFocus.handleStray(event);
+      },
       child: Scaffold(
         appBar: reading ? null : appBar,
         body: SafeArea(

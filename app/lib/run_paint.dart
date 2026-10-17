@@ -88,9 +88,15 @@ const double headingStrokeEm = 0.02;
       : run.headingLevel == 2
       ? TextElement.passageLine
       : null;
-  if (element == null) return (textStyle, null);
+  // A reference that opens a passage (ADR 0018, 0029) shows it in the
+  // number color, like the markers and verse numbers that are tappable
+  // too.
+  final linked = run.link != null
+      ? textStyle.copyWith(color: numberStyle.color)
+      : textStyle;
+  if (element == null) return (linked, null);
   final style = styles[element]!;
-  final base = run.verseNumber || run.noteMarker ? numberStyle : textStyle;
+  final base = run.verseNumber || run.noteMarker ? numberStyle : linked;
   return (
     style.italic ? base.copyWith(fontStyle: FontStyle.italic) : base,
     style,

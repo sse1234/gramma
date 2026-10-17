@@ -1777,22 +1777,39 @@ void main() {
       greaterThan(before.rowCount),
       reason: 'without chrome the column holds more lines',
     );
+    // ADR 0028 as amended on 2026-10-17: the origin may settle a few rows
+    // earlier so a heading keeps its lines; the line stays in the first
+    // column.
+    List<String> firstColumn() => tester
+        .widget<TypesetColumn>(find.byType(TypesetColumn).first)
+        .rows
+        .map(
+          (row) => row is TextRow
+              ? row.line.runs.map((r) => r.text).join()
+              : (row as HeadingRow).text,
+        )
+        .toList();
     expect(
-      firstLine(),
-      firstBefore,
-      reason: 'the line at the top left stays at the top left',
+      firstColumn(),
+      contains(firstBefore),
+      reason: 'the line at the top left stays in the first column',
     );
+    expect(firstColumn().indexOf(firstBefore!), lessThan(before.rowCount ~/ 2));
     // The header hides with the chrome, so the position is read back
     // after chrome returns.
     settings.setReadingMode(false);
     await tester.pumpAndSettle();
     final back = tester.widget<TypesetColumn>(find.byType(TypesetColumn).first);
     expect(back.rowCount, before.rowCount);
-    expect(firstLine(), firstBefore);
+    expect(firstColumn(), contains(firstBefore));
     expect(
-      tester.widget<Text>(find.byKey(const Key('current-position')).first).data,
-      positionBefore,
-      reason: 'the reading position survives the round trip',
+      tester
+          .widget<Text>(find.byKey(const Key('current-position')).first)
+          .data!
+          .split(',')
+          .first,
+      positionBefore!.split(',').first,
+      reason: 'the reading position stays in its chapter over the round trip',
     );
   });
 

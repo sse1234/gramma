@@ -6,6 +6,24 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
 
 ## [Unreleased]
 
+### Added
+- "p" opens the reading plan on the desktop.
+- Reference links in headings show in the number color, like the
+  markers and verse numbers that open something too.
+
+### Fixed
+- Footnotes views follow a jump at once: the text view reports the
+  column it landed on, not the target it was sent to.
+- A jump to a verse whose chapter was not yet typeset landed on the
+  chapter's first line; it now completes on the verse when the layout
+  arrives (seen mostly on phones).
+- Multi-column views no longer leave a chapter heading at the foot of
+  a column behind the reading position (ADR 0028, amended).
+- A footnote marker at the end of a line is no longer cut by the edge:
+  its box carries the italic overhang.
+- PDF import: a footnote broken by a page turn continues on the next
+  page instead of ending mid-word and spilling into the text.
+
 ## [1.1.5] - 2026-10-04
 
 ### Added

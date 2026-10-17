@@ -438,8 +438,12 @@ fn push_marker(
         flagged: false,
     });
     meta.push(None);
+    // The marker paints in the reader's marker style, usually italic,
+    // whose slant overhangs the regular face's advance; the box carries
+    // that overhang so a marker at a line's end is not cut by the edge.
     items.push(Item::Box {
-        width: measure.text_width(&label) * VERSE_NUMBER_SCALE_PERCENT / 100,
+        width: measure.text_width(&label) * VERSE_NUMBER_SCALE_PERCENT / 100
+            + measure.em() * 6 / 100,
     });
     meta.push(Some(BoxMeta {
         text: label,

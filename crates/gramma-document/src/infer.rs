@@ -831,10 +831,14 @@ pub fn split_footnotes(lines: Vec<Line>, profile: &Profile) -> (Vec<Line>, NoteL
     let small = |l: &Line| l.size < profile.body_size - (profile.body_size * 0.12).max(0.6);
     while i < lines.len() {
         let l = &lines[i];
+        // A note block starts at a labeled line — or, when the page
+        // before ended in notes, at an unlabeled small line: the rest of
+        // a note the page turn broke.
+        let continues = notes.last().is_some_and(|(p, _, _)| *p + 1 == l.page);
         if small(l)
             && l.top > profile.page_height(l.page) * 0.5
             && !l.bold
-            && leading_label(&l.text()).is_some()
+            && (leading_label(&l.text()).is_some() || continues)
         {
             // Everything small from here to the end of the page is notes.
             let page = l.page;
@@ -844,8 +848,10 @@ pub fn split_footnotes(lines: Vec<Line>, profile: &Profile) -> (Vec<Line>, NoteL
             }
             let block: Vec<Line> = lines[i..j].to_vec();
             i = j;
-            // Split into notes at lines starting with a label.
-            for line in block {
+            // Split into notes at lines starting with a label. A page's
+            // first note line without a label continues the last note of
+            // the page before: a note broken by the page turn.
+            for (k, line) in block.into_iter().enumerate() {
                 let text = line.text();
                 let label = leading_label(&text);
                 match label {
@@ -859,7 +865,9 @@ pub fn split_footnotes(lines: Vec<Line>, profile: &Profile) -> (Vec<Line>, NoteL
                     }
                     Some(label) => notes.push((page, label, vec![line])),
                     None => match notes.last_mut() {
-                        Some((p, _, ls)) if *p == page => ls.push(line),
+                        Some((p, _, ls)) if *p == page || (k == 0 && *p + 1 == page) => {
+                            ls.push(line)
+                        }
                         _ => body.push(line),
                     },
                 }

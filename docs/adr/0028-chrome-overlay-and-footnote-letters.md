@@ -93,3 +93,16 @@ after a jump and a toggle). The other decisions of
 this record stand: the keyboard follows the last
 view acted in, footnote letters run through the chapter, the popup
 shows the chapter, and the reader draws no scrollbars.
+
+## Amendment (2026-10-17): the origin keeps headings with their lines
+
+Chunking backward from the anchor keeps every column full, but a
+column's foot then falls wherever the counting puts it — on a chapter
+heading as often as anywhere else, and a heading at a column's foot
+with nothing beneath it is what the heading rule exists to prevent.
+The foot of a backward column cannot move without a stub, but the
+origin can: the plan now settles the origin up to half a column
+earlier, on the nearest line from which the next twenty backward
+columns orphan no heading (failing that, the fewest). The reader's
+line stays in the first column, a few rows lower; the columns before
+it are full and every heading heads a column or sits with its lines.
