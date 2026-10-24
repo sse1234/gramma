@@ -452,3 +452,50 @@ fn marker_labels_continue_past_z() {
     assert_eq!(marker_label(51), "az");
     assert_eq!(marker_label(52), "ba");
 }
+
+#[test]
+fn note_labels_match_the_markers_the_layout_sets() {
+    // ADR 0028: the footnotes view letters notes exactly as the inline
+    // markers run. A note on a verse the chapter has no text for (a verse
+    // modern editions omit) gets no marker and no letter; two notes at
+    // one offset keep their sequence.
+    use gramma_typeset::layout::note_labels;
+    let verses = [(1, GEN_1_1), (3, GEN_1_2)];
+    let notes = [(1, 3), (2, 0), (3, 4), (3, 4), (3, 0)];
+    let labels = note_labels(&[1, 3], &notes);
+    assert_eq!(
+        labels,
+        vec![
+            Some("a".into()),
+            None,
+            Some("c".into()),
+            Some("d".into()),
+            Some("b".into()),
+        ]
+    );
+    let m = measure();
+    let lines = layout_verses(
+        &verses,
+        &notes,
+        &[],
+        &[],
+        &m,
+        Some(&german()),
+        30 * m.units_per_em() as i64,
+    );
+    let markers: Vec<(u16, String)> = lines
+        .iter()
+        .flat_map(|l| l.runs.iter())
+        .filter(|r| r.note_marker)
+        .map(|r| (r.verse, r.text.clone()))
+        .collect();
+    assert_eq!(
+        markers,
+        vec![
+            (1, "a".into()),
+            (3, "b".into()),
+            (3, "c".into()),
+            (3, "d".into())
+        ]
+    );
+}

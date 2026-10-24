@@ -1309,6 +1309,68 @@ void main() {
     expect(position.data, '1. Mose 3');
   });
 
+  testWidgets('hiding the chrome keeps the vertical reader\'s place', (
+    tester,
+  ) async {
+    // A short viewport so a chapter spans several screens; the text is
+    // scrolled deep into it before the chrome goes.
+    tester.view.physicalSize = const Size(520, 360);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final settings = SettingsController(prefs);
+    settings.setReadingMode(false);
+    await tester.pumpWidget(GrammaApp(settings: settings));
+    await _settleLayouts(tester);
+    final list = find.byKey(const Key('vertical-reader'));
+    expect(list, findsOneWidget);
+    // A verse jump anchors the list on the chapter at a negative
+    // alignment — the state in which a viewport change used to move the
+    // text by that alignment times the height difference.
+    await _selectRef(tester, book: 'Gen', chapter: 1, verse: 7);
+    await _settleLayouts(tester);
+    await tester.pumpAndSettle();
+    // The topmost chapter painter still in view, and how far its top sits
+    // above the list's top edge.
+    ({String chapter, double px}) place() {
+      final listTop = tester.getTopLeft(list).dy;
+      String? chapter;
+      double? px;
+      for (final element in find.byType(TypesetChapter).evaluate()) {
+        final rect = tester.getRect(find.byWidget(element.widget));
+        if (rect.bottom <= listTop) continue;
+        if (px == null || rect.top < px) {
+          px = rect.top;
+          chapter = (element.widget as TypesetChapter).layout.plainText;
+        }
+      }
+      return (chapter: chapter!, px: px! - listTop);
+    }
+
+    final before = place();
+    expect(before.px, lessThan(-100), reason: 'scrolled into the chapter');
+    final paneState = tester.state(find.byType(ReaderPane).first);
+    // Toggle the way a reader does: a tap on the text.
+    await tester.tapAt(tester.getCenter(list));
+    await tester.pumpAndSettle();
+    expect(find.byType(AppBar), findsNothing);
+    expect(
+      tester.state(find.byType(ReaderPane).first),
+      same(paneState),
+      reason: 'the pane keeps its state over the toggle',
+    );
+    final after = place();
+    expect(after.chapter, before.chapter);
+    expect(
+      (after.px - before.px).abs(),
+      lessThan(2),
+      reason: 'the text stays where it was, in pixels',
+    );
+    // Reading mode persists in the shared preferences; leave it off.
+    settings.setReadingMode(false);
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('annotations: a note without a pen, and pens that persist', (
     tester,
   ) async {

@@ -558,6 +558,37 @@ class _ReaderPaneState extends State<ReaderPane>
         .whenComplete(() => _loading.remove(index));
   }
 
+  bool _vResizePending = false;
+
+  /// A viewport height change — chrome shown or hidden — keeps the
+  /// vertical list's top chapter at the same *fraction* of the viewport,
+  /// which for a chapter several screens tall moves the text by a page.
+  /// Re-anchor it at the same pixel offset instead.
+  void _keepVerticalPlace(double newHeight) {
+    final oldHeight = _vViewportH;
+    if (oldHeight <= 0 ||
+        (newHeight - oldHeight).abs() < 0.5 ||
+        !_vScroll.isAttached ||
+        _vResizePending) {
+      return;
+    }
+    ItemPosition? top;
+    for (final p in _vPositions.itemPositions.value) {
+      if (p.itemTrailingEdge > 0 && (top == null || p.index < top.index)) {
+        top = p;
+      }
+    }
+    if (top == null) return;
+    final leadingPx = top.itemLeadingEdge * oldHeight;
+    final index = top.index;
+    _vResizePending = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _vResizePending = false;
+      if (!mounted || !_vScroll.isAttached) return;
+      _vScroll.jumpTo(index: index, alignment: leadingPx / newHeight);
+    });
+  }
+
   void _onVerticalPositions() {
     // Before the line counts arrive the list still sits at its build-time
     // index; emitting now would overwrite the stored anchor with it.
@@ -871,6 +902,7 @@ class _ReaderPaneState extends State<ReaderPane>
                     )
                   : LayoutBuilder(
                       builder: (context, constraints) {
+                        _keepVerticalPlace(constraints.maxHeight);
                         _vViewportH = constraints.maxHeight;
                         final geometry = TextGeometry.fit(
                           settings,

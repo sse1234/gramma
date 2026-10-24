@@ -558,11 +558,22 @@ pub fn chapter_notes(
     chapter: u16,
 ) -> anyhow::Result<Vec<NoteView>> {
     let book = book_by_osis(&book_osis).ok_or_else(|| anyhow!("unknown book: {book_osis}"))?;
-    with_library(|library| library.notes(&module_code, book, chapter)).map(|notes| {
+    let (verses, notes) = with_library(|library| {
+        Ok((
+            library.chapter(&module_code, book, chapter)?,
+            library.notes(&module_code, book, chapter)?,
+        ))
+    })?;
+    // Letters as the engine sets the markers (ADR 0028): a note whose
+    // verse has no text carries its verse number instead.
+    let verse_numbers: Vec<u16> = verses.iter().map(|v| v.verse).collect();
+    let anchors: Vec<(u16, u32)> = notes.iter().map(|n| (n.verse, n.offset)).collect();
+    let labels = gramma_core::typeset::layout::note_labels(&verse_numbers, &anchors);
+    Ok({
         notes
             .into_iter()
-            .enumerate()
-            .map(|(i, n)| {
+            .zip(labels)
+            .map(|(n, label)| {
                 let refs = scan_references(&n.text, Some(book))
                     .into_iter()
                     .map(|r| NoteRefView {
@@ -573,8 +584,7 @@ pub fn chapter_notes(
                     .collect();
                 NoteView {
                     verse: n.verse,
-                    // Chapter-running letters, matching the engine's inline markers (ADR 0028).
-                    label: gramma_core::typeset::layout::marker_label(i),
+                    label: label.unwrap_or_else(|| n.verse.to_string()),
                     text: n.text,
                     refs,
                 }

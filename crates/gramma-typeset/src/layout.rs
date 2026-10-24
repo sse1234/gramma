@@ -188,6 +188,32 @@ fn flush_segment(
     ));
 }
 
+/// The marker letters of a chapter's notes, as `layout_verses` sets them
+/// (ADR 0028): running through the chapter in the order the markers
+/// appear — the verses in `verses` order, within a verse by offset,
+/// notes at one offset by their sequence. A note whose verse has no text
+/// in the chapter gets no marker and `None` here; the footnotes view
+/// labels it another way. `notes` are (verse, offset) pairs in the
+/// library's (verse, sequence) order; the result is index-aligned.
+pub fn note_labels(verses: &[u16], notes: &[(u16, u32)]) -> Vec<Option<String>> {
+    let mut labels = vec![None; notes.len()];
+    let mut next = 0usize;
+    for verse in verses {
+        let mut here: Vec<(u32, usize)> = notes
+            .iter()
+            .enumerate()
+            .filter(|(_, (v, _))| v == verse)
+            .map(|(i, (_, offset))| (*offset, i))
+            .collect();
+        here.sort();
+        for (_, i) in here {
+            labels[i] = Some(marker_label(next));
+            next += 1;
+        }
+    }
+    labels
+}
+
 /// The inline marker label for the `index`-th note of a chapter:
 /// a … z, then aa, ab, … (bijective base 26).
 pub fn marker_label(index: usize) -> String {
@@ -299,7 +325,9 @@ fn layout_paragraph(
             .filter(|(v, _)| v == number)
             .map(|&(_, offset)| offset as usize)
             .collect();
-        verse_notes.sort_unstable();
+        // Stable: notes at one offset keep their sequence, as `note_labels`
+        // letters them.
+        verse_notes.sort();
         let mut note_idx = 0usize;
 
         if !items.is_empty() {

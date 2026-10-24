@@ -23,6 +23,12 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
   its box carries the italic overhang.
 - PDF import: a footnote broken by a page turn continues on the next
   page instead of ending mid-word and spilling into the text.
+- Hiding or showing the chrome no longer moves the single-column
+  reader by up to a page: the text keeps its pixel position.
+- Footnotes views letter notes exactly as the text's markers run: a
+  note on a verse the translation omits (such as Acts 8:37) no longer
+  shifts the letters of the notes after it; it shows its verse number
+  instead.
 
 ## [1.1.5] - 2026-10-04
 
