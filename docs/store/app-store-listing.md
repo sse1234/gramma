@@ -41,19 +41,22 @@ READING
 • Side-by-side views that follow each other: text beside text,
   commentary, or footnotes
 • Desks — saved workspace layouts for study, comparison, devotion
-• Careful typography: Gentium and Literata faces, adjustable measure,
-  spacing, and weight
+• Careful typography: Gentium and Literata faces; text size, line
+  length, column gap, spacing, and weight are yours to set
 
 STUDY
 • Imports standard SWORD modules (e.g. from CrossWire) and OSIS files:
-  Bibles, commentaries, dictionaries, devotionals, and books
+  Bibles, commentaries, dictionaries, devotionals, and books — and
+  reads PDF, EPUB, and ODT documents into the same library
 • Strong's numbers: tap a word for its lexicon entry, follow a number
   into a concordance built from tagged texts
 • Fast search with language-aware matching
 • Reading plans imported from simple JSON files
 
 YOUR NOTES, YOURS
-• Word-precise color marks and notes, anchored to verses
+• Word-precise marks and notes, anchored to verses, with eight pens
+  you define — hue, strength, wash or underline — or a note shown by
+  a small icon alone
 • A notes overview across everything you have marked
 • Sync between your own devices as end-to-end-encrypted files in a
   folder you choose (your iCloud Drive, Dropbox, or any synced
@@ -69,9 +72,9 @@ FREE AND OPEN
 
 gramma setzt die Schrift, wie gute Bücher gesetzt werden. Die
 Satz-Engine steht in der Zeilenumbruch-Tradition von TeX: Blocksatz
-mit Silbentrennung und denselben Worten auf denselben Zeilen auf
-jedem Gerät — das visuelle Gedächtnis der Seite bleibt vom Telefon
-über das Tablet bis zum Schreibtisch erhalten.
+mit Silbentrennung in der Schriftgröße und Zeilenlänge, die Sie
+wählen — eine Spalte auf dem Telefon, mehrere auf Tablet und
+Schreibtisch.
 
 LESEN
 • Endloses Lesen durch ganze Bücher, auf großen Bildschirmen in
@@ -80,19 +83,24 @@ LESEN
   oder Fußnoten
 • Schreibtische — gespeicherte Arbeitsflächen für Studium, Vergleich,
   Andacht
-• Sorgfältige Typografie: Gentium und Literata, einstellbare
-  Zeilenbreite, Durchschuss und Strichstärke
+• Sorgfältige Typografie: Gentium und Literata; Schriftgröße,
+  Zeilenlänge, Spaltenabstand, Durchschuss und Strichstärke stellen
+  Sie selbst ein
 
 STUDIEREN
 • Importiert SWORD-Module (z. B. von CrossWire) und OSIS-Dateien:
-  Bibeln, Kommentare, Wörterbücher, Andachten und Bücher
+  Bibeln, Kommentare, Wörterbücher, Andachten und Bücher — und liest
+  PDF-, EPUB- und ODT-Dokumente in dieselbe Bibliothek
 • Strong-Nummern: ein Tipp aufs Wort öffnet den Lexikoneintrag, die
   Nummer führt in eine Konkordanz aus getaggten Texten
 • Schnelle Suche mit sprachbewusster Wortformerkennung
 • Lesepläne aus einfachen JSON-Dateien
 
 IHRE NOTIZEN GEHÖREN IHNEN
-• Wortgenaue Farbmarkierungen und Notizen, an Versen verankert
+• Wortgenaue Markierungen und Notizen, an Versen verankert, mit acht
+  Stiften nach Ihrer Wahl — Farbton, Stärke, Marker oder
+  Unterstreichung — oder eine Notiz, die nur als kleines Symbol
+  erscheint
 • Eine Notizen-Übersicht über alles Markierte
 • Synchronisierung zwischen Ihren eigenen Geräten als
   Ende-zu-Ende-verschlüsselte Dateien in einem Ordner Ihrer Wahl

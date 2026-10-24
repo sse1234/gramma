@@ -27,7 +27,9 @@ right to use, like a document viewer opens your own files.
    (ASV, Menge, and a sample reading plan).
 2. In gramma, open **Settings → Import** (or the import button in the
    toolbar) and choose the downloaded `.zip` (SWORD module), `.xml`
-   (OSIS), or `.json` (reading plan) file.
+   (OSIS), or `.json` (reading plan) file — or a `.pdf`, `.epub`, or
+   `.odt` document you have the right to use; gramma reads Bibles,
+   commentaries, and books out of it.
 3. Read. Add views with the **+** button: a second translation
    linked to the first, footnotes, a commentary, a dictionary, your
    notes.
@@ -45,8 +47,16 @@ jumps straight to the lexicon entry.
 
 **How do I take notes?** Long-press a word and release for a single
 word, or drag before releasing for a passage; the bar at the bottom
-offers a color mark with an optional note. The **Notes** view lists
+offers a mark with an optional note. The eight pens are yours: hue,
+strength, wash or underline, in **Settings → Appearance** or by
+long-pressing a pen in the popup. "Note only" leaves the text plain
+and shows a small icon after the verse. The **Notes** view lists
 everything you have marked.
+
+**Keyboard?** On the desktop, the arrow keys page the view you last
+used by one column, Page Up and Page Down by a whole screen (a
+setting makes the arrows do that too), and **p** opens the reading
+plan.
 
 **How does sync work?** Optional, and without any account: gramma
 writes end-to-end-encrypted files into a folder you choose (your
@@ -78,7 +88,9 @@ nutzen dürfen — so wie ein Dokumentbetrachter Ihre eigenen Dateien
    nutzen Sie unsere [Beispieldateien](https://github.com/sse1234/gramma/releases/tag/samples).
 2. In gramma **Einstellungen → Importieren** (oder den Import-Knopf
    in der Werkzeugleiste) wählen und die heruntergeladene `.zip`-
-   (SWORD-Modul), `.xml`- (OSIS) oder `.json`-Datei (Leseplan) öffnen.
+   (SWORD-Modul), `.xml`- (OSIS) oder `.json`-Datei (Leseplan) öffnen
+   — oder ein `.pdf`-, `.epub`- oder `.odt`-Dokument, das Sie nutzen
+   dürfen; gramma liest Bibeln, Kommentare und Bücher daraus.
 3. Lesen. Mit **+** weitere Ansichten hinzufügen: eine zweite
    Übersetzung, mit der ersten verbunden, Fußnoten, Kommentar,
    Wörterbuch, Notizen.
@@ -95,8 +107,17 @@ Strong-Nummern direkt beim passenden Lexikoneintrag.
 
 **Wie mache ich Notizen?** Wort gedrückt halten und loslassen (ein
 Wort) oder vor dem Loslassen ziehen (Abschnitt); die Leiste am unteren
-Rand bietet eine Farbmarkierung mit optionaler Notiz. Die Ansicht
-**Notizen** listet alles Markierte.
+Rand bietet eine Markierung mit optionaler Notiz. Die acht Stifte
+gehören Ihnen: Farbton, Stärke, Marker oder Unterstreichung, unter
+**Einstellungen → Aussehen** oder durch langes Drücken eines Stifts
+im Dialog. „Nur Notiz“ lässt den Text unberührt und zeigt ein kleines
+Symbol hinter dem Vers. Die Ansicht **Notizen** listet alles
+Markierte.
+
+**Tastatur?** Am Desktop blättern die Pfeiltasten die zuletzt benutzte
+Ansicht um eine Spalte, Bild auf und Bild ab um einen ganzen
+Bildschirm (eine Einstellung lässt auch die Pfeile das tun), und
+**p** öffnet den Leseplan.
 
 **Wie funktioniert die Synchronisierung?** Optional und ohne Konto:
 gramma schreibt Ende-zu-Ende-verschlüsselte Dateien in einen Ordner

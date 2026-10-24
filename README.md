@@ -31,9 +31,11 @@ merely "text on a screen".
 ## What works today
 
 - **Reader**: endless scrolling over whole modules, adaptive
-  multi-column layout at constant zoom, synchronized side-by-side
-  panes (text ↔ text, text ↔ commentary, …), footnotes, desks
-  (saved workspace layouts), light/dark themes, English and German UI.
+  multi-column layout with the reader's text size, line length and
+  column gap, paging by column or by screen, the source's paragraphs
+  kept, synchronized side-by-side panes (text ↔ text, text ↔
+  commentary, …), footnotes, desks (saved workspace layouts),
+  light/dark themes, English and German UI.
 - **Content**: clean-room readers for SWORD modules — Bibles (zText),
   commentaries (zCom), dictionaries and daily devotionals (zLD),
   general books (RawGenBook) — plus direct OSIS import and document
@@ -43,9 +45,11 @@ merely "text on a screen".
   concordance built from Strong's-tagged Bibles, cross-reference and
   passage previews, lexical search (BM25 with German-aware token
   folding), daily devotional navigation.
-- **Annotations**: word-precise color marks and notes anchored to
-  verses and passages — exact words in the origin translation, whole
-  verses in every other — synced over the user's own op-log.
+- **Annotations**: word-precise marks and notes anchored to verses
+  and passages — exact words in the origin translation, whole verses
+  in every other — with eight pens the reader defines (hue, strength,
+  wash or underline), notes that show as a small icon alone, and all
+  of it synced over the user's own op-log.
 - **Sync**: an end-to-end-encrypted operation log written as files
   into a folder the user provides and syncs by any means they like
   (iCloud Drive, Syncthing, Nextcloud, a USB stick) — no gramma
@@ -119,6 +123,8 @@ cd app && flutter run           # run the app on a connected device/desktop
 
 # import an OSIS file into a library database from the command line:
 cargo run --release --example import_osis -- <library.db> <file.osis.xml>
+# inspect a PDF/EPUB/ODT import, or export it as OSIS to share:
+cargo run --release -p gramma-core --example inspect_document -- <file> [--osis <out.xml>]
 ```
 
 After changing the bridge API in `app/rust/src/api/`, regenerate
