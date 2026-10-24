@@ -6,6 +6,8 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
 
 ## [Unreleased]
 
+## [1.1.6] - 2026-10-24
+
 ### Added
 - "p" opens the reading plan on the desktop.
 - Reference links in headings show in the number color, like the
