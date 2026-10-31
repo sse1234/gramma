@@ -35,3 +35,16 @@ races an asset load. The bundled-asset mechanism is deleted.
   devices with the same plan agree without sync.
 - The plan JSON schema is now a public interchange format; changes
   to it must stay backward-compatible.
+
+## Amendment (2026-10-31): the plan day follows the plan's length
+
+The plan day was derived on a leap-year calendar for every plan, so a
+365-day plan ran a day ahead from 1 March of every common year, and
+it was counted in local time, so between the spring and the autumn
+clock change the count came out one day short — which hid the first
+error all summer and produced a two-day jump on the day after the
+autumn change. The day is now counted in UTC, and a plan of 365 or
+fewer entries follows the year it is read in (its day is that year's
+day of the year, the last entry repeating on a leap day), while a plan
+of 366 entries keeps the leap-year anchoring with a reading for 29
+February.

@@ -59,16 +59,25 @@ class ReadingPlan {
   }
 }
 
-/// The 1-based plan day for a date. Plans span the full leap-year
-/// calendar (366 days), anchored by month and day: 1 March is day 61 in
-/// every year, and day 60 (29 February) simply has no date in common
-/// years.
-int planDayFor(DateTime date) {
-  return DateTime(
-        2024,
+/// The 1-based plan day for a date, for a plan of [planDays] entries.
+///
+/// A plan of a year's length follows the year it is read in: its day is
+/// the day of that year, so a 365-day plan ends on 31 December in a
+/// common year and repeats its last day on the leap day. A plan of 366
+/// entries has a reading for 29 February and keeps its days aligned by
+/// month and day instead — 1 March is its day 61 in every year, and day
+/// 60 has no date in common years.
+///
+/// Counted in UTC: local calendar dates straddle the daylight-saving
+/// change, which made `inDays` one short for every date between the
+/// spring and the autumn change.
+int planDayFor(DateTime date, {int planDays = 365}) {
+  final year = planDays >= 366 ? 2024 : date.year;
+  return DateTime.utc(
+        year,
         date.month,
         date.day,
-      ).difference(DateTime(2024, 1, 1)).inDays +
+      ).difference(DateTime.utc(year, 1, 1)).inDays +
       1;
 }
 
@@ -85,7 +94,8 @@ Future<void> showReadingPlan(
     builder: (context) => _PlanDialog(
       plan: plan,
       onOpen: onOpen,
-      initialDay: initialDay ?? planDayFor(DateTime.now()),
+      initialDay:
+          initialDay ?? planDayFor(DateTime.now(), planDays: plan.days.length),
     ),
   );
 }
@@ -108,7 +118,8 @@ class _PlanDialog extends StatefulWidget {
 class _PlanDialogState extends State<_PlanDialog> {
   late int _day = widget.initialDay.clamp(1, widget.plan.days.length);
 
-  int get _today => planDayFor(DateTime.now());
+  int get _today =>
+      planDayFor(DateTime.now(), planDays: widget.plan.days.length);
 
   void _shift(int delta) {
     setState(() => _day = (_day + delta).clamp(1, widget.plan.days.length));

@@ -6,6 +6,12 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
 
 ## [Unreleased]
 
+### Fixed
+- Reading plans no longer jump a day after the autumn clock change and
+  no longer run a day ahead from 1 March: the plan day is counted in
+  UTC, and a 365-day plan follows the year it is read in (ADR 0025,
+  amended). Plans with 366 entries keep their 29 February.
+
 ## [1.1.6] - 2026-10-24
 
 ### Added
