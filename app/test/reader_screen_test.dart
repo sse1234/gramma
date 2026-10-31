@@ -252,6 +252,43 @@ void main() {
     expect(find.textContaining('Anmerkung Alpha'), findsNothing);
   });
 
+  testWidgets('a module switch lists the notes of the column it lands on', (
+    tester,
+  ) async {
+    // Switching the text lands the view at its chapter's head; the
+    // announced range must start there, not at the verse the old text
+    // was scrolled to — else the footnotes view misses the notes in view.
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1200, 360);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settle(
+      tester,
+      () => _found(find.byKey(const ValueKey('columns-active'))),
+    );
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Footnotes view'));
+    await _settle(tester, () => _found(find.textContaining('Anmerkung Alpha')));
+    // Move on: the column holding verse 6 heads the view, verse 1 and
+    // its note leave.
+    await _selectRef(tester, book: 'Gen', chapter: 1, verse: 6);
+    await _settle(
+      tester,
+      () => !_found(find.textContaining('Anmerkung Alpha')),
+    );
+    await tester.tap(find.byKey(const Key('module-select')).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Testbibel mit Strongs').last);
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('module-select')).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Fixtur Deutsch').last);
+    await _settle(tester, () => _found(find.textContaining('Anmerkung Alpha')));
+  });
+
   testWidgets('a second text view follows the first', (tester) async {
     _freshUserStore();
     tester.view.physicalSize = const Size(1400, 800);
@@ -2225,6 +2262,91 @@ void main() {
       isNotNull,
       reason: 'the plan jump entered the desk history',
     );
+  });
+
+  testWidgets('"p" toggles the reading plan', (tester) async {
+    _freshUserStore();
+    _desktopViewport(tester);
+    final planFile = File('${tempDir.path}/plan-toggle.json')
+      ..writeAsStringSync(
+        jsonEncode({
+          'name': 'Toggleplan',
+          'source': '',
+          'days': [
+            [
+              {'label': 'Erster Tag', 'osis': 'Gen.1'},
+            ],
+          ],
+        }),
+      );
+    addTearDown(() => planFile.deleteSync());
+    await tester.runAsync(() => importPlanFile(path: planFile.path));
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyP);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('plan-title')), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyP);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('plan-title')),
+      findsNothing,
+      reason: 'the key that opened the plan closes it',
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyP);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('plan-title')), findsOneWidget);
+  });
+
+  testWidgets('a plan jump reports its verse once the layout arrives', (
+    tester,
+  ) async {
+    // A plan sends the view to a chapter, no verse; the column it lands
+    // on may head in a chapter not typeset yet, so the head's verse is
+    // unknown at first. The footnotes view following the range must not
+    // list the whole chapter for good: the anchor gains its verse when
+    // the layout comes in.
+    _freshUserStore();
+    // Columns of a few lines, so a far chapter is not laid out before
+    // the jump.
+    tester.view.physicalSize = const Size(1200, 360);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final planFile = File('${tempDir.path}/plan-josua.json')
+      ..writeAsStringSync(
+        jsonEncode({
+          'name': 'Josuaplan',
+          'source': '',
+          'days': [
+            [
+              {'label': 'Josua 1', 'osis': 'Josh.1'},
+            ],
+          ],
+        }),
+      );
+    addTearDown(() => planFile.deleteSync());
+    await tester.runAsync(() => importPlanFile(path: planFile.path));
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settle(
+      tester,
+      () => _found(find.byKey(const ValueKey('columns-active'))),
+    );
+    await tester.tap(find.byKey(const Key('add-view')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Footnotes view'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tools-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Josuaplan').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('plan-ref-0')));
+    await tester.pumpAndSettle();
+    await _settle(tester, () {
+      final pane = tester.widget<FootnotesPane>(find.byType(FootnotesPane));
+      return pane.followedAnchor?.split('.').length == 3 &&
+          pane.followedAnchorEnd?.split('.').length == 3;
+    });
   });
 
   testWidgets('switching the typeface re-typesets the reader', (tester) async {

@@ -252,3 +252,13 @@ from 5,062 to 3,906, verses identical to the EPUB from 26,350 to
 - Images add weight to the library database; figures are stored at
   their embedded resolution, never upscaled, and a size cap per
   document keeps a picture book from swallowing the store.
+
+## Amendment (2026-10-31): a reference link ends where the reference ends
+
+The link runs of parallel-passage headings were whole words: in
+"Mt 3,1-12; Mk 1,1-8" the run "3,1-12;" carried the semicolon, so the
+list's separators painted in the link color. A run only partly inside
+a found reference is now split at the reference's edge — the linked
+piece keeps the width the engine shaped, the rest follows flush — and
+the separator is plain heading text. Lines never re-break: the pieces
+span exactly the run they replace.

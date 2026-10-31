@@ -363,6 +363,14 @@ fn layout_paragraph(
             },
             None,
         );
+        // A note anchored at the verse's start is one on the verse as a
+        // whole (an editor's note set before the text, or one on the
+        // heading above that the source could only place here): its
+        // marker follows the verse number, not the first word.
+        while note_idx < verse_notes.len() && verse_notes[note_idx] == 0 {
+            note_idx += 1;
+            push_marker(&mut items, &mut meta, measure, marker_index, *number);
+        }
         push(&mut items, &mut meta, space, None);
         let mut first_word = true;
         for (word, word_start) in words_with_offsets(text) {
@@ -859,10 +867,14 @@ fn prose_paragraph(
 /// each heading — the consecutive heading runs of one level before one
 /// verse — is scanned for references; runs inside a reference get the
 /// link index of its OSIS target in the returned list. `context` is the
-/// module's book for bare "3,16" forms.
+/// module's book for bare "3,16" forms. A run only partly inside a
+/// reference — "3,1-12;" with the list's semicolon glued on — is split
+/// at the reference's edge, so the separator paints as plain text;
+/// `measure` sets the pieces' widths.
 pub fn link_heading_references(
     lines: &mut [LineOut],
     context: Option<gramma_reference::BookId>,
+    measure: &impl TextMeasure,
 ) -> Vec<String> {
     use gramma_reference::scan_references;
     let mut refs: Vec<String> = Vec::new();
@@ -901,16 +913,70 @@ pub fn link_heading_references(
             text.push_str(&lines[li].runs[ri].text);
             spans.push((start, text.len()));
         }
+        // Per run, the linked byte ranges relative to the run's text.
+        let mut cuts: Vec<Vec<(usize, usize, u32)>> = vec![Vec::new(); group.len()];
         for found in scan_references(&text, context) {
             let osis = gramma_document::interpret::osis_of(found.reference);
             let index = refs.len() as u32;
             refs.push(osis);
-            for (k, &(li, ri)) in group.iter().enumerate() {
-                let (s, e) = spans[k];
-                if s < found.end as usize && e > found.start as usize {
-                    lines[li].runs[ri].link = Some(index);
+            for (k, &(s, e)) in spans.iter().enumerate() {
+                let a = (found.start as usize).max(s);
+                let b = (found.end as usize).min(e);
+                if a < b {
+                    cuts[k].push((a - s, b - s, index));
                 }
             }
+        }
+        // Later runs first, so splitting one leaves the earlier indexes
+        // of its line intact.
+        for (k, &(li, ri)) in group.iter().enumerate().rev() {
+            let pieces = &cuts[k];
+            if pieces.is_empty() {
+                continue;
+            }
+            let run = &lines[li].runs[ri];
+            let whole = pieces.len() == 1 && pieces[0].0 == 0 && pieces[0].1 == run.text.len();
+            let clean = pieces
+                .iter()
+                .all(|&(a, b, _)| run.text.is_char_boundary(a) && run.text.is_char_boundary(b));
+            if whole || !clean {
+                lines[li].runs[ri].link = Some(pieces[0].2);
+                continue;
+            }
+            let mut segments: Vec<(usize, usize, Option<u32>)> = Vec::new();
+            let mut at = 0usize;
+            for &(a, b, index) in pieces {
+                if a > at {
+                    segments.push((at, a, None));
+                }
+                segments.push((a, b, Some(index)));
+                at = b;
+            }
+            if at < run.text.len() {
+                segments.push((at, run.text.len(), None));
+            }
+            let template = run.clone();
+            let mut x = template.x;
+            let mut pieces_out = Vec::with_capacity(segments.len());
+            for (i, &(a, b, link)) in segments.iter().enumerate() {
+                let part = template.text[a..b].to_string();
+                // The last piece takes the remainder, so the pieces span
+                // exactly the run they replace.
+                let width = if i + 1 == segments.len() {
+                    (template.x + template.width - x).max(0.0)
+                } else {
+                    measure.text_width(&part) as f64 * template.scale
+                };
+                pieces_out.push(RunOut {
+                    text: part,
+                    x,
+                    width,
+                    link,
+                    ..template.clone()
+                });
+                x += width;
+            }
+            lines[li].runs.splice(ri..=ri, pieces_out);
         }
     }
     refs

@@ -132,38 +132,42 @@ class ColumnPlan {
   /// only land at a column's foot or head, and the head is a matter of
   /// where the counting starts. The nearest origin whose next
   /// [checkedBackwardColumns] columns orphan no heading wins; failing
-  /// that, the one that orphans fewest. The reader's line stays in the
-  /// first column, a few rows lower.
+  /// that, the one whose orphans lie farthest back (see
+  /// [_backwardOrphanCost]). The reader's line stays in the first
+  /// column, a few rows lower.
   int _settleOrigin(int origin) {
     if (!_aware) return origin;
     var best = origin;
-    var bestOrphans = _backwardOrphans(origin);
-    for (
-      var shift = 1;
-      shift <= linesPerColumn ~/ 2 && bestOrphans > 0;
-      shift++
-    ) {
+    var bestCost = _backwardOrphanCost(origin);
+    for (var shift = 1; shift <= linesPerColumn ~/ 2 && bestCost > 0; shift++) {
       final candidate = origin - shift;
       if (candidate <= 0) break;
-      final orphans = _backwardOrphans(candidate);
-      if (orphans < bestOrphans) {
+      final cost = _backwardOrphanCost(candidate);
+      if (cost < bestCost) {
         best = candidate;
-        bestOrphans = orphans;
+        bestCost = cost;
       }
     }
     return best;
   }
 
-  int _backwardOrphans(int origin) {
-    var orphans = 0;
+  /// What chunking backward from [origin] costs in orphaned headings:
+  /// an orphan in the k-th column behind the origin weighs 2^(20-k), so
+  /// one in the nearest column — the first the reader pages back into —
+  /// outweighs orphans in every farther column together. Counting
+  /// orphans alone let a tie keep a heading split right behind the
+  /// reader's column while a shift would have moved the only orphan
+  /// twenty columns back.
+  int _backwardOrphanCost(int origin) {
+    var cost = 0;
     var e = origin;
-    for (var k = 0; k < checkedBackwardColumns && e > 0; k++) {
+    for (var k = 1; k <= checkedBackwardColumns && e > 0; k++) {
       var s = e - linesPerColumn;
       if (s < 0) s = 0;
-      if (_orphanAtFoot(s, e)) orphans++;
+      if (_orphanAtFoot(s, e)) cost += 1 << (checkedBackwardColumns - k);
       e = s;
     }
-    return orphans;
+    return cost;
   }
 
   /// Whether the column [s, e) ends with a heading group that has fewer

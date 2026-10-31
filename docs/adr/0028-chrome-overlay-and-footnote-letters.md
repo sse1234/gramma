@@ -106,3 +106,23 @@ earlier, on the nearest line from which the next twenty backward
 columns orphan no heading (failing that, the fewest). The reader's
 line stays in the first column, a few rows lower; the columns before
 it are full and every heading heads a column or sits with its lines.
+
+## Amendment (2026-10-31): the nearest column decides; a note at a verse's start marks the number
+
+Settling the origin by the *number* of orphaned headings let a tie
+stand: a heading split right behind the reader's column — its title
+at one column's foot, its spacing row heading the next — counted the
+same as a heading orphaned twenty columns back, so the origin stayed
+and the reader paged straight into the split. The orphans are now
+weighed by distance: an orphan in the k-th column behind the origin
+costs 2^(20−k), so one in the nearest column outweighs every farther
+column together, and the origin takes the shift that moves the orphan
+as far from the reader as the half-column allows.
+
+A footnote anchored at a verse's very start — an editor's note on the
+verse as a whole, or one on the heading above that the source could
+only place at the verse — used to be marked after the verse's first
+word, as if it belonged to that word ("Da<sup>k</sup> stand Paulus
+auf" for a note on the heading's "Galatien"). Its marker now follows
+the verse number. The letters run as before; only the marker's place
+on the line moves.

@@ -6,7 +6,22 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
 
 ## [Unreleased]
 
+### Changed
+- "p" closes the reading plan as well as opening it.
+- A footnote anchored at a verse's start — a note on the verse as a
+  whole, or on the heading above it — is marked after the verse number
+  instead of after the verse's first word (ADR 0028, amended).
+
 ### Fixed
+- Footnotes views list the notes actually in view after a module
+  switch and after a reading-plan jump: the text view re-reads its
+  column head when the new plan stands and when a chapter's layout
+  arrives, instead of carrying the old verse or a chapter-only range.
+- A chapter heading could still be left at the foot of a column behind
+  the reading position when the only alternative moved an orphan
+  farther back; the nearest column now decides (ADR 0028, amended).
+- The semicolons between the references of a parallel-passage heading
+  no longer paint as links (ADR 0029, amended).
 - Reading plans no longer jump a day after the autumn clock change and
   no longer run a day ahead from 1 March: the plan day is counted in
   UTC, and a 365-day plan follows the year it is read in (ADR 0025,

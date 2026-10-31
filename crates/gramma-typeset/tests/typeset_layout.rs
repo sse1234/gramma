@@ -442,6 +442,34 @@ fn marker_labels_run_through_the_chapter() {
     assert_eq!(markers, ["a", "b", "c"]);
 }
 
+/// A note anchored at a verse's start marks the verse as a whole: its
+/// marker follows the verse number, not the first word.
+#[test]
+fn a_note_at_the_verse_start_marks_the_number() {
+    let m = measure();
+    let width = 30 * m.units_per_em() as i64;
+    let verses = [
+        (16u16, "Da stand Paulus auf"),
+        (17, "Der Gott unseres Volkes"),
+    ];
+    let notes = [(16u16, 0u32), (16, 3), (17, 0)];
+    let lines = layout_verses(&verses, &notes, &[], &[], &m, None, width);
+    let runs: Vec<(String, bool, bool)> = lines
+        .iter()
+        .flat_map(|l| l.runs.iter())
+        .map(|r| (r.text.clone(), r.verse_number, r.note_marker))
+        .collect();
+    let texts: Vec<&str> = runs.iter().map(|r| r.0.as_str()).collect();
+    assert_eq!(
+        texts,
+        [
+            "16", "a", "Da", "stand", "b", "Paulus", "auf", "17", "c", "Der", "Gott", "unseres",
+            "Volkes"
+        ]
+    );
+    assert!(runs[1].2 && runs[4].2 && runs[8].2, "markers: {runs:?}");
+}
+
 #[test]
 fn marker_labels_continue_past_z() {
     use gramma_typeset::layout::marker_label;

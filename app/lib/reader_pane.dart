@@ -436,6 +436,9 @@ class _ReaderPaneState extends State<ReaderPane>
       _rowKinds = null;
       _columns.reset();
       _topChapter = 0;
+      // The new module lands at its chapter's head; the old verse must
+      // not narrow the announced range until the head's verse is read.
+      _visibleVerse = null;
       _announced = false;
     });
     final active = _active;
@@ -529,6 +532,9 @@ class _ReaderPaneState extends State<ReaderPane>
   /// Failed line-count attempts since the last success (see [_remeasure]).
   int _kindsRetries = 0;
 
+  /// Geometry key of the column plan the last build laid out.
+  String? _laidOutParams;
+
   void _requestLayout(int index) {
     if (_layouts.containsKey(index) || _loading.contains(index)) return;
     _loading.add(index);
@@ -547,6 +553,7 @@ class _ReaderPaneState extends State<ReaderPane>
               _layouts.remove(_layouts.keys.first);
             }
           });
+          _refreshColumnPosition();
           final pending = _pendingVerseJump;
           if (pending != null && pending.index == index) {
             _pendingVerseJump = null;
@@ -633,6 +640,16 @@ class _ReaderPaneState extends State<ReaderPane>
   }
 
   /// The first visible column changed: find its chapter and verse.
+  /// Re-reads the column head's chapter and verse from what is laid out
+  /// now. A chapter-only anchor — the head's chapter was not yet typeset
+  /// when the column was reached, as after a plan jump — becomes exact
+  /// once its layout arrives, and a fresh plan (a module switch, a
+  /// re-chunk) reports the head it actually shows; a footnotes view
+  /// following the range then lists the visible notes, not the chapter's.
+  void _refreshColumnPosition() {
+    if (_columns.attached) _onColumnScrolled();
+  }
+
   void _onColumnScrolled() {
     final plan = _columns.plan!;
     final line = _columns.anchorLine;
@@ -988,6 +1005,14 @@ class _ReaderPaneState extends State<ReaderPane>
       buildPlan: ({required linesPerColumn, required origin}) =>
           _linePlan(linesPerColumn: linesPerColumn, origin: origin)!,
     );
+    if (_columns.params != _laidOutParams) {
+      // A plan with new geometry stands once this frame is built; the
+      // position is read from its column head then.
+      _laidOutParams = _columns.params;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _refreshColumnPosition();
+      });
+    }
     final scale = columnWidth / (_measure! * _unitsPerEm());
     return Focus(
       focusNode: _focus.node,

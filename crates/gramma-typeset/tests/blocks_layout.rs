@@ -264,7 +264,7 @@ fn heading_references_become_links() {
         None,
         30 * m.units_per_em() as i64,
     );
-    let refs = link_heading_references(&mut lines, book_by_osis("Gen"));
+    let refs = link_heading_references(&mut lines, book_by_osis("Gen"), &m);
     assert_eq!(refs, vec!["Ps.104.2", "Isa.45.7", "2Cor.4.6"]);
     let linked: Vec<(String, u32)> = lines
         .iter()
@@ -275,13 +275,34 @@ fn heading_references_become_links() {
         linked,
         vec![
             ("Ps".to_string(), 0),
-            ("104,2;".to_string(), 0),
+            ("104,2".to_string(), 0),
             ("Jes".to_string(), 1),
-            ("45,7;".to_string(), 1),
+            ("45,7".to_string(), 1),
             ("2Kor".to_string(), 2),
             ("4,6".to_string(), 2)
         ]
     );
+    // The list's semicolons are split off the references and stay plain
+    // text, each piece set flush against the one before it.
+    let runs: Vec<&gramma_typeset::layout::RunOut> =
+        lines.iter().flat_map(|l| l.runs.iter()).collect();
+    for (i, run) in runs.iter().enumerate() {
+        if run.text == ";" {
+            assert!(run.link.is_none(), "separator linked");
+            let before = runs[i - 1];
+            assert!(
+                before.link.is_some(),
+                "the reference precedes its separator"
+            );
+            assert!(
+                (before.x + before.width - run.x).abs() < 1.0,
+                "separator at {} but reference ends at {}",
+                run.x,
+                before.x + before.width
+            );
+        }
+    }
+    assert_eq!(runs.iter().filter(|r| r.text == ";").count(), 2);
     // The title heading and the verse words carry no link.
     assert!(
         lines

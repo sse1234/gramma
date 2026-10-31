@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'l10n.dart';
 import 'src/rust/api/library.dart' as rust;
@@ -125,10 +126,31 @@ class _PlanDialogState extends State<_PlanDialog> {
     setState(() => _day = (_day + delta).clamp(1, widget.plan.days.length));
   }
 
+  /// The key that opened the popup closes it: "p" toggles the plan.
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.keyP &&
+        !HardwareKeyboard.instance.isControlPressed &&
+        !HardwareKeyboard.instance.isMetaPressed &&
+        !HardwareKeyboard.instance.isAltPressed) {
+      Navigator.of(context).pop();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final refs = widget.plan.days[_day - 1];
+    return Focus(
+      autofocus: true,
+      onKeyEvent: _onKey,
+      child: _dialog(context, theme, refs),
+    );
+  }
+
+  Widget _dialog(BuildContext context, ThemeData theme, List<PlanRef> refs) {
     return AlertDialog(
       title: Row(
         children: [

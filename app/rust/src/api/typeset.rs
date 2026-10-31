@@ -158,7 +158,8 @@ pub fn layout_chapter(
         hyphenator,
         measure_units,
     );
-    let refs = gramma_core::typeset::layout::link_heading_references(&mut lines, Some(book));
+    let refs =
+        gramma_core::typeset::layout::link_heading_references(&mut lines, Some(book), measure);
     let plain_text = verses
         .iter()
         .map(|v| format!("{} {}", v.verse, v.text))

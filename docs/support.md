@@ -56,7 +56,7 @@ everything you have marked.
 **Keyboard?** On the desktop, the arrow keys page the view you last
 used by one column, Page Up and Page Down by a whole screen (a
 setting makes the arrows do that too), and **p** opens the reading
-plan.
+plan and closes it again.
 
 **How does sync work?** Optional, and without any account: gramma
 writes end-to-end-encrypted files into a folder you choose (your
@@ -117,7 +117,7 @@ Markierte.
 **Tastatur?** Am Desktop blättern die Pfeiltasten die zuletzt benutzte
 Ansicht um eine Spalte, Bild auf und Bild ab um einen ganzen
 Bildschirm (eine Einstellung lässt auch die Pfeile das tun), und
-**p** öffnet den Leseplan.
+**p** öffnet den Leseplan und schließt ihn wieder.
 
 **Wie funktioniert die Synchronisierung?** Optional und ohne Konto:
 gramma schreibt Ende-zu-Ende-verschlüsselte Dateien in einen Ordner

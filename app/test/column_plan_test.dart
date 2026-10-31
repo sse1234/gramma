@@ -248,6 +248,29 @@ void main() {
     );
   });
 
+  test('the nearest column behind the origin outweighs farther ones', () {
+    // Rows: headings at 2 and 11, origin 12, six lines per column.
+    // Counting back from 12 leaves the heading at 11 at the foot of
+    // 6..12 — the column the reader pages back into first — while 0..6
+    // keeps three rows under the heading at 2. From 11 instead, 5..11 is
+    // clean and only the module's first column 0..5 orphans its heading.
+    // One orphan either way; the nearer one decides, so the origin moves.
+    final kinds = List<int>.filled(23, 0)
+      ..[2] = 1
+      ..[11] = 1;
+    final p = ColumnPlan(
+      textLines: const [23],
+      headingLines: 0,
+      linesPerColumn: 6,
+      rowKinds: [kinds],
+      origin: 12,
+    );
+    expect(
+      [for (var c = 0; c < p.columnCount; c++) p.firstLineOfColumn(c)],
+      [0, 5, 11, 17],
+    );
+  });
+
   test('a chapter heading right before the origin heads its column', () {
     // Two chapters of ten lines with two heading rows each; the origin is
     // the second chapter's first text line (row 14). The heading rows
