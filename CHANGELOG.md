@@ -6,6 +6,8 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
 
 ## [Unreleased]
 
+## [1.1.7] - 2026-11-12
+
 ### Changed
 - "p" closes the reading plan as well as opening it.
 - A footnote anchored at a verse's start — a note on the verse as a
