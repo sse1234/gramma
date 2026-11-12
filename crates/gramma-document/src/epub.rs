@@ -481,6 +481,10 @@ struct Walker<'a> {
     other_chars: usize,
     in_link: bool,
     pending_images: Vec<(usize, String)>,
+    /// A top-level heading with nothing but note bodies after it so far:
+    /// its index among the file's blocks. A note list's own heading
+    /// ("Footnotes") is dropped when the list was all it headed.
+    note_list_heading: Option<usize>,
 }
 
 impl<'a> Walker<'a> {
@@ -502,6 +506,7 @@ impl<'a> Walker<'a> {
             other_chars: 0,
             in_link: false,
             pending_images: Vec::new(),
+            note_list_heading: None,
         }
     }
 
@@ -669,10 +674,36 @@ impl<'a> Walker<'a> {
                     Some(id) if !id.is_empty() => NoteTarget::Id(id.to_string()),
                     _ => NoteTarget::Ordinal,
                 };
-                let backlink = self.in_note_body()
-                    && (href.contains("backlink")
-                        || lower_class.contains("anchor")
-                        || lower_class.contains("backlink"));
+                // A link that carries the id an earlier marker pointed at
+                // and points back into the page answers that marker: the
+                // paragraph it stands in is the note, and the link its
+                // label. Chapter-end note lists are built this way, their
+                // entries plain paragraphs under no telling class.
+                let answers_marker = !self.in_note_body()
+                    && href.starts_with('#')
+                    && id.as_deref().is_some_and(|own| {
+                        self.note_refs
+                            .iter()
+                            .any(|(_, t)| matches!(t, NoteTarget::Id(named) if named == own))
+                    });
+                let mut answered = false;
+                if answers_marker
+                    && let Some(host) = self
+                        .frames
+                        .iter_mut()
+                        .rev()
+                        .find(|f| matches!(f.block, Some(BlockKind::Paragraph(_))))
+                {
+                    host.block = Some(BlockKind::Note);
+                    host.note_body = id.clone();
+                    self.sinks.push(Sink { blocks: Vec::new() });
+                    answered = true;
+                }
+                let backlink = answered
+                    || (self.in_note_body()
+                        && (href.contains("backlink")
+                            || lower_class.contains("anchor")
+                            || lower_class.contains("backlink")));
                 if !is_ref && href.starts_with('#') && !self.in_note_body() {
                     frame.pending_fragment = Some(href[1..].to_string());
                 }
@@ -832,7 +863,9 @@ impl<'a> Walker<'a> {
                 && let Some(body) = self.frames.iter_mut().rev().find(|f| f.note_body.is_some())
                 && body.note_label_text.is_empty()
             {
-                body.note_label_text = label.to_string();
+                // "a." and "1)" label their notes as "a" and "1".
+                let bare = label.trim_end_matches(['.', ')', ':']);
+                body.note_label_text = if bare.is_empty() { label } else { bare }.to_string();
             }
             return;
         }
@@ -927,6 +960,11 @@ impl<'a> Walker<'a> {
                 let id = frame.note_body.filter(|id| !id.is_empty());
                 self.note_bodies
                     .push((id, sink.blocks, frame.note_label_text));
+                if self.sinks.len() == 1
+                    && let Some(Block::Heading { .. }) = self.sinks[0].blocks.last()
+                {
+                    self.note_list_heading = Some(self.sinks[0].blocks.len() - 1);
+                }
             }
             Some(BlockKind::Nav) | None => {}
         }
@@ -973,8 +1011,26 @@ impl<'a> Walker<'a> {
     }
 
     fn emit(&mut self, block: Block) {
+        if self.sinks.len() == 1 {
+            // What follows the notes decides about their heading: text
+            // means the heading was the text's; a heading or a rule
+            // means it headed the note list alone.
+            let ends_section = matches!(block, Block::Heading { .. } | Block::Rule);
+            self.drop_note_list_heading(ends_section);
+        }
         if let Some(sink) = self.sinks.last_mut() {
             sink.blocks.push(block);
+        }
+    }
+
+    /// Settles a remembered note-list heading: removed when its section
+    /// ended with nothing but notes in it, kept otherwise.
+    fn drop_note_list_heading(&mut self, section_ended: bool) {
+        if let Some(index) = self.note_list_heading.take()
+            && section_ended
+            && index + 1 == self.sinks[0].blocks.len()
+        {
+            self.sinks[0].blocks.pop();
         }
     }
 
@@ -998,7 +1054,9 @@ impl<'a> Walker<'a> {
                         } else {
                             bodies[pos].2.clone()
                         };
-                        self.doc.notes[index].blocks = std::mem::take(&mut bodies[pos].1);
+                        // Copied, not moved: a note may be named by
+                        // several markers, each of which shows it.
+                        self.doc.notes[index].blocks = bodies[pos].1.clone();
                     } else {
                         unmatched_refs.push(index);
                     }
@@ -1042,6 +1100,7 @@ impl<'a> Walker<'a> {
         for note in self.doc.notes.iter_mut() {
             strip_leading_label(note);
         }
+        self.drop_note_list_heading(true);
         let file_blocks = std::mem::take(&mut self.sinks[0].blocks);
         self.doc.blocks.extend(file_blocks);
         for (index, path) in std::mem::take(&mut self.pending_images) {

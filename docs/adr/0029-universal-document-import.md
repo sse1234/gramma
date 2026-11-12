@@ -262,3 +262,32 @@ a found reference is now split at the reference's edge — the linked
 piece keeps the width the engine shaped, the rest follows flush — and
 the separator is plain heading text. Lines never re-break: the pieces
 span exactly the run they replace.
+
+## Amendment (2026-11-12): note lists bound by their links; "Psalm N" is the Psalter
+
+An EPUB Bible from the field kept its footnotes as a list at each
+chapter's end: plain paragraphs under no telling class, each opening
+with a link back to its marker, the marker linking forward to that
+link. The reader took the entries for text, appended them to the
+chapter's last verse, and took every back-link for another marker, so
+the notes came out empty and twice as many. Four rules, none of them
+about one producer's class names:
+
+- **Marker and entry name each other.** A link that carries the id an
+  earlier marker pointed at, and points back into the page, answers
+  that marker: the paragraph it stands in is the note and leaves the
+  text, and the link is the note's label ("a." labels it "a").
+- **A note may have several markers.** A body named by more than one
+  marker is copied to each; the second marker used to show nothing.
+- **A note list's heading goes with the list.** A heading followed by
+  nothing but notes until the next heading, a rule, or the file's end
+  headed the list alone and is dropped; a heading with text after its
+  notes stays.
+- **"Psalm N" opens the Psalter** whatever book came before. An
+  edition that heads every chapter "Book N" never announces the Psalms
+  by a book title, and their chapters were filed under the book before
+  them. The older German spelling "Chronika" resolves to the
+  Chronicles for the same reason: an unknown book name loses the book.
+
+The test package is synthetic; the edition that showed the defects is
+not in the repository (ADR 0002).

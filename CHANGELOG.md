@@ -18,6 +18,15 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
   passed. The reading position is saved once it rests and when the app
   is left, and the user store commits without waiting for the medium
   (ADR 0037).
+- EPUB import: footnotes kept as a list at each chapter's end are
+  read as notes and bound to their markers, instead of being appended
+  to the last verse with empty notes at the markers; a note referenced
+  from several places shows at each; the list's heading is dropped
+  (ADR 0029, amended).
+- Document import: chapters headed "Psalm N" are filed under the
+  Psalms even without a book title before them, and "1./2. Chronika"
+  is recognized as the Chronicles — both books' chapters were merged
+  into the book before them.
 - Footnotes views list the notes actually in view after a module
   switch and after a reading-plan jump: the text view re-reads its
   column head when the new plan stands and when a chapter's layout

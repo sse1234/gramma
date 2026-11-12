@@ -244,6 +244,87 @@ fn notes_lists_tables_figures_and_navigation() {
     );
 }
 
+/// A note list at the chapter's end, each entry a plain paragraph that
+/// opens with a link back to its marker: marker and entry name each
+/// other, and that pair is the binding. The entries are notes, not
+/// text; their back-links are labels, not markers; and the list's own
+/// heading, left with nothing beneath it, goes.
+#[test]
+fn chapter_end_note_lists_bind_by_their_mutual_links() {
+    let chapter = xhtml(
+        r##"<h1>Buch 1</h1>
+<p><span class="verszahl">1</span> Erster Vers mit Wort<a id="fnref-1-a" href="#fn-1-a" class="hoch">a</a> und Ende.
+<span class="verszahl">2</span> Zweiter Vers<a id="fnref-1-b" href="#fn-1-b" class="hoch">b</a> und noch ein Wort<a id="fnref-1-a2" href="#fn-1-a" class="hoch">a</a>.</p>
+<h3 class="listenkopf">Fußnoten</h3>
+<p class="listentext"><a id="fn-1-a" href="#fnref-1-a" class="listennr">a.</a> Erste Anmerkung.</p>
+<p class="listentext"><a id="fn-1-b" href="#fnref-1-b" class="listennr">b.</a> Zweite <i>Anmerkung</i>, siehe <a href="#anderswo">dort</a>.</p>
+<hr/>
+<h1>Buch 2</h1>
+<p><span class="verszahl">1</span> Weiter im Text.</p>"##,
+    );
+    let source = epub_with(&[
+        ("OEBPS/content.opf", opf(&["k.xhtml"], "").as_bytes()),
+        ("OEBPS/Styles/s.css", CSS.as_bytes()),
+        ("OEBPS/Text/k.xhtml", chapter.as_bytes()),
+    ]);
+    let doc = epub::read(source).unwrap();
+
+    let notes: Vec<(String, String)> = doc
+        .notes
+        .iter()
+        .map(|n| (n.label.clone(), plain_text_of(&n.blocks)))
+        .collect();
+    assert_eq!(
+        notes,
+        vec![
+            ("a".to_string(), "Erste Anmerkung.".to_string()),
+            ("b".to_string(), "Zweite Anmerkung, siehe dort.".to_string()),
+            // A second marker naming the first note carries its text too.
+            ("a".to_string(), "Erste Anmerkung.".to_string()),
+        ]
+    );
+
+    let headings: Vec<String> = doc
+        .blocks
+        .iter()
+        .filter_map(|b| match b {
+            Block::Heading { inlines, .. } => Some(plain_text(inlines)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(headings, ["Buch 1", "Buch 2"], "the list's heading goes");
+
+    let paragraphs: Vec<&Vec<Inline>> = doc
+        .blocks
+        .iter()
+        .filter_map(|b| match b {
+            Block::Paragraph { inlines, .. } => Some(inlines),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(paragraphs.len(), 2, "the entries left the text");
+    let markers: Vec<usize> = paragraphs[0]
+        .iter()
+        .filter_map(|i| match i {
+            Inline::NoteRef(n) => Some(*n),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(markers, [0, 1, 2]);
+    assert!(!plain_text(paragraphs[0]).contains("Anmerkung"));
+}
+
+fn plain_text_of(blocks: &[Block]) -> String {
+    blocks
+        .iter()
+        .filter_map(|b| match b {
+            Block::Paragraph { inlines, .. } => Some(plain_text(inlines)),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 #[test]
 fn osis_named_files_mark_chapters() {
     let body = xhtml(

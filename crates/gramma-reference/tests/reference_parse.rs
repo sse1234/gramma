@@ -185,3 +185,13 @@ fn concise_display_uses_the_abbreviation_scheme() {
         assert_eq!(reference.display_concise(), expected);
     }
 }
+
+/// "Chronika" is how some German editions spell the Chronicles.
+#[test]
+fn chronicles_resolve_under_their_older_german_name() {
+    use gramma_reference::book_by_alias;
+    assert_eq!(book_by_alias("1. Chronika"), book_by_osis("1Chr"));
+    assert_eq!(book_by_alias("2. Chronika"), book_by_osis("2Chr"));
+    let reference: Reference = "1. Chronika 29,11".parse().unwrap();
+    assert_eq!(reference.to_string(), "1Chr.29.11");
+}

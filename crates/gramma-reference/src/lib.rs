@@ -789,8 +789,20 @@ static CANON: [BookInfo; 66] = canon_table![
         "2Kö",
         ["2koen", "2kg", "2ki"]
     ),
-    ("1Chr", "1 Chronicles", "1. Chronik", "1Ch", ["1ch"]),
-    ("2Chr", "2 Chronicles", "2. Chronik", "2Ch", ["2ch"]),
+    (
+        "1Chr",
+        "1 Chronicles",
+        "1. Chronik",
+        "1Ch",
+        ["1ch", "1chronika"]
+    ),
+    (
+        "2Chr",
+        "2 Chronicles",
+        "2. Chronik",
+        "2Ch",
+        ["2ch", "2chronika"]
+    ),
     ("Ezra", "Ezra", "Esra", "Esr", ["esr"]),
     ("Neh", "Nehemiah", "Nehemia", "Neh", []),
     ("Esth", "Esther", "Ester", "Est", ["est"]),

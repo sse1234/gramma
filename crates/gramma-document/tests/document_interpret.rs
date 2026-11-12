@@ -513,3 +513,43 @@ fn verse_numbered_lists_anchor_commentary_entries() {
             .any(|b| matches!(b, Block::List { .. }))
     );
 }
+
+/// An edition that heads every chapter "Book N" has no book title to
+/// announce the Psalter: "Psalm 1" after Job's last chapter opens the
+/// Psalms, it is not Job's chapter 1 again.
+#[test]
+fn a_psalm_heading_opens_the_psalter_after_another_book() {
+    let doc = Document {
+        title: "Bibel".into(),
+        language: "de".into(),
+        blocks: vec![
+            h(1, "Hiob 42"),
+            p(vec![
+                Inline::VerseNumber(1),
+                Inline::text("Und Hiob antwortete dem HERRN und sprach: "),
+                Inline::VerseNumber(2),
+                Inline::text("Ich weiß, dass du alles vermagst."),
+            ]),
+            h(1, "Psalm 1"),
+            p(vec![
+                Inline::VerseNumber(1),
+                Inline::text("Glückselig der Mann, der nicht wandelt im Rat der Gottlosen. "),
+                Inline::VerseNumber(2),
+                Inline::text("Sondern seine Lust hat am Gesetz des HERRN."),
+            ]),
+            h(1, "Psalm 2"),
+            p(vec![
+                Inline::VerseNumber(1),
+                Inline::text("Warum toben die Nationen?"),
+            ]),
+        ],
+        ..Document::default()
+    };
+    let bible = to_bible(&doc, "T").unwrap();
+    let ids: Vec<String> = bible
+        .verses
+        .iter()
+        .map(|v| format!("{}.{}.{}", v.book.info().osis, v.chapter, v.verse))
+        .collect();
+    assert_eq!(ids, ["Job.42.1", "Job.42.2", "Ps.1.1", "Ps.1.2", "Ps.2.1"]);
+}

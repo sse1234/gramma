@@ -306,12 +306,21 @@ enum HeadingMeaning {
 
 fn heading_meaning(text: &str, current_book: Option<BookId>) -> HeadingMeaning {
     let t = text.trim();
-    // "3" or "Kapitel 3" / "Psalm 23" inside the current book.
+    // "3" or "Kapitel 3" inside the current book.
     let digits_only = !t.is_empty() && t.chars().all(|c| c.is_ascii_digit());
     if digits_only && let (Some(book), Ok(n)) = (current_book, t.parse::<u16>()) {
         return HeadingMeaning::Chapter(book, n);
     }
-    for prefix in ["Kapitel ", "Kap. ", "Chapter ", "Psalm "] {
+    // "Psalm 23" is the Psalter's chapter whatever book came before:
+    // an edition heading every chapter "Book N" never announces the
+    // Psalms otherwise, and their chapters fell into the book before.
+    if let Some(rest) = t.strip_prefix("Psalm ")
+        && let Ok(n) = rest.trim().parse::<u16>()
+        && let Some(psalms) = gramma_reference::book_by_osis("Ps")
+    {
+        return HeadingMeaning::Chapter(psalms, n);
+    }
+    for prefix in ["Kapitel ", "Kap. ", "Chapter "] {
         if let Some(rest) = t.strip_prefix(prefix)
             && let Ok(n) = rest.trim().parse::<u16>()
             && let Some(book) = current_book
