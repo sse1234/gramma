@@ -147,29 +147,35 @@ class TypesetChapter extends StatelessWidget {
                     }
                   },
             onLongPressEnd: onSelectEnd == null ? null : (_) => onSelectEnd!(),
-            child: CustomPaint(
-              size: Size(
-                constraints.maxWidth,
-                layout.lines.length * lineHeight,
-              ),
-              painter: _ChapterPainter(
-                layout: layout,
-                scale: scale,
-                fontSize: fontSize,
-                lineHeight: lineHeight,
-                textColor: scheme.onSurface,
-                numberColor: scheme.primary,
-                weightEm: weightEm,
-                family: family,
-                styles: styles,
-                marks: marks,
-                paneModule: paneModule,
-                selection: selection,
-                selectionColor: scheme.primary.withValues(
-                  alpha: theme.brightness == Brightness.light ? 0.22 : 0.34,
+            // Its own layer (ADR 0037): the pane rebuilds with every
+            // verse scrolled past, and whatever repaints around the
+            // text — the heading, the layout pass — must not record
+            // the chapter's thousand runs again.
+            child: RepaintBoundary(
+              child: CustomPaint(
+                size: Size(
+                  constraints.maxWidth,
+                  layout.lines.length * lineHeight,
                 ),
-                brightness: theme.brightness,
-                paper: scheme.surface,
+                painter: _ChapterPainter(
+                  layout: layout,
+                  scale: scale,
+                  fontSize: fontSize,
+                  lineHeight: lineHeight,
+                  textColor: scheme.onSurface,
+                  numberColor: scheme.primary,
+                  weightEm: weightEm,
+                  family: family,
+                  styles: styles,
+                  marks: marks,
+                  paneModule: paneModule,
+                  selection: selection,
+                  selectionColor: scheme.primary.withValues(
+                    alpha: theme.brightness == Brightness.light ? 0.22 : 0.34,
+                  ),
+                  brightness: theme.brightness,
+                  paper: scheme.surface,
+                ),
               ),
             ),
           ),
@@ -178,6 +184,11 @@ class TypesetChapter extends StatelessWidget {
     );
   }
 }
+
+/// Chapters painted since the start, for the scroll test (ADR 0037): a
+/// scroll moves painted chapters, it must not paint them again.
+@visibleForTesting
+int debugChapterPaintCount = 0;
 
 class _ChapterPainter extends CustomPainter {
   _ChapterPainter({
@@ -256,6 +267,7 @@ class _ChapterPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    debugChapterPaintCount++;
     final textStyle = TextStyle(
       fontFamily: family,
       fontSize: fontSize,

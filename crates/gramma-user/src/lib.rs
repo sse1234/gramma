@@ -55,8 +55,30 @@ impl UserStore {
     }
 
     fn init(conn: Connection) -> Result<Self, UserStoreError> {
+        // ADR 0037: write-ahead logging with NORMAL synchronization. A
+        // commit appends to the log without forcing it to the medium, so
+        // a write from the UI thread costs microseconds instead of the
+        // tens of milliseconds a flushed commit takes on phone storage.
+        // The database stays consistent through a crash or power loss;
+        // only the last moments' writes can be lost to a power loss, and
+        // synced values are healed from the op-log (ADR 0014).
+        let _mode: String =
+            conn.pragma_update_and_check(None, "journal_mode", "WAL", |row| row.get(0))?;
+        conn.pragma_update(None, "synchronous", "NORMAL")?;
         conn.execute_batch(SCHEMA)?;
         Ok(UserStore { conn })
+    }
+
+    /// The journal mode and synchronization level the store runs with
+    /// (ADR 0037), for diagnostics and tests: ("wal", 1) on disk.
+    pub fn durability(&self) -> Result<(String, i64), UserStoreError> {
+        let mode: String = self
+            .conn
+            .pragma_query_value(None, "journal_mode", |row| row.get(0))?;
+        let synchronous: i64 = self
+            .conn
+            .pragma_query_value(None, "synchronous", |row| row.get(0))?;
+        Ok((mode, synchronous))
     }
 
     pub fn set(&self, key: &str, value: &str) -> Result<(), UserStoreError> {
@@ -226,6 +248,9 @@ impl UserStore {
     /// and appended to the own op-log. A folder that is unreachable right
     /// now does not fail the write — [`UserStore::sync_now`] self-heals.
     pub fn set_synced(&self, key: &str, value: &str) -> Result<(), UserStoreError> {
+        // One transaction: the value, the clock and the stamp commit
+        // together or not at all, and cost one commit instead of four.
+        let tx = self.conn.unchecked_transaction()?;
         self.set(key, value)?;
         let (millis, counter) = self.hlc_tick()?;
         let stamp = Stamp {
@@ -234,6 +259,7 @@ impl UserStore {
             device: self.device_id()?,
         };
         self.record_stamp(key, &stamp)?;
+        tx.commit()?;
         if let Some(dir) = self.sync_dir()? {
             let op = Op {
                 key: key.to_string(),

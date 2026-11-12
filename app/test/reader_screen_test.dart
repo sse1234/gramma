@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:gramma/footnotes_pane.dart';
 import 'package:gramma/annotations.dart';
 import 'package:gramma/reader_pane.dart';
+import 'package:gramma/reader_screen.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gramma/desks.dart';
@@ -163,6 +164,83 @@ void main() {
       find.byKey(const Key('current-position')),
     );
     expect(position.data, '1. Mose 1');
+  });
+
+  testWidgets('scrolling paints no chapter twice and saves at rest', (
+    tester,
+  ) async {
+    // ADR 0037: a scroll is drawing only. Every verse passed used to
+    // repaint every visible chapter and write the desk to the user
+    // store — choppy on phones, where a commit waits for the medium.
+    _freshUserStore();
+    _phoneViewport(tester);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    // Let the startup's own position save rest.
+    await tester.pump(const Duration(seconds: 1));
+    final chapters = contents(moduleCode: 'FixDe').length;
+    final paintsBefore = debugChapterPaintCount;
+    final savesBefore = debugDeskSaveCount;
+    final start = tester
+        .widget<Text>(find.byKey(const Key('current-position')))
+        .data;
+    final gesture = await tester.startGesture(const Offset(260, 600));
+    for (var i = 0; i < 120; i++) {
+      await gesture.moveBy(const Offset(0, -12));
+      await tester.pump(const Duration(milliseconds: 16));
+      if (i % 20 == 19) {
+        // Layouts of chapters scrolling in arrive from the worker.
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 30)),
+        );
+        await tester.pump();
+      }
+    }
+    expect(
+      tester.widget<Text>(find.byKey(const Key('current-position'))).data,
+      isNot(start),
+      reason: 'the scroll moved the reading position',
+    );
+    expect(
+      debugChapterPaintCount - paintsBefore,
+      lessThanOrEqualTo(chapters),
+      reason: 'each chapter paints once, when it comes in',
+    );
+    expect(
+      debugDeskSaveCount,
+      savesBefore,
+      reason: 'nothing is written while the finger moves',
+    );
+    await gesture.up();
+    await tester.pump(const Duration(seconds: 1));
+    expect(
+      debugDeskSaveCount,
+      savesBefore + 1,
+      reason: 'the position is written once the scroll rests',
+    );
+  });
+
+  testWidgets('a position not yet saved is written when the app is left', (
+    tester,
+  ) async {
+    _freshUserStore();
+    _phoneViewport(tester);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.pump(const Duration(seconds: 1));
+    final savesBefore = debugDeskSaveCount;
+    final gesture = await tester.startGesture(const Offset(260, 600));
+    for (var i = 0; i < 40; i++) {
+      await gesture.moveBy(const Offset(0, -12));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(debugDeskSaveCount, savesBefore);
+    // The app goes to the background mid-scroll: no waiting for rest.
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    expect(debugDeskSaveCount, savesBefore + 1);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await gesture.up();
+    await tester.pump(const Duration(seconds: 1));
   });
 
   testWidgets('wide viewports switch to horizontal columns', (tester) async {

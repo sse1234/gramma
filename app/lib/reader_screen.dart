@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -34,6 +36,11 @@ import 'src/rust/api/user.dart';
 /// Orchestrates the layout object (ADR 0008): a resizable grid of columns,
 /// each a stack of views, with position links by pane id — persisted in the
 /// user store and restored on start.
+/// Desk layouts written to the user store since the start, for the
+/// scroll test (ADR 0037): scrolling writes nothing until it rests.
+@visibleForTesting
+int debugDeskSaveCount = 0;
+
 class ReaderScreen extends StatefulWidget {
   const ReaderScreen({super.key});
 
@@ -62,6 +69,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _flushPosition();
     super.dispose();
   }
 
@@ -87,7 +95,13 @@ class _ReaderScreenState extends State<ReaderScreen>
   /// the "continue on another device" moment (ADR 0014).
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _syncPull();
+    if (state == AppLifecycleState.resumed) {
+      _syncPull();
+    } else {
+      // Leaving the foreground: the system may end the app without
+      // another word, so a position still waiting is written now.
+      _flushPosition();
+    }
   }
 
   void _loadDesks() {
@@ -178,8 +192,39 @@ class _ReaderScreenState extends State<ReaderScreen>
   ];
 
   void _save() {
+    // A full save carries the positions too.
+    _positionTimer?.cancel();
+    _positionTimer = null;
+    debugDeskSaveCount++;
     userSet(key: 'desk/$_deskId', value: _layout.encode());
   }
+
+  /// How long the reading position rests before it is written.
+  static const _positionRest = Duration(milliseconds: 500);
+
+  Timer? _positionTimer;
+
+  /// Persists a moved reading position once it rests (ADR 0037). A
+  /// scroll passes several verses a second, and writing the desk for
+  /// each one stalled the frame it happened in; the position is written
+  /// when the movement ends, when the app leaves the foreground, and
+  /// with every other save.
+  void _savePositionSoon() {
+    _positionTimer?.cancel();
+    _positionTimer = Timer(_positionRest, _flushPosition);
+  }
+
+  void _flushPosition() {
+    if (_positionTimer == null) return;
+    _save();
+  }
+
+  /// Whether the desk shows [pane]'s position somewhere: a text view
+  /// keeps its own place and needs the desk only when another pane
+  /// follows it; the other kinds are handed their anchor by the desk.
+  bool _positionShows(PaneSpec pane) =>
+      pane.kind != PaneKind.text ||
+      _layout.allPanes.any((p) => p.follow == pane.id);
 
   Future<void> _syncPull() async {
     final changed = await pullSync();
@@ -209,6 +254,7 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   void _switchDesk(String id) {
     if (id == _deskId) return;
+    _flushPosition();
     setState(() {
       _deskId = id;
       _layout = _loadDeskLayout(id);
@@ -290,18 +336,29 @@ class _ReaderScreenState extends State<ReaderScreen>
     _switchDesk(_registry.desks.first.id);
   }
 
+  /// A pane reports its reading position. The desk rebuilds only when
+  /// it shows that position ([_positionShows]) — a lone text view
+  /// scrolling changes nothing the desk draws.
   void _setAnchor(String id, String osis) {
     final pane = _layout.byId(id);
     if (pane == null || pane.anchor == osis) return;
-    setState(() => pane.anchor = osis);
-    _save();
+    if (_positionShows(pane)) {
+      setState(() => pane.anchor = osis);
+    } else {
+      pane.anchor = osis;
+    }
+    _savePositionSoon();
   }
 
   void _setAnchorEnd(String id, String? osis) {
     final pane = _layout.byId(id);
     if (pane == null || pane.anchorEnd == osis) return;
-    setState(() => pane.anchorEnd = osis);
-    _save();
+    if (_positionShows(pane)) {
+      setState(() => pane.anchorEnd = osis);
+    } else {
+      pane.anchorEnd = osis;
+    }
+    _savePositionSoon();
   }
 
   /// Navigate the pane a footnotes view follows (from a passage preview);

@@ -144,13 +144,40 @@ mixin ReaderSelection<T extends StatefulWidget> on State<T> {
 
   /// Marks of one chapter resolved for the painters: their pens, or the
   /// anchors of their icons (ADR 0035).
+  /// Resolved marks per chapter, kept until the annotations, the pens,
+  /// or the chapter's layout change (ADR 0037). The painters repaint
+  /// when handed a different list, so a rebuild for any other reason —
+  /// the reading position moving with every verse scrolled past — must
+  /// hand them the same one.
+  final Map<int, _ResolvedMarks> _markCache = {};
+
   List<MarkPaint> paintMarks(int chapterIndex) {
     if (chapterIndex >= spine.length) return const [];
     final chapter = spine[chapterIndex];
-    return MarkPaint.resolve(
+    final layout = layoutOf(chapterIndex);
+    final cached = _markCache[chapterIndex];
+    if (cached != null &&
+        cached.annotations == Annotations.revision.value &&
+        cached.pens == Pens.revision.value &&
+        cached.bookOsis == chapter.bookOsis &&
+        cached.chapter == chapter.chapter &&
+        identical(cached.layout, layout)) {
+      return cached.marks;
+    }
+    final marks = MarkPaint.resolve(
       Annotations.forChapter(chapter.bookOsis, chapter.chapter),
-      layoutOf(chapterIndex),
+      layout,
     );
+    if (_markCache.length > 64) _markCache.clear();
+    _markCache[chapterIndex] = _ResolvedMarks(
+      annotations: Annotations.revision.value,
+      pens: Pens.revision.value,
+      bookOsis: chapter.bookOsis,
+      chapter: chapter.chapter,
+      layout: layout,
+      marks: marks,
+    );
+    return marks;
   }
 
   /// The floating bar of an active selection: its reference, dictionary
@@ -197,4 +224,23 @@ mixin ReaderSelection<T extends StatefulWidget> on State<T> {
       ),
     );
   }
+}
+
+/// One chapter's resolved marks and what they were resolved from.
+class _ResolvedMarks {
+  const _ResolvedMarks({
+    required this.annotations,
+    required this.pens,
+    required this.bookOsis,
+    required this.chapter,
+    required this.layout,
+    required this.marks,
+  });
+
+  final int annotations;
+  final int pens;
+  final String bookOsis;
+  final int chapter;
+  final ChapterLayoutView? layout;
+  final List<MarkPaint> marks;
 }

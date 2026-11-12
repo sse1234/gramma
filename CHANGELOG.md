@@ -13,6 +13,11 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
   instead of after the verse's first word (ADR 0028, amended).
 
 ### Fixed
+- Scrolling on Android phones is smooth: a scroll no longer repaints
+  every visible chapter and writes the desk to disk with each verse
+  passed. The reading position is saved once it rests and when the app
+  is left, and the user store commits without waiting for the medium
+  (ADR 0037).
 - Footnotes views list the notes actually in view after a module
   switch and after a reading-plan jump: the text view re-reads its
   column head when the new plan stands and when a chapter's layout
