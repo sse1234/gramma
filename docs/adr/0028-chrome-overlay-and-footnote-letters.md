@@ -126,3 +126,35 @@ word, as if it belonged to that word ("Da<sup>k</sup> stand Paulus
 auf" for a note on the heading's "Galatien"). Its marker now follows
 the verse number. The letters run as before; only the marker's place
 on the line moves.
+
+## Amendment (2026-11-12): a jump counts anew; a marker is as wide as its slant
+
+**A jump is a new origin.** Headings still turned up at column feet
+"from time to time", and always the same way: after a jump. A jump
+showed the column of the standing plan that happened to hold its
+target. When the target lay before the plan's origin — a reading plan
+moving from the Gospels back to the Prophets — that column was one of
+those counted backward, where the heading rule does not apply, and the
+reader read on through columns nobody had kept the headings in. A
+jump now re-chunks: the columns are counted anew from the target,
+which heads the first one, and everything read after it is forward
+text with its headings kept. The origin of a jump does not settle —
+the target stands at the top, and the view's position names it — while
+the origin of a re-chunk (a resize, the chrome toggle) settles as
+before. A verse that opens a section or a chapter takes the heading
+rows above it along. Linked views re-chunk at every position they are
+sent to, so a follower starts its column at the leader's verse. What
+remains is paging backward a long way from an origin: only the nearest
+columns behind it are kept clean.
+
+**A marker's box holds its lean.** Markers paint in a synthesized
+italic, a shear of a quarter, and a sheared ascender reaches past the
+letter's advance: a "d" at the end of a full line was cut by the
+column's edge and read as an "a". The allowance added on 2026-10-17
+never reached the page — the breaker counted it, but the line setter
+placed the marker by its letters alone, so a justified line still
+ended exactly at the marker's advance. The marker's width is now one
+function used by both: its letters at the marker size, the reach of
+its last letter's outline under the shear, and a hair of air. A line
+ending in a marker ends that much inside the edge; a round letter
+needs about half the room of an ascender.

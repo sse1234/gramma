@@ -459,6 +459,16 @@ fn layout_paragraph(
 
 /// Bind an inline lettered marker to the preceding word: an infinite
 /// penalty forbids a break between them.
+/// The width a marker takes on its line: its letters at the marker
+/// size, the lean of its last letter (markers paint slanted), and a
+/// hair of air. The breaker and the line setter both use it, so the
+/// room is there on the page and not only in the count — a line that
+/// ends in a marker ends that much before the column's edge.
+fn marker_width(measure: &impl TextMeasure, label: &str) -> Scaled {
+    (measure.text_width(label) + measure.slant_overhang(label)) * VERSE_NUMBER_SCALE_PERCENT / 100
+        + measure.em() * 2 / 100
+}
+
 fn push_marker(
     items: &mut Vec<Item>,
     meta: &mut Vec<Option<BoxMeta>>,
@@ -475,11 +485,12 @@ fn push_marker(
     });
     meta.push(None);
     // The marker paints in the reader's marker style, usually italic,
-    // whose slant overhangs the regular face's advance; the box carries
-    // that overhang so a marker at a line's end is not cut by the edge.
+    // whose slant leans past the regular face's advance — an ascender
+    // ("d", "b", "l") twice as far as a round letter. The box carries
+    // the lean of its last letter and a hair more, so a marker at a
+    // line's end is not cut by the column's edge.
     items.push(Item::Box {
-        width: measure.text_width(&label) * VERSE_NUMBER_SCALE_PERCENT / 100
-            + measure.em() * 6 / 100,
+        width: marker_width(measure, &label),
     });
     meta.push(Some(BoxMeta {
         text: label,
@@ -587,6 +598,13 @@ pub(super) fn set_line(
     let widths: Vec<f64> = pieces
         .iter()
         .map(|p| match p {
+            // A marker is as wide as the breaker counted it: with the
+            // room its slant needs, which its letters alone do not show.
+            Piece::Run {
+                text,
+                kind: RunKind::NoteMarker,
+                ..
+            } => marker_width(measure, text) as f64,
             Piece::Run {
                 text,
                 scale_percent,

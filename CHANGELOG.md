@@ -18,6 +18,15 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
   passed. The reading position is saved once it rests and when the app
   is left, and the user store commits without waiting for the medium
   (ADR 0037).
+- Multi-column views: a jump (selector, reading plan, history, a
+  reference, a linked view) counts the columns anew from its target,
+  which heads the first column. Jumping to a place before the one the
+  columns were counted from no longer lands in columns with headings
+  at their feet (ADR 0028, amended).
+- A footnote marker at the end of a full line is no longer cut by the
+  column's edge ("d" read as "a"): the marker's box holds the lean of
+  its slanted letter, on the page and not only in the line breaker's
+  count (ADR 0028, amended).
 - EPUB import: footnotes kept as a list at each chapter's end are
   read as notes and bound to their markers, instead of being appended
   to the last verse with empty notes at the markers; a note referenced

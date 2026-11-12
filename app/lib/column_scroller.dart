@@ -45,6 +45,16 @@ class ColumnScroller {
   int anchorLine = 0;
 
   int _origin = 0;
+
+  /// Whether the origin may settle (a re-chunk) or stands (a jump).
+  bool _settles = true;
+
+  /// A jump waiting for the next [layout] to count from it.
+  bool _jumped = false;
+
+  /// Jumps so far: part of the geometry key, so the list is rebuilt at
+  /// the new plan's column.
+  int _jumps = 0;
   String? _params;
   String? _shape;
   final List<ScrollController> _stale = [];
@@ -74,6 +84,7 @@ class ColumnScroller {
     required ColumnPlan Function({
       required int linesPerColumn,
       required int origin,
+      required bool settle,
     })
     buildPlan,
   }) {
@@ -82,11 +93,27 @@ class ColumnScroller {
     // in the new stride, or the old one leaves the view a fraction of a
     // column off. Only a change of shape re-chunks from the anchor.
     final shape = '$columns-$linesPerColumn-${columnWidth.round()}';
-    final params = '$shape-${stride.round()}${pageWise ? '-p' : ''}';
+    final params =
+        '$shape-${stride.round()}${pageWise ? '-p' : ''}'
+        '${_jumps > 0 ? '-j$_jumps' : ''}';
     final changed = params != _params;
-    if (shape != _shape) _origin = anchorLine;
+    if (shape != _shape && !_jumped) {
+      _origin = anchorLine;
+      _settles = true;
+    }
     _shape = shape;
-    final built = buildPlan(linesPerColumn: linesPerColumn, origin: _origin);
+    final built = buildPlan(
+      linesPerColumn: linesPerColumn,
+      origin: _origin,
+      settle: _settles,
+    );
+    if (_jumped && pageWise) {
+      // Pages are fixed groups of columns: the view shows the page that
+      // holds the target, and its first column is the anchor.
+      final column = built.columnOfLine(anchorLine);
+      anchorLine = built.firstLineOfColumn(column - column % columns);
+    }
+    _jumped = false;
     if (changed) {
       final old = controller;
       if (old != null) {
@@ -141,17 +168,20 @@ class ColumnScroller {
         .clamp(0, p.totalLines - 1);
   }
 
-  /// Shows the column holding [line] first, without animation. The
-  /// anchor is that column's first line, so a later re-chunk starts a
-  /// column there and not at a verse in the column's middle.
-  void jumpToLine(int line) {
-    final c = controller;
-    final p = plan;
-    if (c == null || p == null || !c.hasClients) return;
-    final column = p.columnOfLine(line);
-    final head = pageWise ? column - column % columns : column;
-    anchorLine = p.firstLineOfColumn(head);
-    c.jumpTo(_offsetOf(column).clamp(0.0, c.position.maxScrollExtent));
+  /// A jump to [line]: the next [layout] counts the columns anew from
+  /// it, unsettled, so [line] heads a column and the text after it is
+  /// forward text with its headings kept (ADR 0028, amended). A jump is
+  /// a break in the reading; showing the column of the old count that
+  /// happens to hold the target dropped the reader into columns counted
+  /// backward from wherever the plan last started, headings at their
+  /// feet as often as anywhere. The owner rebuilds after calling this.
+  void rechunkAt(int line) {
+    anchorLine = line;
+    _origin = line;
+    _settles = false;
+    _jumped = true;
+    _jumps++;
+    _wheelTarget = null;
   }
 
   /// Discrete mouse wheels page by whole columns: one column per wheel

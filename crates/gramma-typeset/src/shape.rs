@@ -71,4 +71,46 @@ impl TextMeasure for FontMeasure<'_> {
     fn hyphen_width(&self) -> Scaled {
         self.hyphen_width
     }
+
+    /// The outline's reach under the shear x' = x + y/4, past the advance.
+    fn slant_overhang(&self, text: &str) -> Scaled {
+        let Some(glyph) = text.chars().last().and_then(|c| self.face.glyph_index(c)) else {
+            return 0;
+        };
+        let mut reach = SlantReach(f32::MIN);
+        if self.face.outline_glyph(glyph, &mut reach).is_none() {
+            return 0;
+        }
+        let advance = self.face.glyph_hor_advance(glyph).unwrap_or(0) as f32;
+        (reach.0 - advance).max(0.0).ceil() as Scaled
+    }
+}
+
+/// The rightmost reach of an outline sheared by a quarter. Control
+/// points count as on the curve: a bound, and a tight one.
+struct SlantReach(f32);
+
+impl SlantReach {
+    fn see(&mut self, x: f32, y: f32) {
+        self.0 = self.0.max(x + y / 4.0);
+    }
+}
+
+impl rustybuzz::ttf_parser::OutlineBuilder for SlantReach {
+    fn move_to(&mut self, x: f32, y: f32) {
+        self.see(x, y);
+    }
+    fn line_to(&mut self, x: f32, y: f32) {
+        self.see(x, y);
+    }
+    fn quad_to(&mut self, x1: f32, y1: f32, x: f32, y: f32) {
+        self.see(x1, y1);
+        self.see(x, y);
+    }
+    fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
+        self.see(x1, y1);
+        self.see(x2, y2);
+        self.see(x, y);
+    }
+    fn close(&mut self) {}
 }

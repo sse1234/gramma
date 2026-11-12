@@ -23,6 +23,13 @@ pub trait TextMeasure {
     fn em(&self) -> Scaled {
         self.text_width("M").max(1)
     }
+    /// How far the last glyph of `text` reaches past its advance when
+    /// painted slanted — the synthesized italic of the reader, a shear
+    /// of a quarter — at the text's own size. A measure without outlines
+    /// answers with a flat allowance.
+    fn slant_overhang(&self, _text: &str) -> Scaled {
+        self.em() * 6 / 100
+    }
 }
 
 /// Items plus, for every box item, the source-text range it covers.

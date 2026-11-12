@@ -26,6 +26,7 @@ class ColumnPlan {
     required this.linesPerColumn,
     this.rowKinds,
     this.origin,
+    this.settleOrigin = true,
   }) : _blockStarts = List<int>.filled(textLines.length, 0) {
     var offset = 0;
     for (var i = 0; i < textLines.length; i++) {
@@ -42,6 +43,12 @@ class ColumnPlan {
   final int headingLines;
   final int linesPerColumn;
   final int? origin;
+
+  /// Whether the origin may move up to keep the headings behind it with
+  /// their lines ([_settleOrigin]). The origin of a re-chunk settles —
+  /// the reader's line only has to stay in the first column. The origin
+  /// of a jump does not: the target heads its column.
+  final bool settleOrigin;
   final List<int> _blockStarts;
   final List<List<int>>? rowKinds;
   late final int totalLines;
@@ -100,6 +107,27 @@ class ColumnPlan {
     return (chapter: chapter, local: line - _blockStarts[chapter]);
   }
 
+  /// The line a jump to [line] heads its column with: [line] itself, or
+  /// the first of the heading rows standing directly above it — a verse
+  /// that opens a section or a chapter takes its headings along, or they
+  /// would end the column before, out of the reader's sight. The spacing
+  /// row above a heading stays behind, as it does when the heading rule
+  /// moves a heading over.
+  int groupStart(int line) {
+    if (totalLines == 0) return 0;
+    var g = line.clamp(0, totalLines - 1);
+    while (g > 0 && _headingAt(g - 1)) {
+      g--;
+    }
+    return g;
+  }
+
+  bool _headingAt(int line) {
+    if (_aware) return _kind(line) == 1;
+    final chapter = chapterOfLine(line);
+    return line - _blockStarts[chapter] < headingLines;
+  }
+
   /// Row kind of a global line: block heading rows count as headings.
   int _kind(int line) {
     final kinds = rowKinds!;
@@ -121,7 +149,7 @@ class ColumnPlan {
     if (origin == null || origin <= 0 || origin >= totalLines) {
       return _chunkForward(0, totalLines);
     }
-    origin = _settleOrigin(origin);
+    if (settleOrigin) origin = _settleOrigin(origin);
     if (origin <= 0) return _chunkForward(0, totalLines);
     return [..._chunkBackward(origin), ..._chunkForward(origin, totalLines)];
   }

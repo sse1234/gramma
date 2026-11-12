@@ -3,13 +3,17 @@ import 'package:gramma/column_plan.dart';
 import 'package:gramma/column_scroller.dart';
 
 void main() {
-  ColumnPlan build({required int linesPerColumn, required int origin}) =>
-      ColumnPlan(
-        textLines: const [30, 30, 30],
-        headingLines: 2,
-        linesPerColumn: linesPerColumn,
-        origin: origin,
-      );
+  ColumnPlan build({
+    required int linesPerColumn,
+    required int origin,
+    required bool settle,
+  }) => ColumnPlan(
+    textLines: const [30, 30, 30],
+    headingLines: 2,
+    linesPerColumn: linesPerColumn,
+    origin: origin,
+    settleOrigin: settle,
+  );
 
   ColumnPlan lay(ColumnScroller s, double stride) => s.layout(
     columns: 2,
@@ -43,6 +47,22 @@ void main() {
       plan.firstLineOfColumn(3),
       reason: 'no re-chunk: the columns stand where they were',
     );
+  });
+
+  // ADR 0028, amended: a jump counts the columns anew from its target,
+  // so the target heads a column whatever the plan was counted from.
+  test('a jump counts the columns anew from its line', () {
+    final s = ColumnScroller(onScrolled: () {});
+    final before = lay(s, 448);
+    final key = s.params;
+    expect(before.firstLineOfColumn(before.columnOfLine(47)), isNot(47));
+    s.rechunkAt(47);
+    expect(s.anchorLine, 47);
+    final plan = lay(s, 448);
+    expect(plan.firstLineOfColumn(plan.columnOfLine(47)), 47);
+    expect(s.params, isNot(key), reason: 'the list rebuilds at the target');
+    expect(s.controller!.initialScrollOffset, plan.columnOfLine(47) * 448);
+    expect(lay(s, 448), same(s.plan), reason: 'the count stands until moved');
   });
 
   // ADR 0036: paging by screens moves all visible columns at once, on a

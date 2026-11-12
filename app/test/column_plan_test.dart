@@ -271,6 +271,49 @@ void main() {
     );
   });
 
+  test('an origin that does not settle stays where a jump put it', () {
+    // The rows of the settling test: headings at 7 and 17, origin 9. A
+    // jump counts from its target and nothing else: 9 heads a column,
+    // though the column behind it, 3..9, leaves the heading at 7 with
+    // one row beneath. Forward of the origin the heading rule holds.
+    final kinds = List<int>.filled(20, 0)
+      ..[7] = 1
+      ..[17] = 1;
+    final p = ColumnPlan(
+      textLines: const [20],
+      headingLines: 0,
+      linesPerColumn: 6,
+      rowKinds: [kinds],
+      origin: 9,
+      settleOrigin: false,
+    );
+    expect(
+      [for (var c = 0; c < p.columnCount; c++) p.firstLineOfColumn(c)],
+      [0, 3, 9, 15, 17],
+    );
+  });
+
+  test('a line takes the headings standing right above it along', () {
+    // Two chapters of ten rows under two heading rows each; the second
+    // chapter opens with a spacing row and a section heading (rows 14,
+    // 15) before its first verse at 16.
+    final p = ColumnPlan(
+      textLines: const [10, 10],
+      headingLines: 2,
+      linesPerColumn: 8,
+      rowKinds: const [
+        [0, 0, 0, 0, 0, 2, 1, 0, 0, 0],
+        [2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+      ],
+    );
+    expect(p.groupStart(16), 15, reason: 'the section heading, not its gap');
+    expect(p.groupStart(15), 15);
+    expect(p.groupStart(14), 12, reason: 'the chapter title rows');
+    expect(p.groupStart(9), 8, reason: 'a heading inside the chapter');
+    expect(p.groupStart(4), 4, reason: 'text above: nothing to take');
+    expect(p.groupStart(2), 0, reason: 'the first chapter title');
+  });
+
   test('a chapter heading right before the origin heads its column', () {
     // Two chapters of ten lines with two heading rows each; the origin is
     // the second chapter's first text line (row 14). The heading rows

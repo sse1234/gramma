@@ -406,7 +406,11 @@ class _ReaderPaneState extends State<ReaderPane>
     return verseAtLineStart(layout.lines, line);
   }
 
-  ColumnPlan? _linePlan({int linesPerColumn = 1, int? origin}) {
+  ColumnPlan? _linePlan({
+    int linesPerColumn = 1,
+    int? origin,
+    bool settle = true,
+  }) {
     final counts = _lineCounts;
     if (counts == null || counts.length != _spine.length || counts.isEmpty) {
       return null;
@@ -417,6 +421,7 @@ class _ReaderPaneState extends State<ReaderPane>
       linesPerColumn: linesPerColumn,
       rowKinds: _rowKinds,
       origin: origin,
+      settleOrigin: settle,
     );
   }
 
@@ -694,13 +699,15 @@ class _ReaderPaneState extends State<ReaderPane>
         ? (index: index, verse: verse)
         : null;
     if (_columns.attached) {
-      var line = _columns.plan!.blockStart(index);
+      final plan = _columns.plan!;
+      var line = plan.blockStart(index);
       if (targetLine != null) {
-        line += _headingLines + targetLine;
+        // A verse that opens a section takes its heading along.
+        line = plan.groupStart(line + _headingLines + targetLine);
       }
-      _columns.jumpToLine(line);
-      // The column actually landed on is the position — its head may lie
-      // in the chapter before the target — and the footnotes follow it.
+      // A jump is a new start: the columns are counted anew from the
+      // target, which heads the first one (ADR 0028, amended).
+      setState(() => _columns.rechunkAt(line));
       _onColumnScrolled();
       return;
     } else if (_vScroll.isAttached) {
@@ -1002,8 +1009,13 @@ class _ReaderPaneState extends State<ReaderPane>
       linesPerColumn: linesPerColumn,
       columnWidth: columnWidth,
       stride: stride,
-      buildPlan: ({required linesPerColumn, required origin}) =>
-          _linePlan(linesPerColumn: linesPerColumn, origin: origin)!,
+      buildPlan:
+          ({required linesPerColumn, required origin, required settle}) =>
+              _linePlan(
+                linesPerColumn: linesPerColumn,
+                origin: origin,
+                settle: settle,
+              )!,
     );
     if (_columns.params != _laidOutParams) {
       // A plan with new geometry stands once this frame is built; the

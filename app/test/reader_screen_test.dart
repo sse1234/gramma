@@ -1898,6 +1898,57 @@ void main() {
     );
   });
 
+  testWidgets('a jump heads the first column with its target', (tester) async {
+    // ADR 0028, amended: a jump is a new start. The columns are counted
+    // anew from the target, so its heading stands at the top of the
+    // first column and the text after it keeps its headings with their
+    // lines — instead of landing wherever the old count put the column
+    // that holds the target, a heading at its foot as often as not.
+    _freshUserStore();
+    // Short columns: every chapter spans more than one.
+    tester.view.physicalSize = const Size(1200, 360);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settle(
+      tester,
+      () => _found(find.byKey(const ValueKey('columns-active'))),
+    );
+    ColumnRow firstRow() => tester
+        .widget<TypesetColumn>(find.byType(TypesetColumn).first)
+        .rows
+        .first;
+    // Far forward first, then back: the targets lie behind the place
+    // the columns were last counted from.
+    for (final (book, chapter, heading) in [
+      ('Josh', 1, 'Josua 1'),
+      ('Exod', 3, '2. Mose 3'),
+      ('Exod', 2, '2. Mose 2'),
+      ('Gen', 3, '1. Mose 3'),
+      ('Gen', 2, '1. Mose 2'),
+    ]) {
+      await _selectRef(tester, book: book, chapter: chapter);
+      await _settleLayouts(tester);
+      await _settle(tester, () {
+        final row = firstRow();
+        return row is HeadingRow && row.text == heading;
+      });
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('current-position')).first)
+            .data,
+        startsWith(heading),
+      );
+    }
+    // A verse inside a chapter heads the column with its line.
+    await _selectRef(tester, book: 'Exod', chapter: 2, verse: 5);
+    await _settle(tester, () {
+      final row = firstRow();
+      return row is TextRow && row.line.runs.any((r) => r.verse == 5);
+    });
+  });
+
   testWidgets('toggling chrome keeps the reading position', (tester) async {
     // ADR 0028 as amended: the app bar and pane header take their own
     // space, so the columns re-chunk on a toggle — but the anchor keeps

@@ -470,6 +470,51 @@ fn a_note_at_the_verse_start_marks_the_number() {
     assert!(runs[1].2 && runs[4].2 && runs[8].2, "markers: {runs:?}");
 }
 
+/// A marker is painted slanted, and a slanted ascender leans past the
+/// glyph's advance: the marker's box holds that lean, letter by letter,
+/// so a "d" at a line's end is not cut down to an "a" by the column
+/// edge. The box of a tall letter is wider than its advance by more
+/// than a round one's.
+#[test]
+fn a_marker_box_holds_its_letters_slant() {
+    use gramma_typeset::layout::VERSE_NUMBER_SCALE_PERCENT;
+    use gramma_typeset::paragraph::TextMeasure;
+    let m = measure();
+    let em = m.units_per_em() as f64;
+    // Four notes in one verse: the markers are a, b, c, d, each followed
+    // by a word on the paragraph's one, naturally spaced line.
+    let verses = [(1u16, "Eins zwei drei vier fünf")];
+    let notes = [(1u16, 4u32), (1, 9), (1, 14), (1, 19)];
+    let lines = layout_verses(&verses, &notes, &[], &[], &m, None, 30 * em as i64);
+    assert_eq!(lines.len(), 1);
+    let runs = &lines[0].runs;
+    let space = m.space().0 as f64;
+    // What the box holds beyond the letter's own advance: the distance
+    // to the next word, less the letter and the space.
+    let room = |label: &str| {
+        let at = runs
+            .iter()
+            .position(|r| r.note_marker && r.text == label)
+            .unwrap();
+        runs[at + 1].x
+            - runs[at].x
+            - m.text_width(label) as f64 * VERSE_NUMBER_SCALE_PERCENT as f64 / 100.0
+            - space
+    };
+    assert!(
+        room("d") > room("a") + 0.02 * em,
+        "d {} a {}",
+        room("d"),
+        room("a")
+    );
+    // The ascender of "d" stands about 0.7 em tall at its right edge;
+    // slanted by a quarter it leans a tenth of an em past its advance,
+    // which at the marker's size and with the hair of air comes to
+    // some 0.085 em. A round letter needs about half of that.
+    assert!(room("d") > 0.08 * em, "room for d: {} of {em}", room("d"));
+    assert!(room("a") < 0.07 * em, "room for a: {} of {em}", room("a"));
+}
+
 #[test]
 fn marker_labels_continue_past_z() {
     use gramma_typeset::layout::marker_label;
