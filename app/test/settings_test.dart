@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gramma/l10n.dart';
 import 'package:gramma/settings.dart';
@@ -15,7 +15,7 @@ Widget _harness(SettingsController controller) {
   return ListenableBuilder(
     listenable: controller,
     builder: (context, _) => MaterialApp(
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: grammaLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: controller.localeOverride,
       themeMode: controller.themeMode,
@@ -233,6 +233,28 @@ void main() {
       findsOneWidget,
       reason: 'system locale (en in tests) returns',
     );
+  });
+
+  testWidgets('German gets the Material translations of the package', (
+    tester,
+  ) async {
+    // ADR 0038: the Material widgets come from material_ui and look up
+    // that package's translations. The generated delegate list supplies
+    // the framework's former ones, which left German without any.
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('de'),
+        localizationsDelegates: grammaLocalizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(
+          builder: (context) => Text(
+            '${MaterialLocalizations.of(context).backButtonTooltip} · '
+            '${context.l10n.settingsTitle}',
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Zurück · Einstellungen'), findsOneWidget);
   });
 
   testWidgets('theme mode selection applies', (tester) async {

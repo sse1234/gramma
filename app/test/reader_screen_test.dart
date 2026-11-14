@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/gestures.dart'
     show PointerDeviceKind, TapGestureRecognizer;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:gramma/footnotes_pane.dart';
 import 'package:gramma/annotations.dart';
@@ -1746,7 +1746,7 @@ void main() {
       var opened = '';
       await tester.pumpWidget(
         MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: grammaLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: Align(
@@ -2738,7 +2738,7 @@ void _documentImportTests() {
     DocumentImportChoice? choice;
     await tester.pumpWidget(
       MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: grammaLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Builder(
           builder: (context) => Scaffold(

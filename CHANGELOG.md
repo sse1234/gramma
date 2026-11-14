@@ -6,6 +6,12 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
 
 ## [Unreleased]
 
+### Changed
+- Built with Flutter 3.50; the Material widgets come from the
+  `material_ui` package, with the package's own translations
+  (ADR 0038). Android builds with AGP 9.3.3, Kotlin 2.4.20 and
+  Gradle 9.5.0.
+
 ## [1.1.7] - 2026-11-12
 
 ### Changed
