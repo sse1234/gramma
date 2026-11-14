@@ -131,4 +131,29 @@ void main() {
       reason: 'no layout yet, no anchor',
     );
   });
+
+  // ADR 0035, amended: the underline is drawn from the text's baseline,
+  // with air between it and the letters.
+  test('an underline keeps its distance from the text', () {
+    const fontSize = 20.0;
+    // Gentium stands 1.1 em below the line's top, Literata 1.18 em.
+    for (final baseline in [1.099 * fontSize, 1.177 * fontSize]) {
+      final top = underlineOffset(fontSize, baseline, 1.5 * fontSize);
+      expect(top, closeTo(baseline + 0.18 * fontSize, 0.01));
+      expect(
+        top + underlineThickness(fontSize),
+        lessThan(baseline + (1.5 - 0.72) * fontSize),
+        reason: 'clear of the next line',
+      );
+    }
+    // The old place, 1.1 em from the top, was on the baseline or above.
+    expect(
+      underlineOffset(fontSize, 1.099 * fontSize, 1.5 * fontSize),
+      greaterThan(1.1 * fontSize + 0.15 * fontSize),
+    );
+    // Lines set solid: the gap gives way but does not close.
+    final tight = underlineOffset(fontSize, 1.099 * fontSize, fontSize);
+    expect(tight, greaterThanOrEqualTo(1.099 * fontSize + 0.08 * fontSize));
+    expect(tight, lessThan(1.099 * fontSize + 0.18 * fontSize));
+  });
 }

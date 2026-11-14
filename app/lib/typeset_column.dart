@@ -265,6 +265,8 @@ class _ColumnPainter extends CustomPainter {
       brightness,
       marksByChapter[row.chapter] ?? const [],
       paneModule,
+      baseline: runBaseline(family, fontSize),
+      lineHeight: lineHeight,
     );
     final sel = selection;
     if (sel != null && sel.$1 == row.chapter) {

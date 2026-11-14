@@ -12,6 +12,7 @@ import 'desk_app_bar.dart';
 import 'desk_grid.dart';
 import 'desks.dart';
 import 'import_flow.dart';
+import 'library_changes.dart';
 import 'l10n.dart';
 import 'footnotes_pane.dart';
 import 'notes_pane.dart';
@@ -64,11 +65,13 @@ class _ReaderScreenState extends State<ReaderScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    libraryRevision.addListener(_onLibraryChanged);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    libraryRevision.removeListener(_onLibraryChanged);
     _flushPosition();
     super.dispose();
   }
@@ -131,6 +134,24 @@ class _ReaderScreenState extends State<ReaderScreen>
       });
     }
     _layout = _loadDeskLayout(chosen.id);
+  }
+
+  /// The library's contents changed (ADR 0039): the lists are read
+  /// again, a view whose module is gone lets go of it, and every view
+  /// loads its text anew.
+  void _onLibraryChanged() {
+    if (!mounted) return;
+    setState(() {
+      _modules = modules();
+      _plans = ReadingPlan.fromLibrary();
+      for (final pane in _layout.allPanes) {
+        if (pane.module != null &&
+            !_modules.any((m) => m.code == pane.module)) {
+          pane.module = null;
+        }
+      }
+    });
+    _save();
   }
 
   LayoutModel _loadDeskLayout(String id) {
@@ -571,8 +592,8 @@ class _ReaderScreenState extends State<ReaderScreen>
 
   Future<void> _import() => importFromPicker(
     context,
-    onModulesChanged: () => setState(() => _modules = modules()),
-    onPlansChanged: () => setState(() => _plans = ReadingPlan.fromLibrary()),
+    onModulesChanged: () => libraryRevision.value++,
+    onPlansChanged: () => libraryRevision.value++,
   );
 
   List<FollowOption> _followOptionsFor(PaneSpec spec) {
@@ -680,6 +701,7 @@ class _ReaderScreenState extends State<ReaderScreen>
           key: ValueKey('pane-${spec.id}'),
           spec: spec,
           modules: _bibleModules,
+          libraryEpoch: libraryRevision.value,
           onWordLookup: _lookupWord,
           followedAnchor: followedAnchor,
           followOptions: _followOptionsFor(spec),

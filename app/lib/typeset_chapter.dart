@@ -245,6 +245,8 @@ class _ChapterPainter extends CustomPainter {
       brightness,
       marks,
       paneModule,
+      baseline: runBaseline(family, fontSize),
+      lineHeight: lineHeight,
     );
     final sel = selection;
     if (sel != null) {

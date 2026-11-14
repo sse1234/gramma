@@ -31,7 +31,11 @@ pub enum LibraryError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModuleInfo {
     pub code: String,
+    /// The title shown: the reader's own name for the module when they
+    /// gave it one (ADR 0039), else the source's.
     pub title: String,
+    /// The title the source carries, whatever the reader calls it.
+    pub source_title: String,
     pub language: String,
     /// Content units: verses of a Bible text, entries of a commentary.
     pub verses: u32,
@@ -175,6 +179,10 @@ CREATE TABLE IF NOT EXISTS plan(
   name TEXT PRIMARY KEY,
   source TEXT NOT NULL,
   json TEXT NOT NULL
+) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS module_title(
+  code TEXT PRIMARY KEY,
+  title TEXT NOT NULL
 ) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS comment_ref(
   module_id INTEGER NOT NULL REFERENCES module(id) ON DELETE CASCADE,
@@ -370,6 +378,7 @@ impl Library {
         Ok(ModuleInfo {
             code: doc.code.clone(),
             title: doc.title.clone(),
+            source_title: doc.title.clone(),
             language: doc.language.clone(),
             verses,
             notes: doc.notes.len() as u32,
@@ -436,6 +445,7 @@ impl Library {
         Ok(ModuleInfo {
             code: doc.code.clone(),
             title: doc.title.clone(),
+            source_title: doc.title.clone(),
             language: doc.language.clone(),
             verses: entries,
             notes: 0,
@@ -511,6 +521,7 @@ impl Library {
         Ok(ModuleInfo {
             code: doc.code.clone(),
             title: doc.title.clone(),
+            source_title: doc.title.clone(),
             language: doc.language.clone(),
             verses,
             notes: doc.notes.len() as u32,
@@ -670,6 +681,7 @@ impl Library {
         Ok(ModuleInfo {
             code: doc.code.clone(),
             title: doc.title.clone(),
+            source_title: doc.title.clone(),
             language: doc.language.clone(),
             verses: entries,
             notes: 0,
@@ -718,6 +730,7 @@ impl Library {
         Ok(ModuleInfo {
             code: doc.code.clone(),
             title: doc.title.clone(),
+            source_title: doc.title.clone(),
             language: doc.language.clone(),
             verses: sections,
             notes: 0,
@@ -849,6 +862,7 @@ impl Library {
                 )?;
                 Ok(ModuleInfo {
                     code: code.to_string(),
+                    source_title: title.clone(),
                     title,
                     language,
                     verses: entries,
@@ -889,6 +903,7 @@ impl Library {
                 tx.commit()?;
                 Ok(ModuleInfo {
                     code: code.to_string(),
+                    source_title: title.clone(),
                     title,
                     language,
                     verses: book.sections.len() as u32,
@@ -1242,14 +1257,17 @@ impl Library {
 
     pub fn modules(&self) -> Result<Vec<ModuleInfo>, LibraryError> {
         let mut stmt = self.conn.prepare(
-            "SELECT code, title, language,
+            "SELECT code,
+                    COALESCE((SELECT t.title FROM module_title t WHERE t.code = m.code), title),
+                    language,
                     (SELECT COUNT(*) FROM verse v WHERE v.module_id = m.id)
                     + (SELECT COUNT(*) FROM comment c WHERE c.module_id = m.id)
                     + (SELECT COUNT(*) FROM dict_entry d WHERE d.module_id = m.id)
                     + (SELECT COUNT(*) FROM book_section b WHERE b.module_id = m.id),
                     (SELECT COUNT(*) FROM note n WHERE n.module_id = m.id),
                     kind,
-                    EXISTS (SELECT 1 FROM word_link w WHERE w.module_id = m.id)
+                    EXISTS (SELECT 1 FROM word_link w WHERE w.module_id = m.id),
+                    title
              FROM module m ORDER BY code",
         )?;
         let modules = stmt
@@ -1257,6 +1275,7 @@ impl Library {
                 Ok(ModuleInfo {
                     code: row.get(0)?,
                     title: row.get(1)?,
+                    source_title: row.get(7)?,
                     language: row.get(2)?,
                     verses: row.get(3)?,
                     notes: row.get(4)?,
@@ -1405,6 +1424,76 @@ impl Library {
             })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(contents)
+    }
+
+    /// Removes a module and everything it brought — verses, notes,
+    /// headings, entries, sections, word links, images — and the name
+    /// the reader gave it (ADR 0039). What the reader wrote about the
+    /// text lives in the user store and is not touched.
+    pub fn delete_module(&mut self, code: &str) -> Result<(), LibraryError> {
+        let tx = self.conn.transaction()?;
+        let deleted = tx.execute("DELETE FROM module WHERE code = ?1", [code])?;
+        if deleted == 0 {
+            return Err(LibraryError::UnknownModule(code.to_string()));
+        }
+        tx.execute("DELETE FROM module_title WHERE code = ?1", [code])?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Gives a module the reader's own name (ADR 0039). The code stays —
+    /// it is the module's identity for panes, marks and re-imports — and
+    /// the name is kept beside the module, not in it, so importing the
+    /// same source again leaves it standing. An empty name returns to
+    /// the source's title.
+    pub fn rename_module(&mut self, code: &str, title: &str) -> Result<(), LibraryError> {
+        self.module_id(code)?;
+        let title = title.trim();
+        if title.is_empty() {
+            self.conn
+                .execute("DELETE FROM module_title WHERE code = ?1", [code])?;
+        } else {
+            self.conn.execute(
+                "INSERT INTO module_title(code, title) VALUES (?1, ?2)
+                 ON CONFLICT(code) DO UPDATE SET title = excluded.title",
+                (code, title),
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Removes a reading plan; false when there is none of that name.
+    pub fn delete_plan(&mut self, name: &str) -> Result<bool, LibraryError> {
+        Ok(self
+            .conn
+            .execute("DELETE FROM plan WHERE name = ?1", [name])?
+            > 0)
+    }
+
+    /// Content rows whose module is gone: zero as long as deletes
+    /// cascade. A check for tests and diagnostics.
+    pub fn orphaned_rows(&self) -> Result<u64, LibraryError> {
+        let mut total = 0i64;
+        for table in [
+            "verse",
+            "heading",
+            "note",
+            "comment",
+            "dict_entry",
+            "word_link",
+            "book_section",
+            "comment_ref",
+            "doc_image",
+        ] {
+            total += self.conn.query_row(
+                &format!(
+                    "SELECT COUNT(*) FROM {table} WHERE module_id NOT IN (SELECT id FROM module)"
+                ),
+                [],
+                |row| row.get::<_, i64>(0),
+            )?;
+        }
+        Ok(total as u64)
     }
 
     fn module_id(&self, code: &str) -> Result<i64, LibraryError> {

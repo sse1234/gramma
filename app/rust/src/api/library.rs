@@ -24,7 +24,11 @@ pub(crate) fn with_library<T>(
 
 pub struct ModuleView {
     pub code: String,
+    /// The title shown: the reader's own name when they gave one
+    /// (ADR 0039), else the source's.
     pub title: String,
+    /// The title the source carries.
+    pub source_title: String,
     pub language: String,
     /// Content units: verses of a Bible text, entries of a commentary.
     pub verses: u32,
@@ -105,6 +109,7 @@ pub fn import_osis_file(path: String) -> anyhow::Result<ModuleView> {
     Ok(ModuleView {
         code: info.code,
         title: info.title,
+        source_title: info.source_title,
         language: info.language,
         verses: info.verses,
         notes: info.notes,
@@ -221,6 +226,7 @@ pub fn import_document_file(
     Ok(ModuleView {
         code: info.code,
         title: info.title,
+        source_title: info.source_title,
         language: info.language,
         verses: info.verses,
         notes: info.notes,
@@ -282,6 +288,7 @@ pub fn import_sword_file(path: String) -> anyhow::Result<ModuleView> {
     Ok(ModuleView {
         code: info.code,
         title: info.title,
+        source_title: info.source_title,
         language: info.language,
         verses: info.verses,
         notes: info.notes,
@@ -507,6 +514,7 @@ pub fn modules() -> anyhow::Result<Vec<ModuleView>> {
         .map(|m| ModuleView {
             code: m.code,
             title: m.title,
+            source_title: m.source_title,
             language: m.language,
             verses: m.verses,
             notes: m.notes,
@@ -514,6 +522,38 @@ pub fn modules() -> anyhow::Result<Vec<ModuleView>> {
             strongs: m.strongs,
         })
         .collect())
+}
+
+/// Removes a module and all its content from the library (ADR 0039).
+#[flutter_rust_bridge::frb(sync)]
+pub fn delete_module(module_code: String) -> anyhow::Result<()> {
+    let mut guard = LIBRARY.lock().unwrap();
+    let library = guard
+        .as_mut()
+        .ok_or_else(|| anyhow!("library not opened"))?;
+    invalidate_search_indexes();
+    Ok(library.delete_module(&module_code)?)
+}
+
+/// Gives a module the reader's own name; an empty name returns to the
+/// source's title (ADR 0039).
+#[flutter_rust_bridge::frb(sync)]
+pub fn rename_module(module_code: String, title: String) -> anyhow::Result<()> {
+    let mut guard = LIBRARY.lock().unwrap();
+    let library = guard
+        .as_mut()
+        .ok_or_else(|| anyhow!("library not opened"))?;
+    Ok(library.rename_module(&module_code, &title)?)
+}
+
+/// Removes a reading plan; false when there is none of that name.
+#[flutter_rust_bridge::frb(sync)]
+pub fn delete_plan(name: String) -> anyhow::Result<bool> {
+    let mut guard = LIBRARY.lock().unwrap();
+    let library = guard
+        .as_mut()
+        .ok_or_else(|| anyhow!("library not opened"))?;
+    Ok(library.delete_plan(&name)?)
 }
 
 #[flutter_rust_bridge::frb(sync)]

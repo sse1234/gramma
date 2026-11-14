@@ -52,6 +52,7 @@ class ReaderPane extends StatefulWidget {
     super.key,
     required this.spec,
     required this.modules,
+    this.libraryEpoch = 0,
     required this.followedAnchor,
     required this.followOptions,
     required this.readingMode,
@@ -79,6 +80,11 @@ class ReaderPane extends StatefulWidget {
 
   final PaneSpec spec;
   final List<ModuleView> modules;
+
+  /// Moves when the library's contents changed (ADR 0039): the view
+  /// loads its text again — a module imported over itself has new
+  /// content under the same code, a deleted one is gone.
+  final int libraryEpoch;
   final String? followedAnchor;
   final List<FollowOption> followOptions;
 
@@ -269,7 +275,8 @@ class _ReaderPaneState extends State<ReaderPane>
   @override
   void didUpdateWidget(ReaderPane old) {
     super.didUpdateWidget(old);
-    if (widget.spec.module != _active?.code && widget.spec.module != null) {
+    if (widget.libraryEpoch != old.libraryEpoch ||
+        (widget.spec.module != _active?.code && widget.spec.module != null)) {
       _loadModule();
     }
     if (widget.followedAnchor != old.followedAnchor &&
@@ -350,13 +357,10 @@ class _ReaderPaneState extends State<ReaderPane>
     if (counts != null && bottom.index < counts.length) {
       final span = bottom.itemTrailingEdge - bottom.itemLeadingEdge;
       if (span > 0) {
-        final fraction = ((1 - bottom.itemLeadingEdge) / span).clamp(0.0, 1.0);
-        final line =
-            (fraction * (counts[bottom.index] + _headingLines)).floor() -
-            _headingLines;
-        verse = line > 0
-            ? _verseAtLineEnd(bottom.index, line)
-            : _verseAtLineEnd(bottom.index, 0);
+        // The last line whose top lies above the viewport's bottom.
+        final visiblePx = (1 - bottom.itemLeadingEdge) * _vViewportH;
+        final line = _vLineAt(visiblePx - _vLineHeightPx, counts[bottom.index]);
+        verse = _verseAtLineEnd(bottom.index, line);
       }
     }
     final entry = _spine[bottom.index];
@@ -449,7 +453,13 @@ class _ReaderPaneState extends State<ReaderPane>
     final active = _active;
     if (active == null) return;
     if (active.code != widget.spec.module) {
-      widget.onModule(active.code);
+      // After the frame: this runs while the desk builds, and the desk
+      // rebuilds when told of the module.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _active?.code == active.code) {
+          widget.onModule(active.code);
+        }
+      });
     }
     // The line count waits for the first layout pass to fix the measure.
     if (_measure != null) _loadKinds();
@@ -472,8 +482,20 @@ class _ReaderPaneState extends State<ReaderPane>
       // The vertical list was built before the counts arrived, sitting at
       // its initial index — move it to the restored chapter for real.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _topChapter > 0 && _vScroll.isAttached) {
+        if (!mounted) return;
+        if (_topChapter > 0 && _vScroll.isAttached) {
           _vScroll.jumpTo(index: _topChapter);
+        }
+        // The restored place names a verse: its chapter may be typeset
+        // already (a short text, a chapter near the list's start) — then
+        // nothing would arrive to complete the jump.
+        final pending = _pendingVerseJump;
+        if (pending != null) {
+          if (_layouts.containsKey(pending.index)) {
+            _jumpToChapter(pending.index, verse: pending.verse);
+          } else {
+            _requestLayout(pending.index);
+          }
         }
       });
       if (_spine.isNotEmpty) {
@@ -492,6 +514,14 @@ class _ReaderPaneState extends State<ReaderPane>
     if (index >= 0 && plan != null) {
       _topChapter = index;
       _columns.anchorLine = plan.blockStart(index);
+      // The stored place names a verse: the view opens on its chapter
+      // and moves to the verse once the chapter is typeset — a desk
+      // switched back to, or the app reopened, shows the verse it was
+      // left at and not the chapter's first line.
+      final verse = _verseOfOsis(target);
+      _pendingVerseJump = verse != null && verse > 1
+          ? (index: index, verse: verse)
+          : null;
     }
   }
 
@@ -601,6 +631,20 @@ class _ReaderPaneState extends State<ReaderPane>
     });
   }
 
+  /// Where a chapter's text begins below the top of its item in the
+  /// vertical list: the heading's two lines and the space around it
+  /// (see [_chapterItem]).
+  double get _vTextTop => 12 + 2 * _vLineHeightPx;
+
+  /// The text line of a chapter of [lines] lines that stands [px] below
+  /// the top of the chapter's item.
+  int _vLineAt(double px, int lines) {
+    if (lines <= 0) return 0;
+    // A hair over: a view scrolled exactly to a line's top is on it.
+    final line = ((px - _vTextTop) / _vLineHeightPx + 0.01).floor();
+    return line.clamp(0, lines - 1);
+  }
+
   void _onVerticalPositions() {
     // Before the line counts arrive the list still sits at its build-time
     // index; emitting now would overwrite the stored anchor with it.
@@ -620,17 +664,18 @@ class _ReaderPaneState extends State<ReaderPane>
     if (plan != null && top < _spine.length) {
       _columns.anchorLine = plan.blockStart(top);
     }
-    // Estimate the first visible text line of the top chapter from how far
-    // it has scrolled past the viewport top.
+    // The first visible text line of the top chapter, from how far the
+    // chapter has scrolled past the viewport top.
     int? verse;
     final counts = _lineCounts;
     if (counts != null && top < counts.length) {
       final span = topPosition.itemTrailingEdge - topPosition.itemLeadingEdge;
       if (span > 0 && topPosition.itemLeadingEdge < 0) {
-        final scrolled = -topPosition.itemLeadingEdge / span;
-        final line =
-            (scrolled * (counts[top] + _headingLines)).floor() - _headingLines;
-        verse = line > 0 ? _verseAtLine(top, line) : _verseAtLine(top, 0);
+        // The item's geometry is known: the text begins [_vTextTop]
+        // below its top and runs in lines of one height.
+        final scrolledPx = -topPosition.itemLeadingEdge * _vViewportH;
+        final line = _vLineAt(scrolledPx, counts[top]);
+        verse = _verseAtLine(top, line);
       } else {
         verse = _verseAtLine(top, 0);
       }
@@ -712,10 +757,9 @@ class _ReaderPaneState extends State<ReaderPane>
       return;
     } else if (_vScroll.isAttached) {
       if (targetLine != null && _vViewportH > 0) {
-        // Position the verse's line near the viewport top: negative
+        // Position the verse's line at the viewport top: negative
         // alignment scrolls the chapter's leading edge above the viewport.
-        const headingPx = 44.0;
-        final offset = headingPx + targetLine * _vLineHeightPx;
+        final offset = _vTextTop + targetLine * _vLineHeightPx;
         _vScroll.jumpTo(index: index, alignment: -offset / _vViewportH);
       } else {
         _vScroll.jumpTo(index: index);

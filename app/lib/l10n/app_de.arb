@@ -193,5 +193,17 @@
   "@importDocumentEvidence": {"placeholders": {"blocks": {"type": "int"}, "headings": {"type": "int"}, "chapters": {"type": "int"}, "verses": {"type": "int"}, "references": {"type": "int"}, "notes": {"type": "int"}, "images": {"type": "int"}}},
   "importDocumentRights": "Importiere nur Inhalte, die du nutzen darfst. Das Dokument bleibt auf diesem Gerät.",
   "importDocumentAction": "Importieren",
-  "importInspecting": "Dokument wird gelesen…"
+  "importInspecting": "Dokument wird gelesen…",
+  "sectionLibrary": "Bibliothek",
+  "libraryEmpty": "Noch nichts importiert",
+  "libraryKindBible": "Bibeltext",
+  "libraryKindCommentary": "Kommentar",
+  "libraryKindDictionary": "Wörterbuch",
+  "libraryKindBook": "Buch",
+  "libraryKindDevotional": "Andachtsbuch",
+  "renameResourceLabel": "Name",
+  "renameResourceHint": "Leer lassen, um den ursprünglichen Titel zu verwenden: {title}",
+  "deleteResourceTitle": "„{name}“ löschen?",
+  "deleteResourceBody": "Der Text und alles, was mit ihm importiert wurde, wird von diesem Gerät entfernt. Deine Notizen und Markierungen bleiben, und du kannst die Datei jederzeit wieder importieren.",
+  "deletePlanBody": "Der Leseplan wird von diesem Gerät entfernt. Du kannst die Datei jederzeit wieder importieren."
 }

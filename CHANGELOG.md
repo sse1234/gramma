@@ -6,6 +6,23 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
 
 ## [Unreleased]
 
+### Added
+- Settings have a Library tab: texts, commentaries, dictionaries, books
+  and reading plans can be deleted from the device, and renamed. A
+  chosen name survives importing the same file again; notes and
+  markings are not touched by a delete (ADR 0039).
+
+### Changed
+- A pen's underline is drawn below the text's baseline with a gap,
+  instead of through the letters' feet (ADR 0035, amended).
+
+### Fixed
+- Switching desks, and reopening the app, returns each view to the
+  verse it was left at instead of the chapter's first line (ADR 0008,
+  amended). The single-column reader stores its verse exactly.
+- A text imported over itself shows its new content at once, not
+  after a restart.
+
 ## [1.1.7] - 2026-11-12
 
 ### Changed

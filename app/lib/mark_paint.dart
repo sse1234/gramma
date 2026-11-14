@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'annotations.dart';
@@ -67,7 +68,32 @@ Rect noteIconRect(MarkPaint mark, double y, double scale, double fontSize) {
   return Rect.fromLTWH(left, y - fontSize * 0.2, size, size);
 }
 
-/// Washes and underlines of [marks] behind one line at [y].
+/// Thickness of a pen's underline.
+double underlineThickness(double fontSize) =>
+    (fontSize * 0.07).clamp(1.0, 4.0).toDouble();
+
+/// Where a pen's underline starts below the top of its line (ADR 0035,
+/// amended): under the text's [baseline] — the distance from the line's
+/// top to where the letters stand — with a gap of 0.18 em, so the line
+/// reads as drawn under the words and not through their feet. In lines
+/// set tightly the gap gives way, down to 0.08 em, so the underline
+/// keeps clear of the next line's ascenders too.
+///
+/// The underline used to sit at a fixed 1.1 em from the line's top,
+/// which is the baseline itself in the Gentium faces and above it in
+/// Literata.
+double underlineOffset(double fontSize, double baseline, double lineHeight) {
+  // From the baseline down to the next line's ascenders, which stand
+  // about 0.72 em above their own baseline.
+  final room = lineHeight - 0.72 * fontSize;
+  final centered = (room - underlineThickness(fontSize)) / 2;
+  final gap = math.max(0.08 * fontSize, math.min(0.18 * fontSize, centered));
+  return baseline + gap;
+}
+
+/// Washes and underlines of [marks] behind one line at [y]. [baseline]
+/// is the distance from the line's top to the text's baseline,
+/// [lineHeight] the distance to the next line.
 void paintMarkLine(
   Canvas canvas,
   LineView line,
@@ -76,8 +102,10 @@ void paintMarkLine(
   double fontSize,
   Brightness brightness,
   List<MarkPaint> marks,
-  String? paneModule,
-) {
+  String? paneModule, {
+  required double baseline,
+  required double lineHeight,
+}) {
   for (final m in marks) {
     final pen = m.pen;
     if (pen == null) continue;
@@ -98,12 +126,13 @@ void paintMarkLine(
             Paint()..color = pen.wash(brightness),
           );
         case PenStyle.underline:
+          final top = y + underlineOffset(fontSize, baseline, lineHeight);
           canvas.drawRect(
             Rect.fromLTRB(
               start * scale,
-              y + fontSize * 1.1,
+              top,
               end * scale,
-              y + fontSize * 1.1 + (fontSize * 0.07).clamp(1.0, 4.0),
+              top + underlineThickness(fontSize),
             ),
             Paint()..color = pen.ink(brightness),
           );

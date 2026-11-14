@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dropbox_sync.dart';
 import 'l10n.dart';
 import 'icloud.dart';
+import 'library_changes.dart';
 import 'mac_bookmarks.dart';
 import 'pane_header.dart' show StrongsBadge;
 import 'pen_editor.dart';
@@ -71,27 +72,135 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   double? _measurePreview;
   List<ModuleView> _modules = const [];
+
+  /// Everything the library holds, for the Library tab (ADR 0039).
+  List<ModuleView> _library = const [];
+  List<String> _planNames = const [];
   String? _syncDir;
 
   @override
   void initState() {
     super.initState();
     _loadVersion();
-    try {
-      // The default text is a Bible text; commentaries (ADR 0017) are not
-      // reading-view candidates.
-      _modules = [
-        for (final m in modules())
-          if (m.kind == 'bible') m,
-      ];
-    } catch (_) {
-      _modules = const [];
-    }
+    _loadLibrary();
     try {
       _syncDir = syncDir();
     } catch (_) {
       _syncDir = null;
     }
+  }
+
+  void _loadLibrary() {
+    try {
+      _library = modules()
+        ..sort(
+          (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+        );
+      _planNames = [for (final p in plans()) p.name];
+    } catch (_) {
+      _library = const [];
+      _planNames = const [];
+    }
+    // The default text is a Bible text; commentaries (ADR 0017) are not
+    // reading-view candidates.
+    _modules = [
+      for (final m in _library)
+        if (m.kind == 'bible') m,
+    ];
+  }
+
+  /// The library changed here: reload the lists and tell the desk.
+  void _libraryChanged() {
+    setState(_loadLibrary);
+    libraryRevision.value++;
+  }
+
+  String _kindLabel(String kind) => switch (kind) {
+    'commentary' => context.l10n.libraryKindCommentary,
+    'dictionary' => context.l10n.libraryKindDictionary,
+    'book' => context.l10n.libraryKindBook,
+    'devotional' => context.l10n.libraryKindDevotional,
+    _ => context.l10n.libraryKindBible,
+  };
+
+  /// The reader's own name for a module (ADR 0039): the code stays, an
+  /// empty name returns to the source's title.
+  Future<void> _renameModule(ModuleView module) async {
+    final l10n = context.l10n;
+    final controller = TextEditingController(text: module.title);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.rename),
+        content: TextField(
+          key: const Key('library-rename-field'),
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: l10n.renameResourceLabel,
+            helperText: l10n.renameResourceHint(module.sourceTitle),
+            helperMaxLines: 3,
+          ),
+          onSubmitted: (value) => Navigator.of(context).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            key: const Key('library-rename-save'),
+            onPressed: () => Navigator.of(context).pop(controller.text),
+            child: Text(l10n.save),
+          ),
+        ],
+      ),
+    );
+    if (name == null || !mounted) return;
+    renameModule(moduleCode: module.code, title: name);
+    _libraryChanged();
+  }
+
+  Future<bool> _confirmDelete(String name, String body) async {
+    final l10n = context.l10n;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.deleteResourceTitle(name)),
+        content: Text(body),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            key: const Key('library-delete-confirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.delete),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
+  /// Removes a module and all it brought from this device (ADR 0039).
+  /// What the reader wrote about the text is not library content and
+  /// stays.
+  Future<void> _deleteModule(ModuleView module) async {
+    final settings = SettingsScope.of(context);
+    final body = context.l10n.deleteResourceBody;
+    if (!await _confirmDelete(module.title, body) || !mounted) return;
+    deleteModule(moduleCode: module.code);
+    if (settings.defaultModule == module.code) settings.setDefaultModule(null);
+    _libraryChanged();
+  }
+
+  Future<void> _deletePlan(String name) async {
+    final body = context.l10n.deletePlanBody;
+    if (!await _confirmDelete(name, body) || !mounted) return;
+    deletePlan(name: name);
+    _libraryChanged();
   }
 
   /// [bookmark] marks a picker-chosen folder: under the Mac sandbox its
@@ -840,6 +949,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Text(context.l10n.styleReset),
             ),
           ),
+        ],
+      ),
+      (
+        'library',
+        context.l10n.sectionLibrary,
+        [
+          if (_library.isEmpty && _planNames.isEmpty)
+            Text(
+              context.l10n.libraryEmpty,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          for (final m in _library)
+            ListTile(
+              key: Key('library-item-${m.code}'),
+              contentPadding: EdgeInsets.zero,
+              title: Text(m.title),
+              subtitle: Text(
+                [
+                  _kindLabel(m.kind),
+                  m.code,
+                  if (m.title != m.sourceTitle) m.sourceTitle,
+                ].join(' · '),
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    key: Key('library-rename-${m.code}'),
+                    icon: const Icon(Icons.edit_outlined),
+                    tooltip: context.l10n.rename,
+                    onPressed: () => _renameModule(m),
+                  ),
+                  IconButton(
+                    key: Key('library-delete-${m.code}'),
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: context.l10n.delete,
+                    onPressed: () => _deleteModule(m),
+                  ),
+                ],
+              ),
+            ),
+          for (final name in _planNames)
+            ListTile(
+              key: Key('library-item-plan-$name'),
+              contentPadding: EdgeInsets.zero,
+              title: Text(name),
+              subtitle: Text(context.l10n.readingPlan),
+              trailing: IconButton(
+                key: Key('library-delete-plan-$name'),
+                icon: const Icon(Icons.delete_outline),
+                tooltip: context.l10n.delete,
+                onPressed: () => _deletePlan(name),
+              ),
+            ),
         ],
       ),
       (

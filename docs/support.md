@@ -53,6 +53,13 @@ long-pressing a pen in the popup. "Note only" leaves the text plain
 and shows a small icon after the verse. The **Notes** view lists
 everything you have marked.
 
+**How do I delete or rename a text?** **Settings → Library** lists
+everything you have imported. The pencil gives a text your own name —
+it stays when you import the same file again — and the bin removes
+the text from this device. Your notes and markings are not touched,
+and you can import the file again at any time; after an update that
+improves an import, delete the text and import it once more.
+
 **Keyboard?** On the desktop, the arrow keys page the view you last
 used by one column, Page Up and Page Down by a whole screen (a
 setting makes the arrows do that too), and **p** opens the reading
@@ -113,6 +120,14 @@ gehören Ihnen: Farbton, Stärke, Marker oder Unterstreichung, unter
 im Dialog. „Nur Notiz“ lässt den Text unberührt und zeigt ein kleines
 Symbol hinter dem Vers. Die Ansicht **Notizen** listet alles
 Markierte.
+
+**Wie lösche ich einen Text, wie benenne ich ihn um?**
+**Einstellungen → Bibliothek** zeigt alles Importierte. Der Stift gibt
+einem Text Ihren eigenen Namen — er bleibt, wenn Sie dieselbe Datei
+erneut importieren —, der Papierkorb entfernt den Text von diesem
+Gerät. Ihre Notizen und Markierungen bleiben unberührt, und die Datei
+lässt sich jederzeit wieder importieren; nach einem Update, das einen
+Import verbessert, löschen Sie den Text und importieren ihn erneut.
 
 **Tastatur?** Am Desktop blättern die Pfeiltasten die zuletzt benutzte
 Ansicht um eine Spalte, Bild auf und Bild ab um einen ganzen

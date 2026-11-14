@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gramma/footnotes_pane.dart';
 import 'package:gramma/annotations.dart';
+import 'package:gramma/chapter_heading.dart';
 import 'package:gramma/reader_pane.dart';
 import 'package:gramma/reader_screen.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
@@ -17,6 +18,7 @@ import 'package:gramma/typeset_chapter.dart';
 import 'package:gramma/typeset_column.dart';
 import 'package:gramma/typeset_prose.dart';
 import 'package:gramma/l10n.dart';
+import 'package:gramma/library_changes.dart';
 import 'package:gramma/notes_pane.dart';
 import 'package:gramma/main.dart';
 import 'package:gramma/pane_model.dart';
@@ -1942,11 +1944,262 @@ void main() {
       );
     }
     // A verse inside a chapter heads the column with its line.
+    final exodus2 = contents(moduleCode: 'FixDe')
+        .indexWhere((c) => c.bookOsis == 'Exod' && c.chapter == 2);
     await _selectRef(tester, book: 'Exod', chapter: 2, verse: 5);
     await _settle(tester, () {
       final row = firstRow();
-      return row is TextRow && row.line.runs.any((r) => r.verse == 5);
+      return row is TextRow &&
+          row.chapter == exodus2 &&
+          row.line.runs.any((r) => r.verse == 5);
     });
+  });
+
+  testWidgets('a desk switched back to shows the verse it was left at', (
+    tester,
+  ) async {
+    // The stored position names a verse; restoring it used to stop at
+    // the chapter's first line.
+    _freshUserStore();
+    tester.view.physicalSize = const Size(1200, 360);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settle(
+      tester,
+      () => _found(find.byKey(const ValueKey('columns-active'))),
+    );
+    final exodus2 = contents(moduleCode: 'FixDe')
+        .indexWhere((c) => c.bookOsis == 'Exod' && c.chapter == 2);
+    bool atVerse(int verse) {
+      final columns = find.byType(TypesetColumn);
+      if (columns.evaluate().isEmpty) return false;
+      final rows = tester.widget<TypesetColumn>(columns.first).rows;
+      if (rows.isEmpty) return false;
+      final row = rows.first;
+      return row is TextRow &&
+          row.chapter == exodus2 &&
+          row.line.runs.any((r) => r.verse == verse);
+    }
+
+    await _selectRef(tester, book: 'Exod', chapter: 2, verse: 5);
+    await _settle(tester, () => atVerse(5));
+    // Let the position rest and reach the store.
+    await tester.pump(const Duration(seconds: 1));
+
+    await tester.tap(find.byKey(const Key('desk-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('desk-new')));
+    await tester.pumpAndSettle();
+    await _settleLayouts(tester);
+    expect(atVerse(5), isFalse, reason: 'the new desk starts at its own place');
+
+    await tester.tap(find.byKey(const Key('desk-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('desk-item-Desk 1')));
+    await tester.pumpAndSettle();
+    await _settle(tester, () => atVerse(5));
+    expect(
+      tester.widget<Text>(find.byKey(const Key('current-position')).first).data,
+      startsWith('2. Mose 2'),
+    );
+  });
+
+  testWidgets('on a phone, a desk switched back to shows its verse too', (
+    tester,
+  ) async {
+    _freshUserStore();
+    _phoneViewport(tester);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    // Where the chapter's heading stands in the list: scrolled above the
+    // view's top when the view shows a verse further down.
+    double? headingTop() {
+      final heading = find.byWidgetPredicate(
+        (w) => w is ChapterHeading && w.text == '2. Mose 2',
+      );
+      if (heading.evaluate().isEmpty) return null;
+      return tester.getTopLeft(heading.first).dy -
+          tester.getTopLeft(find.byKey(const Key('vertical-reader'))).dy;
+    }
+
+    await _selectRef(tester, book: 'Exod', chapter: 2);
+    await _settleLayouts(tester);
+    await tester.pumpAndSettle();
+    final atStart = headingTop();
+    expect(atStart, isNotNull);
+    await _selectRef(tester, book: 'Exod', chapter: 2, verse: 5);
+    await tester.pumpAndSettle();
+    final left = headingTop();
+    expect(
+      left == null || left < atStart! - 40,
+      isTrue,
+      reason: 'verse 5 stands lower in the chapter: $left vs $atStart',
+    );
+    await tester.pump(const Duration(seconds: 1));
+
+    await tester.tap(find.byKey(const Key('desk-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('desk-new')));
+    await tester.pumpAndSettle();
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('desk-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('desk-item-Desk 1')));
+    await tester.pumpAndSettle();
+    // The view returns to the verse that stood at its top, from that
+    // verse's first line: the same place or a few lines above it, and
+    // nowhere near the chapter's start.
+    await _settle(tester, () {
+      final now = headingTop();
+      if (left == null) return now == null;
+      return now != null &&
+          now >= left - 3 &&
+          now <= left + 90 &&
+          now < atStart! - 40;
+    });
+  });
+
+  testWidgets('the library tab renames a text, and the views follow', (
+    tester,
+  ) async {
+    // ADR 0039: the reader's own name for a module; its code stays.
+    _freshUserStore();
+    _desktopViewport(tester);
+    addTearDown(() {
+      renameModule(moduleCode: 'FixDe', title: '');
+      libraryRevision.value++;
+    });
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    expect(find.text('Fixtur Deutsch'), findsWidgets);
+    await tester.tap(find.byKey(const Key('open-settings')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('settings-tab-library')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('library-rename-FixDe')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('library-rename-field')),
+      'Meine Bibel',
+    );
+    await tester.tap(find.byKey(const Key('library-rename-save')));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('library-item-FixDe')),
+        matching: find.text('Meine Bibel'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('FixDe · Fixtur Deutsch'),
+      findsOneWidget,
+      reason: "the code and the source's title stay visible",
+    );
+    await tester.tap(find.byKey(const Key('settings-close')));
+    await tester.pumpAndSettle();
+    await _settleLayouts(tester);
+    expect(find.text('Meine Bibel'), findsWidgets, reason: 'the view header');
+    expect(find.text('Fixtur Deutsch'), findsNothing);
+
+    // An empty name returns to the source's title.
+    await tester.tap(find.byKey(const Key('open-settings')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('settings-tab-library')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('library-rename-FixDe')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('library-rename-field')), '');
+    await tester.tap(find.byKey(const Key('library-rename-save')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('settings-close')));
+    await tester.pumpAndSettle();
+    expect(find.text('Fixtur Deutsch'), findsWidgets);
+  });
+
+  testWidgets('deleting the text a view shows moves the view to another', (
+    tester,
+  ) async {
+    // ADR 0039: a module leaves the library with all its content; a view
+    // that showed it takes another text, and the file can be imported
+    // again.
+    _freshUserStore();
+    _desktopViewport(tester);
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('module-select')).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Testbibel mit Strongs').last);
+    await _settleLayouts(tester);
+    expect(find.text('Testbibel mit Strongs'), findsWidgets);
+
+    await tester.tap(find.byKey(const Key('open-settings')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('settings-tab-library')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('library-delete-KjvTest')));
+    await tester.tap(find.byKey(const Key('library-delete-KjvTest')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Your notes and markings stay'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('library-delete-confirm')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('library-item-KjvTest')), findsNothing);
+    await tester.tap(find.byKey(const Key('settings-close')));
+    await tester.pumpAndSettle();
+    await _settleLayouts(tester);
+    expect(find.text('Testbibel mit Strongs'), findsNothing);
+    expect(find.text('Fixtur Deutsch'), findsWidgets);
+    expect([for (final m in modules()) m.code], isNot(contains('KjvTest')));
+
+    // The file comes back, for the reader and for the tests that follow.
+    await tester.runAsync(
+      () => importSwordFile(path: 'test/fixtures/bible.sword.zip'),
+    );
+    libraryRevision.value++;
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('module-select')).first);
+    await tester.pumpAndSettle();
+    expect(find.text('Testbibel mit Strongs'), findsWidgets);
+  });
+
+  testWidgets('the library tab deletes a reading plan', (tester) async {
+    _freshUserStore();
+    _desktopViewport(tester);
+    final planFile = File('${tempDir.path}/plan-delete.json')
+      ..writeAsStringSync(
+        jsonEncode({
+          'name': 'Wegplan',
+          'source': '',
+          'days': [
+            [
+              {'label': 'Erster Tag', 'osis': 'Gen.1'},
+            ],
+          ],
+        }),
+      );
+    addTearDown(() => planFile.deleteSync());
+    await tester.runAsync(() => importPlanFile(path: planFile.path));
+    await tester.pumpWidget(GrammaApp(settings: SettingsController(prefs)));
+    await _settleLayouts(tester);
+    await tester.tap(find.byKey(const Key('open-settings')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('settings-tab-library')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('library-delete-plan-Wegplan')),
+    );
+    await tester.tap(find.byKey(const Key('library-delete-plan-Wegplan')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('library-delete-confirm')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('library-item-plan-Wegplan')), findsNothing);
+    await tester.tap(find.byKey(const Key('settings-close')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tools-menu')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Wegplan'), findsNothing);
   });
 
   testWidgets('toggling chrome keeps the reading position', (tester) async {
