@@ -1,5 +1,5 @@
 import 'package:file_selector/file_selector.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'document_import_dialog.dart';
 import 'l10n.dart';

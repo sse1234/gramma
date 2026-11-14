@@ -13,6 +13,10 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
   markings are not touched by a delete (ADR 0039).
 
 ### Changed
+- Built with Flutter 3.50; the Material widgets come from the
+  `material_ui` package, with the package's own translations
+  (ADR 0038). Android builds with AGP 9.3.3, Kotlin 2.4.20 and
+  Gradle 9.5.0.
 - A pen's underline is drawn below the text's baseline with a gap,
   instead of through the letters' feet (ADR 0035, amended).
 

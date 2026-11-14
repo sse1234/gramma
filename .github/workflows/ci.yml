@@ -27,12 +27,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # Pinned to the version the releases are built with (release.yml,
-      # FLUTTER_VERSION): CI tests what ships. "stable" moved to 3.50,
-      # whose analyzer flags every material.dart import as deprecated;
-      # that migration is a change of its own, not a CI surprise.
+      # FLUTTER_VERSION): CI tests what ships, and a new stable release
+      # is an upgrade we make (ADR 0038), not a CI surprise.
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.47.1
+          flutter-version: 3.50.0
           cache: true
       - name: Build bridge library for host tests
         run: cargo build -p rust_lib_gramma

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'footnotes_pane.dart' show visibleChapterIndexes;
 import 'l10n.dart';
