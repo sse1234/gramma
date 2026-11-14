@@ -211,5 +211,19 @@
   "@importDocumentEvidence": {"placeholders": {"blocks": {"type": "int"}, "headings": {"type": "int"}, "chapters": {"type": "int"}, "verses": {"type": "int"}, "references": {"type": "int"}, "notes": {"type": "int"}, "images": {"type": "int"}}},
   "importDocumentRights": "Import only content you have the right to use. The document stays on this device.",
   "importDocumentAction": "Import",
-  "importInspecting": "Reading the document…"
+  "importInspecting": "Reading the document…",
+  "sectionLibrary": "Library",
+  "libraryEmpty": "Nothing imported yet",
+  "libraryKindBible": "Bible text",
+  "libraryKindCommentary": "Commentary",
+  "libraryKindDictionary": "Dictionary",
+  "libraryKindBook": "Book",
+  "libraryKindDevotional": "Devotional",
+  "renameResourceLabel": "Name",
+  "renameResourceHint": "Leave empty to use the original title: {title}",
+  "@renameResourceHint": {"placeholders": {"title": {"type": "String"}}},
+  "deleteResourceTitle": "Delete \"{name}\"?",
+  "@deleteResourceTitle": {"placeholders": {"name": {"type": "String"}}},
+  "deleteResourceBody": "The text and everything imported with it are removed from this device. Your notes and markings stay, and you can import the file again at any time.",
+  "deletePlanBody": "The reading plan is removed from this device. You can import the file again at any time."
 }

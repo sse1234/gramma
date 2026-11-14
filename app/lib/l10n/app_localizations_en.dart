@@ -662,4 +662,46 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get importInspecting => 'Reading the document…';
+
+  @override
+  String get sectionLibrary => 'Library';
+
+  @override
+  String get libraryEmpty => 'Nothing imported yet';
+
+  @override
+  String get libraryKindBible => 'Bible text';
+
+  @override
+  String get libraryKindCommentary => 'Commentary';
+
+  @override
+  String get libraryKindDictionary => 'Dictionary';
+
+  @override
+  String get libraryKindBook => 'Book';
+
+  @override
+  String get libraryKindDevotional => 'Devotional';
+
+  @override
+  String get renameResourceLabel => 'Name';
+
+  @override
+  String renameResourceHint(String title) {
+    return 'Leave empty to use the original title: $title';
+  }
+
+  @override
+  String deleteResourceTitle(String name) {
+    return 'Delete \"$name\"?';
+  }
+
+  @override
+  String get deleteResourceBody =>
+      'The text and everything imported with it are removed from this device. Your notes and markings stay, and you can import the file again at any time.';
+
+  @override
+  String get deletePlanBody =>
+      'The reading plan is removed from this device. You can import the file again at any time.';
 }

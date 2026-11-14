@@ -61,6 +61,28 @@ TextPainter _layoutPainter(String text, TextStyle style, double strokeEm) {
   return painter;
 }
 
+final Map<(String?, double), double> _baselines = {};
+
+/// The distance from a run's top to its alphabetic baseline, for text of
+/// [family] at [fontSize] — where the letters stand, which underlines
+/// are drawn from. It is the face's ascent, and differs by typeface.
+double runBaseline(String? family, double fontSize) {
+  return _baselines.putIfAbsent((family, fontSize), () {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: 'x',
+        style: TextStyle(fontFamily: family, fontSize: fontSize),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final baseline = painter.computeDistanceToActualBaseline(
+      TextBaseline.alphabetic,
+    );
+    painter.dispose();
+    return baseline;
+  });
+}
+
 /// Section headings gain their weight by stroke, never by FontWeight:
 /// painted advances must match the engine's regular-face measurements,
 /// and a variable font (Literata) instantiates a genuinely wider real

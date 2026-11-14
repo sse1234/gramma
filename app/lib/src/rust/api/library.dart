@@ -103,6 +103,22 @@ List<CommentView> chapterComments({
 
 List<ModuleView> modules() => RustLib.instance.api.crateApiLibraryModules();
 
+/// Removes a module and all its content from the library (ADR 0039).
+void deleteModule({required String moduleCode}) =>
+    RustLib.instance.api.crateApiLibraryDeleteModule(moduleCode: moduleCode);
+
+/// Gives a module the reader's own name; an empty name returns to the
+/// source's title (ADR 0039).
+void renameModule({required String moduleCode, required String title}) =>
+    RustLib.instance.api.crateApiLibraryRenameModule(
+      moduleCode: moduleCode,
+      title: title,
+    );
+
+/// Removes a reading plan; false when there is none of that name.
+bool deletePlan({required String name}) =>
+    RustLib.instance.api.crateApiLibraryDeletePlan(name: name);
+
 List<ChapterRefView> contents({required String moduleCode}) =>
     RustLib.instance.api.crateApiLibraryContents(moduleCode: moduleCode);
 
@@ -400,7 +416,13 @@ class DocumentInspectionView {
 
 class ModuleView {
   final String code;
+
+  /// The title shown: the reader's own name when they gave one
+  /// (ADR 0039), else the source's.
   final String title;
+
+  /// The title the source carries.
+  final String sourceTitle;
   final String language;
 
   /// Content units: verses of a Bible text, entries of a commentary.
@@ -416,6 +438,7 @@ class ModuleView {
   const ModuleView({
     required this.code,
     required this.title,
+    required this.sourceTitle,
     required this.language,
     required this.verses,
     required this.notes,
@@ -427,6 +450,7 @@ class ModuleView {
   int get hashCode =>
       code.hashCode ^
       title.hashCode ^
+      sourceTitle.hashCode ^
       language.hashCode ^
       verses.hashCode ^
       notes.hashCode ^
@@ -440,6 +464,7 @@ class ModuleView {
           runtimeType == other.runtimeType &&
           code == other.code &&
           title == other.title &&
+          sourceTitle == other.sourceTitle &&
           language == other.language &&
           verses == other.verses &&
           notes == other.notes &&

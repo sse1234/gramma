@@ -1227,6 +1227,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reading the document…'**
   String get importInspecting;
+
+  /// No description provided for @sectionLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Library'**
+  String get sectionLibrary;
+
+  /// No description provided for @libraryEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing imported yet'**
+  String get libraryEmpty;
+
+  /// No description provided for @libraryKindBible.
+  ///
+  /// In en, this message translates to:
+  /// **'Bible text'**
+  String get libraryKindBible;
+
+  /// No description provided for @libraryKindCommentary.
+  ///
+  /// In en, this message translates to:
+  /// **'Commentary'**
+  String get libraryKindCommentary;
+
+  /// No description provided for @libraryKindDictionary.
+  ///
+  /// In en, this message translates to:
+  /// **'Dictionary'**
+  String get libraryKindDictionary;
+
+  /// No description provided for @libraryKindBook.
+  ///
+  /// In en, this message translates to:
+  /// **'Book'**
+  String get libraryKindBook;
+
+  /// No description provided for @libraryKindDevotional.
+  ///
+  /// In en, this message translates to:
+  /// **'Devotional'**
+  String get libraryKindDevotional;
+
+  /// No description provided for @renameResourceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get renameResourceLabel;
+
+  /// No description provided for @renameResourceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave empty to use the original title: {title}'**
+  String renameResourceHint(String title);
+
+  /// No description provided for @deleteResourceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete \"{name}\"?'**
+  String deleteResourceTitle(String name);
+
+  /// No description provided for @deleteResourceBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The text and everything imported with it are removed from this device. Your notes and markings stay, and you can import the file again at any time.'**
+  String get deleteResourceBody;
+
+  /// No description provided for @deletePlanBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The reading plan is removed from this device. You can import the file again at any time.'**
+  String get deletePlanBody;
 }
 
 class _AppLocalizationsDelegate

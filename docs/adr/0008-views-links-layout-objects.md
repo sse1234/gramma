@@ -50,3 +50,20 @@ worth persisting and syncing between devices.
   home to grow into.
 - Verse-level (rather than chapter-level) link granularity and inline
   footnote markers in the text are deliberate next refinements.
+
+## Amendment (2026-11-14): a stored position is restored to its verse
+
+A view's stored position names chapter and verse, but restoring it —
+on a desk switched back to, on the app reopened — stopped at the
+chapter's first line. The view now opens on the chapter and moves to
+the verse as soon as the chapter is typeset; in the multi-column
+reader that is a jump like any other and heads the first column
+(ADR 0028). The position is the verse standing at the view's top, so
+a view left in the middle of a long verse returns to that verse's
+first line, a few lines above where it was.
+
+The single-column reader also reads its position exactly now, from
+the geometry of the list — where a chapter's text begins below its
+heading, and the line height — instead of estimating it from the
+fraction of the chapter scrolled past, which was off by a line or two
+and stored the wrong verse in short chapters.
