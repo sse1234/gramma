@@ -6,6 +6,8 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
 
 ## [Unreleased]
 
+## [1.1.8] - 2026-11-14
+
 ### Added
 - Settings have a Library tab: texts, commentaries, dictionaries, books
   and reading plans can be deleted from the device, and renamed. A
@@ -19,6 +21,9 @@ are the app's `pubspec.yaml` version, tags are `v<version>`.
   Gradle 9.5.0.
 - A pen's underline is drawn below the text's baseline with a gap,
   instead of through the letters' feet (ADR 0035, amended).
+- The setting "Column turn effort" is called "Page turn effort": it
+  governs a turn by a column and by a screen alike, and its value
+  names which of the two it is a fraction of.
 
 ### Fixed
 - Switching desks, and reopening the app, returns each view to the

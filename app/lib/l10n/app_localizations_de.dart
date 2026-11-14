@@ -365,11 +365,16 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get columnTurnEffort => 'Spaltenwechsel-Widerstand';
+  String get pageTurnEffort => 'Seitenwechsel-Widerstand';
 
   @override
   String columnAdvanceLabel(int p) {
     return '$p% einer Spalte';
+  }
+
+  @override
+  String pageAdvanceLabel(int p) {
+    return '$p% einer Seite';
   }
 
   @override

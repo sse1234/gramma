@@ -365,11 +365,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get columnTurnEffort => 'Column turn effort';
+  String get pageTurnEffort => 'Page turn effort';
 
   @override
   String columnAdvanceLabel(int p) {
     return '$p% of a column';
+  }
+
+  @override
+  String pageAdvanceLabel(int p) {
+    return '$p% of a page';
   }
 
   @override

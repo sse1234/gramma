@@ -257,6 +257,37 @@ void main() {
     expect(find.text('Zurück · Einstellungen'), findsOneWidget);
   });
 
+  testWidgets('the turn effort is named for pages, in both paging modes', (
+    tester,
+  ) async {
+    // The setting predates paging by screens; "page turn" covers a
+    // column's turn and a screen's alike.
+    tester.view.physicalSize = const Size(800, 1900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = await _controller();
+    await tester.pumpWidget(_harness(controller));
+    await _openTab(tester, 'reading');
+    expect(find.text('Page turn effort'), findsOneWidget);
+    expect(find.text('Column turn effort'), findsNothing);
+    final slider = tester.widget<Slider>(
+      find.byKey(const Key('advance-slider')),
+    );
+    expect(slider.label, endsWith('% of a column'));
+    controller.setPageWise(true);
+    addTearDown(() => controller.setPageWise(false));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<Slider>(find.byKey(const Key('advance-slider'))).label,
+      endsWith('% of a page'),
+    );
+    controller.setLocaleCode('de');
+    addTearDown(() => controller.setLocaleCode(null));
+    await tester.pumpAndSettle();
+    expect(find.text('Seitenwechsel-Widerstand'), findsOneWidget);
+  });
+
   testWidgets('theme mode selection applies', (tester) async {
     // Tall viewport: the settings page has grown past the default 600px.
     tester.view.physicalSize = const Size(800, 1800);

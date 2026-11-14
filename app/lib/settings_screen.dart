@@ -690,7 +690,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           ListTile(
             contentPadding: EdgeInsets.zero,
-            title: Text(context.l10n.columnTurnEffort),
+            // "Page turn" names a column's turn and a screen's alike;
+            // the slider's value says which it is a fraction of.
+            title: Text(context.l10n.pageTurnEffort),
             subtitle: Slider(
               key: const Key('advance-slider'),
               // Left = a light swipe already turns the column,
@@ -699,9 +701,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               max: SettingsController.maxColumnAdvance,
               divisions: 9,
               value: settings.columnAdvance,
-              label: context.l10n.columnAdvanceLabel(
-                (settings.columnAdvance * 100).round(),
-              ),
+              label: settings.pageWise
+                  ? context.l10n.pageAdvanceLabel(
+                      (settings.columnAdvance * 100).round(),
+                    )
+                  : context.l10n.columnAdvanceLabel(
+                      (settings.columnAdvance * 100).round(),
+                    ),
               onChanged: settings.setColumnAdvance,
             ),
           ),

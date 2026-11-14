@@ -716,17 +716,23 @@ abstract class AppLocalizations {
   /// **'{v} × font size'**
   String lineSpacingLabel(String v);
 
-  /// No description provided for @columnTurnEffort.
+  /// No description provided for @pageTurnEffort.
   ///
   /// In en, this message translates to:
-  /// **'Column turn effort'**
-  String get columnTurnEffort;
+  /// **'Page turn effort'**
+  String get pageTurnEffort;
 
   /// No description provided for @columnAdvanceLabel.
   ///
   /// In en, this message translates to:
   /// **'{p}% of a column'**
   String columnAdvanceLabel(int p);
+
+  /// No description provided for @pageAdvanceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'{p}% of a page'**
+  String pageAdvanceLabel(int p);
 
   /// No description provided for @defaultText.
   ///
